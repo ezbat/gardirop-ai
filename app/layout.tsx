@@ -1,29 +1,16 @@
-import type React from "react"
-import type { Metadata, Viewport } from "next"
-import { Inter, Playfair_Display, Cinzel } from "next/font/google"
-import { Analytics } from "@vercel/analytics/next"
-import "@/app/globals.css"
+import type { Metadata } from "next"
+import { Inter } from "next/font/google"
+import "./globals.css"
 import { ThemeProvider } from "@/components/theme-provider"
 import Navbar from "@/components/navbar"
-import { Providers } from "@/components/providers"
 import { LanguageProvider } from '@/lib/language-context'
+import SessionWrapper from "@/components/session-wrapper"
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" })
-const playfair = Playfair_Display({ subsets: ["latin"], variable: "--font-playfair" })
-const cinzel = Cinzel({ subsets: ["latin"], variable: "--font-cinzel" })
 
 export const metadata: Metadata = {
-  title: "Gardırop AI | Premium Virtual Wardrobe",
-  description:
-    "Your AI-powered personal stylist. Upload your clothes, get personalized weather-appropriate outfit recommendations daily.",
-  generator: "v0.app",
-}
-
-export const viewport: Viewport = {
-  themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#f5f0e8" },
-    { media: "(prefers-color-scheme: dark)", color: "#0f1729" },
-  ],
+  title: "Gardırop AI - Premium Virtual Wardrobe",
+  description: "AI-powered wardrobe management with weather-based outfit recommendations",
 }
 
 export default function RootLayout({
@@ -33,25 +20,22 @@ export default function RootLayout({
 }) {
   return (
     <html lang="tr" suppressHydrationWarning>
-      <body className={`${inter.variable} ${playfair.variable} ${cinzel.variable} antialiased`}>
-        <LanguageProvider>
+      <body className={`${inter.variable} font-sans antialiased`}>
+        <SessionWrapper>
           <ThemeProvider
             attribute="class"
             defaultTheme="dark"
             enableSystem
             disableTransitionOnChange
           >
-            <Providers>
-              <div className="min-h-screen bg-background">
+            <LanguageProvider>
+              <div className="relative min-h-screen bg-background">
                 <Navbar />
-                <main className="pb-8">
-                  {children}
-                </main>
+                <main>{children}</main>
               </div>
-            </Providers>
+            </LanguageProvider>
           </ThemeProvider>
-        </LanguageProvider>
-        <Analytics />
+        </SessionWrapper>
       </body>
     </html>
   )

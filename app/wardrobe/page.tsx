@@ -5,7 +5,7 @@ import { useSession } from "next-auth/react"
 import { motion } from "framer-motion"
 import { Plus, Search, Heart, Trash2 } from "lucide-react"
 import FloatingParticles from "@/components/floating-particles"
-import UploadClothingModal from "@/components/upload-clothing-modal"
+import AddClothModal from "@/components/add-cloth-modal"  // UploadClothingModal yerine
 import { supabase } from "@/lib/supabase"
 
 interface Clothing {
@@ -311,7 +311,7 @@ export default function WardrobePage() {
       </section>
 
       {/* UPLOAD MODAL */}
-      <UploadClothingModal
+     <AddClothModal
         isOpen={showUploadModal}
         onClose={() => setShowUploadModal(false)}
         onSuccess={loadClothes}

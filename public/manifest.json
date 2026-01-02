@@ -1,0 +1,55 @@
+{
+  "name": "Gardirop AI - Premium Virtual Wardrobe",
+  "short_name": "Gardirop AI",
+  "description": "AI destekli akıllı gardırop ve stil asistanı. Kombinler oluştur, trendleri keşfet, sosyalleş!",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#f59e0b",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Yeni Kombin",
+      "short_name": "Kombin",
+      "description": "Hemen yeni kombin oluştur",
+      "url": "/?action=new-outfit",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Keşfet",
+      "short_name": "Keşfet",
+      "description": "Trend kombinleri keşfet",
+      "url": "/explore",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Mağaza",
+      "short_name": "Mağaza",
+      "description": "Trend kıyafetleri incele",
+      "url": "/store",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+    }
+  ],
+  "categories": ["lifestyle", "fashion", "social"],
+  "screenshots": [
+    {
+      "src": "/screenshot1.png",
+      "sizes": "540x720",
+      "type": "image/png"
+    }
+  ]
+}

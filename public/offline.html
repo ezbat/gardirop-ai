@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Offline - Gardirop AI</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: linear-gradient(135deg, #fef3c7 0%, #fed7aa 100%);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    
+    .container {
+      text-align: center;
+      max-width: 400px;
+    }
+    
+    .icon {
+      font-size: 80px;
+      margin-bottom: 20px;
+      animation: bounce 2s infinite;
+    }
+    
+    @keyframes bounce {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-20px); }
+    }
+    
+    h1 {
+      font-size: 32px;
+      color: #78350f;
+      margin-bottom: 10px;
+    }
+    
+    p {
+      color: #92400e;
+      font-size: 18px;
+      margin-bottom: 30px;
+    }
+    
+    .button {
+      display: inline-block;
+      padding: 15px 30px;
+      background: linear-gradient(135deg, #f59e0b 0%, #ea580c 100%);
+      color: white;
+      text-decoration: none;
+      border-radius: 12px;
+      font-weight: 600;
+      font-size: 16px;
+      box-shadow: 0 4px 15px rgba(245, 158, 11, 0.3);
+      transition: transform 0.2s;
+    }
+    
+    .button:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(245, 158, 11, 0.4);
+    }
+    
+    .status {
+      margin-top: 30px;
+      padding: 15px;
+      background: rgba(255, 255, 255, 0.5);
+      border-radius: 12px;
+      color: #92400e;
+      font-size: 14px;
+    }
+    
+    .dot {
+      display: inline-block;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #dc2626;
+      margin-right: 8px;
+      animation: pulse 1.5s infinite;
+    }
+    
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.3; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="icon">📵</div>
+    <h1>İnternet Bağlantısı Yok</h1>
+    <p>Görünüşe göre çevrimdışısınız. İnternet bağlantınızı kontrol edin.</p>
+    
+    <a href="/" class="button" onclick="location.reload()">🔄 Tekrar Dene</a>
+    
+    <div class="status">
+      <span class="dot"></span>
+      Çevrimdışı Mod
+    </div>
+    
+    <script>
+      // Her 5 saniyede bir bağlantıyı kontrol et
+      setInterval(() => {
+        if (navigator.onLine) {
+          location.reload()
+        }
+      }, 5000)
+      
+      // Online olunca otomatik yenile
+      window.addEventListener('online', () => {
+        location.reload()
+      })
+    </script>
+  </div>
+</body>
+</html>

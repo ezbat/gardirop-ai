@@ -10,7 +10,6 @@ import CreatePostModal from "./create-post-modal"
 export default function Navbar() {
   const { data: session } = useSession()
   const [isOpen, setIsOpen] = useState(false)
-  const [showSearch, setShowSearch] = useState(false)
   const [showCreatePost, setShowCreatePost] = useState(false)
 
   const navLinks = [
@@ -50,14 +49,14 @@ export default function Navbar() {
             {/* RIGHT ICONS */}
             <div className="flex items-center gap-2">
               
-              {/* SEARCH */}
-              <button
-                onClick={() => setShowSearch(!showSearch)}
+              {/* SEARCH - Direct link to search page */}
+              <Link
+                href="/search"
                 className="p-2 glass border border-border rounded-xl hover:border-primary transition-colors"
                 title="Ara"
               >
                 <Search className="w-5 h-5" />
-              </button>
+              </Link>
 
               {session ? (
                 <>
@@ -147,27 +146,14 @@ export default function Navbar() {
                     {link.label}
                   </Link>
                 ))}
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        {/* SEARCH BAR */}
-        <AnimatePresence>
-          {showSearch && (
-            <motion.div
-              initial={{ height: 0, opacity: 0 }}
-              animate={{ height: "auto", opacity: 1 }}
-              exit={{ height: 0, opacity: 0 }}
-              className="border-t border-border overflow-hidden"
-            >
-              <div className="container mx-auto px-4 py-4">
-                <input
-                  type="text"
-                  placeholder="Kullanıcı, gönderi veya kıyafet ara..."
-                  className="w-full px-4 py-2 glass border border-border rounded-xl outline-none focus:border-primary"
-                  autoFocus
-                />
+                {/* SEARCH LINK FOR MOBILE */}
+                <Link
+                  href="/search"
+                  onClick={() => setIsOpen(false)}
+                  className="block px-4 py-2 glass rounded-xl hover:border-primary transition-colors"
+                >
+                  Ara
+                </Link>
               </div>
             </motion.div>
           )}

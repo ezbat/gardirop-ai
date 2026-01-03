@@ -45,51 +45,61 @@ export default function AddClothModal({ isOpen, onClose, onSuccess }: AddClothMo
     reader.readAsDataURL(selectedFile)
   }
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!file || !userId) return
+ const handleSubmit = async (e: React.FormEvent) => {
+  e.preventDefault()
+  if (!file || !userId) return
 
-    setUploading(true)
-    try {
-      const fileName = `${userId}/${Date.now()}-${file.name}`
-      
-      const { error: uploadError } = await supabase.storage
-        .from('clothes-images')
-        .upload(fileName, file)
+  setUploading(true)
+  try {
+    // Dosya adını temizle
+    const cleanFileName = file.name
+      .toLowerCase()
+      .replace(/ş/g, 's')
+      .replace(/ğ/g, 'g')
+      .replace(/ü/g, 'u')
+      .replace(/ö/g, 'o')
+      .replace(/ç/g, 'c')
+      .replace(/ı/g, 'i')
+      .replace(/[^a-z0-9.]/g, '_')
 
-      if (uploadError) throw uploadError
+    const fileName = `${userId}/${Date.now()}-${cleanFileName}`
+    
+    const { error: uploadError } = await supabase.storage
+      .from('clothes-images')
+      .upload(fileName, file)
 
-      const { data: urlData } = supabase.storage
-        .from('clothes-images')
-        .getPublicUrl(fileName)
+    if (uploadError) throw uploadError
 
-      const { error: insertError } = await supabase
-        .from('clothes')
-        .insert({
-          user_id: userId,
-          name: formData.name,
-          category: formData.category,
-          brand: formData.brand || null,
-          color_hex: "#000000",
-          image_url: urlData.publicUrl,
-          season: [formData.season],
-          occasions: [formData.occasion],
-          is_favorite: false
-        })
+    const { data: urlData } = supabase.storage
+      .from('clothes-images')
+      .getPublicUrl(fileName)
 
-      if (insertError) throw insertError
+    const { error: insertError } = await supabase
+      .from('clothes')
+      .insert({
+        user_id: userId,
+        name: formData.name,
+        category: formData.category,
+        brand: formData.brand || null,
+        color_hex: "#000000",
+        image_url: urlData.publicUrl,
+        season: [formData.season],
+        occasions: [formData.occasion],
+        is_favorite: false
+      })
 
-      alert('Kıyafet eklendi! ✨')
-      handleClose()
-      if (onSuccess) onSuccess()
-    } catch (error) {
-      console.error('Upload error:', error)
-      alert('Yükleme başarısız!')
-    } finally {
-      setUploading(false)
-    }
+    if (insertError) throw insertError
+
+    alert('Kıyafet eklendi! ✨')
+    handleClose()
+    if (onSuccess) onSuccess()
+  } catch (error) {
+    console.error('Upload error:', error)
+    alert('Yükleme başarısız!')
+  } finally {
+    setUploading(false)
   }
-
+}
   const handleClose = () => {
     setFile(null)
     setPreview("")

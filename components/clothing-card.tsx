@@ -43,8 +43,7 @@ export default function ClothingCard({ item, onDelete, onEdit }: ClothingCardPro
       className="relative group glass border border-border rounded-2xl overflow-hidden"
     >
       {/* Görsel Alanı */}
-      <div className={`aspect-square flex items-center justify-center bg-gradient-to-br ${styleColors[item.style] || 'from-primary/10 to-primary/20'} relative`}>
-        {/* Emoji veya Görsel */}
+     <div className="aspect-square flex items-center justify-center bg-gradient-to-br from-primary/10 to-primary/20 relative">
         {item.imageUrl ? (
           <img
             src={item.imageUrl}

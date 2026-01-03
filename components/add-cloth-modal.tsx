@@ -45,61 +45,65 @@ export default function AddClothModal({ isOpen, onClose, onSuccess }: AddClothMo
     reader.readAsDataURL(selectedFile)
   }
 
- const handleSubmit = async (e: React.FormEvent) => {
-  e.preventDefault()
-  if (!file || !userId) return
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!file || !userId) return
 
-  setUploading(true)
-  try {
-    // Dosya adını temizle
-    const cleanFileName = file.name
-      .toLowerCase()
-      .replace(/ş/g, 's')
-      .replace(/ğ/g, 'g')
-      .replace(/ü/g, 'u')
-      .replace(/ö/g, 'o')
-      .replace(/ç/g, 'c')
-      .replace(/ı/g, 'i')
-      .replace(/[^a-z0-9.]/g, '_')
+    setUploading(true)
+    try {
+      // Dosya adını tamamen temizle
+      const fileExtension = file.name.split('.').pop() || 'jpg'
+      const timestamp = Date.now()
+      const randomString = Math.random().toString(36).substring(7)
+      const cleanFileName = `${userId}/${timestamp}_${randomString}.${fileExtension}`
 
-    const fileName = `${userId}/${Date.now()}-${cleanFileName}`
-    
-    const { error: uploadError } = await supabase.storage
-      .from('clothes-images')
-      .upload(fileName, file)
+      console.log('Uploading to:', cleanFileName)
+      
+      const { error: uploadError } = await supabase.storage
+        .from('clothes-images')
+        .upload(cleanFileName, file)
 
-    if (uploadError) throw uploadError
+      if (uploadError) {
+        console.error('Upload error:', uploadError)
+        throw uploadError
+      }
 
-    const { data: urlData } = supabase.storage
-      .from('clothes-images')
-      .getPublicUrl(fileName)
+      const { data: urlData } = supabase.storage
+        .from('clothes-images')
+        .getPublicUrl(cleanFileName)
 
-    const { error: insertError } = await supabase
-      .from('clothes')
-      .insert({
-        user_id: userId,
-        name: formData.name,
-        category: formData.category,
-        brand: formData.brand || null,
-        color_hex: "#000000",
-        image_url: urlData.publicUrl,
-        season: [formData.season],
-        occasions: [formData.occasion],
-        is_favorite: false
-      })
+      console.log('Public URL:', urlData.publicUrl)
 
-    if (insertError) throw insertError
+      const { error: insertError } = await supabase
+        .from('clothes')
+        .insert({
+          user_id: userId,
+          name: formData.name,
+          category: formData.category,
+          brand: formData.brand || null,
+          color_hex: "#000000",
+          image_url: urlData.publicUrl,
+          season: [formData.season],
+          occasions: [formData.occasion],
+          is_favorite: false
+        })
 
-    alert('Kıyafet eklendi! ✨')
-    handleClose()
-    if (onSuccess) onSuccess()
-  } catch (error) {
-    console.error('Upload error:', error)
-    alert('Yükleme başarısız!')
-  } finally {
-    setUploading(false)
+      if (insertError) {
+        console.error('Insert error:', insertError)
+        throw insertError
+      }
+
+      alert('Kıyafet eklendi! ✨')
+      handleClose()
+      if (onSuccess) onSuccess()
+    } catch (error: any) {
+      console.error('Upload error:', error)
+      alert(`Yükleme başarısız: ${error.message || 'Bilinmeyen hata'}`)
+    } finally {
+      setUploading(false)
+    }
   }
-}
+
   const handleClose = () => {
     setFile(null)
     setPreview("")

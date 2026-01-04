@@ -1,38 +1,51 @@
-import Replicate from 'replicate'
+const HF_API_URL = "https://api-inference.huggingface.co/models/yisol/IDM-VTON"
+const HF_TOKEN = process.env.HUGGINGFACE_API_TOKEN || ""
 
-const replicate = new Replicate({
-  auth: process.env.REPLICATE_API_TOKEN || '',
-})
-
-const BASE_MODEL_URL = 'https://replicate.delivery/pbxt/Jd6Gxt5pNhKGdwK3fYCYBpLLSRgTzPfJWnCGBjJCFMgUrJjQA/model.png'
+// Base model image (manken)
+const BASE_MODEL_URL = "https://images.unsplash.com/photo-1529626455594-4ff0802cfb7e?w=512&h=768&fit=crop"
 
 export async function generateVirtualTryOn(clothingImageUrl: string): Promise<string | null> {
   try {
-    console.log('🎨 Virtual try-on başlatılıyor...')
+    console.log('🎨 Hugging Face try-on başlatılıyor...')
 
-    const output = await replicate.run(
-      "cuuupid/idm-vton:c871bb9b046607b680449ecbae55fd8c6d945e0a1948644bf2361b3d021d3ff4",
-      {
-        input: {
-          human_img: BASE_MODEL_URL,
-          garm_img: clothingImageUrl,
-          garment_des: "clothing item"
-        }
-      }
-    )
+    // Kıyafet resmini indir
+    const clothingResponse = await fetch(clothingImageUrl)
+    const clothingBlob = await clothingResponse.blob()
 
-    // Output array veya string olabilir
-    const imageUrl = Array.isArray(output) ? output[0] : output
-    
-    if (typeof imageUrl !== 'string') {
-      console.error('Unexpected output type:', typeof imageUrl)
-      return null
+    // Model resmini indir
+    const modelResponse = await fetch(BASE_MODEL_URL)
+    const modelBlob = await modelResponse.blob()
+
+    // Form data hazırla
+    const formData = new FormData()
+    formData.append('cloth', clothingBlob, 'cloth.jpg')
+    formData.append('model', modelBlob, 'model.jpg')
+
+    // Hugging Face API çağrısı
+    const response = await fetch(HF_API_URL, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${HF_TOKEN}`
+      },
+      body: formData
+    })
+
+    if (!response.ok) {
+      const errorText = await response.text()
+      console.error('HF API error:', response.status, errorText)
+      throw new Error(`HF API failed: ${response.status}`)
     }
 
-    console.log('✅ Virtual try-on tamamlandı:', imageUrl)
-    return imageUrl
+    // Yanıt blob'u al
+    const resultBlob = await response.blob()
+    
+    // Blob'u base64'e çevir (veya upload edip URL dön)
+    const base64 = await blobToBase64(resultBlob)
+    
+    console.log('✅ Hugging Face try-on tamamlandı!')
+    return `data:image/jpeg;base64,${base64}`
   } catch (error) {
-    console.error('❌ Virtual try-on hatası:', error)
+    console.error('❌ Hugging Face try-on hatası:', error)
     return null
   }
 }
@@ -41,36 +54,24 @@ export async function generateFullOutfitTryOn(clothingUrls: string[]): Promise<s
   if (clothingUrls.length === 0) return null
 
   try {
-    let currentModel = BASE_MODEL_URL
-
-    for (let i = 0; i < Math.min(clothingUrls.length, 3); i++) {
-      console.log(`🎨 Kıyafet ${i + 1}/${clothingUrls.length} ekleniyor...`)
-
-      const output = await replicate.run(
-        "cuuupid/idm-vton:c871bb9b046607b680449ecbae55fd8c6d945e0a1948644bf2361b3d021d3ff4",
-        {
-          input: {
-            human_img: currentModel,
-            garm_img: clothingUrls[i],
-            garment_des: "clothing item"
-          }
-        }
-      )
-
-      const imageUrl = Array.isArray(output) ? output[0] : output
-      
-      if (typeof imageUrl !== 'string') {
-        console.error('Unexpected output type:', typeof imageUrl)
-        return null
-      }
-
-      currentModel = imageUrl
-    }
-
-    console.log('✅ Full outfit try-on tamamlandı!')
-    return currentModel
+    // Sadece ilk kıyafeti dene (multiple kıyafet HF'de zor)
+    const result = await generateVirtualTryOn(clothingUrls[0])
+    return result
   } catch (error) {
     console.error('❌ Full outfit try-on hatası:', error)
     return null
   }
+}
+
+// Helper: Blob to Base64
+async function blobToBase64(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onloadend = () => {
+      const base64 = reader.result as string
+      resolve(base64.split(',')[1])
+    }
+    reader.onerror = reject
+    reader.readAsDataURL(blob)
+  })
 }

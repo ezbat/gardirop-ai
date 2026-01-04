@@ -1,27 +1,22 @@
 const HF_API_URL = "https://api-inference.huggingface.co/models/yisol/IDM-VTON"
 const HF_TOKEN = process.env.HUGGINGFACE_API_TOKEN || ""
 
-// Base model image (manken)
 const BASE_MODEL_URL = "https://images.unsplash.com/photo-1529626455594-4ff0802cfb7e?w=512&h=768&fit=crop"
 
 export async function generateVirtualTryOn(clothingImageUrl: string): Promise<string | null> {
   try {
     console.log('🎨 Hugging Face try-on başlatılıyor...')
 
-    // Kıyafet resmini indir
     const clothingResponse = await fetch(clothingImageUrl)
     const clothingBlob = await clothingResponse.blob()
 
-    // Model resmini indir
     const modelResponse = await fetch(BASE_MODEL_URL)
     const modelBlob = await modelResponse.blob()
 
-    // Form data hazırla
     const formData = new FormData()
     formData.append('cloth', clothingBlob, 'cloth.jpg')
     formData.append('model', modelBlob, 'model.jpg')
 
-    // Hugging Face API çağrısı
     const response = await fetch(HF_API_URL, {
       method: 'POST',
       headers: {
@@ -36,10 +31,7 @@ export async function generateVirtualTryOn(clothingImageUrl: string): Promise<st
       throw new Error(`HF API failed: ${response.status}`)
     }
 
-    // Yanıt blob'u al
     const resultBlob = await response.blob()
-    
-    // Blob'u base64'e çevir (veya upload edip URL dön)
     const base64 = await blobToBase64(resultBlob)
     
     console.log('✅ Hugging Face try-on tamamlandı!')
@@ -54,7 +46,6 @@ export async function generateFullOutfitTryOn(clothingUrls: string[]): Promise<s
   if (clothingUrls.length === 0) return null
 
   try {
-    // Sadece ilk kıyafeti dene (multiple kıyafet HF'de zor)
     const result = await generateVirtualTryOn(clothingUrls[0])
     return result
   } catch (error) {
@@ -63,7 +54,6 @@ export async function generateFullOutfitTryOn(clothingUrls: string[]): Promise<s
   }
 }
 
-// Helper: Blob to Base64
 async function blobToBase64(blob: Blob): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader()

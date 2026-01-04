@@ -2,8 +2,9 @@
 
 import { useState, useEffect, useRef } from "react"
 import { useSession } from "next-auth/react"
+import { useSearchParams, useRouter } from "next/navigation"
 import { motion } from "framer-motion"
-import { Send, Search, MoreVertical } from "lucide-react"
+import { Send, Search, MoreVertical, Loader2, ArrowLeft } from "lucide-react"
 import FloatingParticles from "@/components/floating-particles"
 import { supabase } from "@/lib/supabase"
 
@@ -27,7 +28,10 @@ interface Conversation {
 
 export default function MessagesPage() {
   const { data: session } = useSession()
+  const searchParams = useSearchParams()
+  const router = useRouter()
   const userId = session?.user?.id
+  const toUserId = searchParams.get('to')
 
   const [conversations, setConversations] = useState<Conversation[]>([])
   const [selectedUser, setSelectedUser] = useState<string | null>(null)
@@ -36,26 +40,77 @@ export default function MessagesPage() {
   const [loading, setLoading] = useState(true)
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
+
+  // Load conversations once
+ // Load conversations once
   useEffect(() => {
     if (userId) {
       loadConversations()
     }
   }, [userId])
 
+  // Handle URL parameter (only once after conversations load)
+  useEffect(() => {
+    if (toUserId && conversations.length > 0) {
+      const exists = conversations.find(c => c.userId === toUserId)
+      if (!exists) {
+        handleNewConversation(toUserId)
+      } else {
+        setSelectedUser(toUserId)
+      }
+    }
+  }, [toUserId, conversations.length])
+
+  // Load messages when user selected
   useEffect(() => {
     if (selectedUser) {
       loadMessages(selectedUser)
-      // Auto scroll to bottom
-      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
     }
-  }, [selectedUser, messages.length])
+  }, [selectedUser])
+
+  // Auto scroll (separate useEffect)
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
+  }, [messages.length])
+
+  const handleNewConversation = async (otherUserId: string) => {
+  try {
+    // Load user info
+      // Check if conversation already exists
+      const existing = conversations.find(c => c.userId === otherUserId)
+      
+      if (!existing) {
+        // Load user info
+        const { data: userData } = await supabase
+          .from('users')
+          .select('id, name, username, avatar_url')
+          .eq('id', otherUserId)
+          .single()
+
+        if (userData) {
+          const newConv: Conversation = {
+            userId: userData.id,
+            userName: userData.name,
+            userAvatar: userData.avatar_url,
+            lastMessage: 'Yeni sohbet',
+            lastMessageTime: new Date().toISOString(),
+            unreadCount: 0
+          }
+          setConversations(prev => [newConv, ...prev])
+        }
+      }
+      
+      setSelectedUser(otherUserId)
+    } catch (error) {
+      console.error('Handle new conversation error:', error)
+    }
+  }
 
   const loadConversations = async () => {
     if (!userId) return
 
     setLoading(true)
     try {
-      // Tüm mesajları çek
       const { data: messagesData, error } = await supabase
         .from('messages')
         .select('*')
@@ -64,21 +119,18 @@ export default function MessagesPage() {
 
       if (error) throw error
 
-      // Konuşmaları grupla
       const conversationsMap = new Map<string, Conversation>()
 
       for (const msg of messagesData || []) {
         const otherUserId = msg.sender_id === userId ? msg.receiver_id : msg.sender_id
-        
+
         if (!conversationsMap.has(otherUserId)) {
-          // User bilgisini çek
           const { data: userData } = await supabase
             .from('users')
-            .select('id, name, avatar_url')
+            .select('id, name, username, avatar_url')
             .eq('id', otherUserId)
             .single()
 
-          // Okunmamış mesaj sayısı
           const { count } = await supabase
             .from('messages')
             .select('*', { count: 'exact', head: true })
@@ -98,7 +150,6 @@ export default function MessagesPage() {
       }
 
       setConversations(Array.from(conversationsMap.values()))
-      console.log('✅ Conversations loaded:', conversationsMap.size)
     } catch (error) {
       console.error('Load conversations error:', error)
     } finally {
@@ -120,15 +171,13 @@ export default function MessagesPage() {
 
       setMessages(data || [])
 
-      // Okunmamışları okundu işaretle
+      // Mark as read
       await supabase
         .from('messages')
         .update({ is_read: true })
         .eq('sender_id', otherUserId)
         .eq('receiver_id', userId)
         .eq('is_read', false)
-
-      console.log('✅ Messages loaded:', data?.length || 0)
     } catch (error) {
       console.error('Load messages error:', error)
     }
@@ -143,15 +192,15 @@ export default function MessagesPage() {
         .insert({
           sender_id: userId,
           receiver_id: selectedUser,
-          content: newMessage,
+          content: newMessage.trim(),
           is_read: false
         })
 
       if (error) throw error
 
       setNewMessage("")
-      loadMessages(selectedUser)
-      loadConversations()
+      await loadMessages(selectedUser)
+      await loadConversations()
     } catch (error) {
       console.error('Send message error:', error)
     }
@@ -164,14 +213,15 @@ export default function MessagesPage() {
     }
   }
 
-  if (loading) {
+  const selectedConversation = conversations.find(c => c.userId === selectedUser)
+
+  if (!session) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <motion.div
-          animate={{ rotate: 360 }}
-          transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
-          className="w-16 h-16 rounded-full border-2 border-primary border-t-transparent"
-        />
+        <div className="text-center">
+          <h2 className="text-2xl font-bold mb-4">Giriş Yapmalısınız</h2>
+          <a href="/api/auth/signin" className="px-6 py-3 bg-primary text-primary-foreground rounded-xl font-semibold inline-block">Giriş Yap</a>
+        </div>
       </div>
     )
   }
@@ -182,137 +232,166 @@ export default function MessagesPage() {
 
       <section className="relative py-8 px-4">
         <div className="container mx-auto max-w-6xl">
-          <h1 className="font-serif text-4xl font-bold mb-8">Mesajlar</h1>
+          
+          {/* Back Button */}
+          <button
+            onClick={() => router.back()}
+            className="flex items-center gap-2 mb-6 text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <ArrowLeft className="w-5 h-5" />
+            Geri
+          </button>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            
-            {/* CONVERSATIONS LIST */}
-            <div className="md:col-span-1 glass border border-border rounded-2xl overflow-hidden h-[600px] flex flex-col">
-              <div className="p-4 border-b border-border">
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
-                  <input
-                    type="text"
-                    placeholder="Ara..."
-                    className="w-full pl-10 pr-4 py-2 glass border border-border rounded-xl outline-none focus:border-primary"
-                  />
+          <div className="glass border border-border rounded-2xl overflow-hidden" style={{ height: 'calc(100vh - 200px)' }}>
+            <div className="grid grid-cols-12 h-full">
+              
+              {/* Conversations List */}
+              <div className="col-span-12 md:col-span-4 border-r border-border">
+                <div className="p-4 border-b border-border">
+                  <h2 className="text-xl font-bold mb-4">Mesajlar</h2>
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                    <input
+                      type="text"
+                      placeholder="Ara..."
+                      className="w-full pl-10 pr-4 py-2 glass border border-border rounded-xl outline-none focus:border-primary"
+                    />
+                  </div>
+                </div>
+
+                <div className="overflow-y-auto" style={{ height: 'calc(100% - 140px)' }}>
+                  {loading ? (
+                    <div className="flex justify-center py-8">
+                      <Loader2 className="w-8 h-8 animate-spin text-primary" />
+                    </div>
+                  ) : conversations.length === 0 ? (
+                    <div className="text-center py-8 text-muted-foreground">
+                      <p>Henüz mesaj yok</p>
+                    </div>
+                  ) : (
+                    conversations.map(conv => (
+                      <button
+                        key={conv.userId}
+                        onClick={() => setSelectedUser(conv.userId)}
+                        className={`w-full p-4 border-b border-border hover:bg-primary/5 transition-colors text-left ${
+                          selectedUser === conv.userId ? 'bg-primary/10' : ''
+                        }`}
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center overflow-hidden flex-shrink-0">
+                            {conv.userAvatar ? (
+                              <img src={conv.userAvatar} alt={conv.userName} className="w-full h-full object-cover" />
+                            ) : (
+                              <span className="text-xl">👤</span>
+                            )}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center justify-between mb-1">
+                              <p className="font-semibold truncate">{conv.userName}</p>
+                              {conv.unreadCount > 0 && (
+                                <span className="bg-primary text-primary-foreground text-xs font-bold px-2 py-1 rounded-full">
+                                  {conv.unreadCount}
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-sm text-muted-foreground truncate">{conv.lastMessage}</p>
+                          </div>
+                        </div>
+                      </button>
+                    ))
+                  )}
                 </div>
               </div>
 
-              <div className="flex-1 overflow-y-auto">
-                {conversations.length === 0 ? (
-                  <div className="text-center py-20">
-                    <div className="text-6xl mb-4">💬</div>
-                    <p className="text-muted-foreground">Henüz mesaj yok</p>
-                  </div>
-                ) : (
-                  conversations.map((conv) => (
-                    <button
-                      key={conv.userId}
-                      onClick={() => setSelectedUser(conv.userId)}
-                      className={`w-full p-4 flex items-center gap-3 hover:bg-secondary transition-colors border-b border-border ${
-                        selectedUser === conv.userId ? 'bg-primary/10' : ''
-                      }`}
-                    >
-                      <div className="w-12 h-12 rounded-full overflow-hidden bg-primary flex-shrink-0">
-                        {conv.userAvatar ? (
-                          <img src={conv.userAvatar} alt={conv.userName} className="w-full h-full object-cover" />
-                        ) : (
-                          <div className="w-full h-full flex items-center justify-center text-white font-bold">
-                            {conv.userName[0]?.toUpperCase()}
-                          </div>
-                        )}
-                      </div>
-                      <div className="flex-1 text-left min-w-0">
-                        <div className="flex items-center justify-between mb-1">
-                          <p className="font-bold truncate">{conv.userName}</p>
-                          {conv.unreadCount > 0 && (
-                            <span className="w-5 h-5 rounded-full bg-primary text-white text-xs flex items-center justify-center flex-shrink-0">
-                              {conv.unreadCount}
-                            </span>
+              {/* Chat Area */}
+              <div className="col-span-12 md:col-span-8 flex flex-col">
+                {selectedUser && selectedConversation ? (
+                  <>
+                    {/* Chat Header */}
+                    <div className="p-4 border-b border-border flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center overflow-hidden">
+                          {selectedConversation.userAvatar ? (
+                            <img src={selectedConversation.userAvatar} alt={selectedConversation.userName} className="w-full h-full object-cover" />
+                          ) : (
+                            <span>👤</span>
                           )}
                         </div>
-                        <p className="text-sm text-muted-foreground truncate">{conv.lastMessage}</p>
-                      </div>
-                    </button>
-                  ))
-                )}
-              </div>
-            </div>
-
-            {/* CHAT AREA */}
-            <div className="md:col-span-2 glass border border-border rounded-2xl overflow-hidden h-[600px] flex flex-col">
-              {selectedUser ? (
-                <>
-                  {/* CHAT HEADER */}
-                  <div className="p-4 border-b border-border flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full overflow-hidden bg-primary">
-                        {conversations.find(c => c.userId === selectedUser)?.userAvatar ? (
-                          <img src={conversations.find(c => c.userId === selectedUser)?.userAvatar || ''} alt="User" className="w-full h-full object-cover" />
-                        ) : (
-                          <div className="w-full h-full flex items-center justify-center text-white font-bold">
-                            {conversations.find(c => c.userId === selectedUser)?.userName[0]?.toUpperCase()}
-                          </div>
-                        )}
-                      </div>
-                      <p className="font-bold">{conversations.find(c => c.userId === selectedUser)?.userName}</p>
-                    </div>
-                    <button className="p-2 hover:bg-secondary rounded-lg transition-colors">
-                      <MoreVertical className="w-5 h-5" />
-                    </button>
-                  </div>
-
-                  {/* MESSAGES */}
-                  <div className="flex-1 overflow-y-auto p-4 space-y-4">
-                    {messages.map((msg) => {
-                      const isMe = msg.sender_id === userId
-                      return (
-                        <div key={msg.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
-                          <div className={`max-w-[70%] px-4 py-2 rounded-2xl ${
-                            isMe ? 'bg-primary text-primary-foreground' : 'glass border border-border'
-                          }`}>
-                            <p className="text-sm">{msg.content}</p>
-                            <p className={`text-xs mt-1 ${isMe ? 'text-primary-foreground/70' : 'text-muted-foreground'}`}>
-                              {new Date(msg.created_at).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}
-                            </p>
-                          </div>
+                        <div>
+                          <p className="font-semibold">{selectedConversation.userName}</p>
+                          <p className="text-xs text-muted-foreground">Aktif</p>
                         </div>
-                      )
-                    })}
-                    <div ref={messagesEndRef} />
-                  </div>
-
-                  {/* MESSAGE INPUT */}
-                  <div className="p-4 border-t border-border">
-                    <div className="flex gap-2">
-                      <input
-                        type="text"
-                        value={newMessage}
-                        onChange={(e) => setNewMessage(e.target.value)}
-                        onKeyPress={handleKeyPress}
-                        placeholder="Mesaj yaz..."
-                        className="flex-1 px-4 py-2 glass border border-border rounded-xl outline-none focus:border-primary"
-                      />
-                      <button
-                        onClick={sendMessage}
-                        disabled={!newMessage.trim()}
-                        className="px-4 py-2 bg-primary text-primary-foreground rounded-xl hover:opacity-90 transition-opacity disabled:opacity-50"
-                      >
-                        <Send className="w-5 h-5" />
+                      </div>
+                      <button className="p-2 hover:bg-primary/5 rounded-full">
+                        <MoreVertical className="w-5 h-5" />
                       </button>
                     </div>
+
+                    {/* Messages */}
+                    <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                      {messages.length === 0 ? (
+                        <div className="text-center py-8 text-muted-foreground">
+                          <div className="text-6xl mb-4">💬</div>
+                          <p>Henüz mesaj yok. İlk mesajı gönder!</p>
+                        </div>
+                      ) : (
+                        messages.map(msg => (
+                          <motion.div
+                            key={msg.id}
+                            initial={{ opacity: 0, y: 10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            className={`flex ${msg.sender_id === userId ? 'justify-end' : 'justify-start'}`}
+                          >
+                            <div className={`max-w-[70%] px-4 py-2 rounded-2xl ${
+                              msg.sender_id === userId
+                                ? 'bg-primary text-primary-foreground'
+                                : 'glass border border-border'
+                            }`}>
+                              <p className="break-words">{msg.content}</p>
+                              <p className={`text-xs mt-1 ${
+                                msg.sender_id === userId ? 'text-primary-foreground/70' : 'text-muted-foreground'
+                              }`}>
+                                {new Date(msg.created_at).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}
+                              </p>
+                            </div>
+                          </motion.div>
+                        ))
+                      )}
+                      <div ref={messagesEndRef} />
+                    </div>
+
+                    {/* Message Input */}
+                    <div className="p-4 border-t border-border">
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          value={newMessage}
+                          onChange={(e) => setNewMessage(e.target.value)}
+                          onKeyPress={handleKeyPress}
+                          placeholder="Mesajınızı yazın..."
+                          className="flex-1 px-4 py-3 glass border border-border rounded-xl outline-none focus:border-primary"
+                        />
+                        <button
+                          onClick={sendMessage}
+                          disabled={!newMessage.trim()}
+                          className="px-6 py-3 bg-primary text-primary-foreground rounded-xl font-semibold hover:opacity-90 disabled:opacity-50 transition-opacity flex items-center gap-2"
+                        >
+                          <Send className="w-5 h-5" />
+                        </button>
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  <div className="flex-1 flex items-center justify-center text-muted-foreground">
+                    <div className="text-center">
+                      <div className="text-6xl mb-4">💬</div>
+                      <p className="text-xl font-semibold mb-2">Mesajlarınız</p>
+                      <p className="text-sm">Bir sohbet seçin veya yeni bir konuşma başlatın</p>
+                    </div>
                   </div>
-                </>
-              ) : (
-                <div className="flex-1 flex items-center justify-center">
-                  <div className="text-center">
-                    <div className="text-9xl mb-4">💬</div>
-                    <h3 className="text-2xl font-bold mb-2">Mesajlarınız</h3>
-                    <p className="text-muted-foreground">Bir konuşma seçin</p>
-                  </div>
-                </div>
-              )}
+                )}
+              </div>
+
             </div>
           </div>
         </div>

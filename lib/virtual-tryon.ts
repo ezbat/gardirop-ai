@@ -1,43 +1,32 @@
-const HF_API_URL = "https://api-inference.huggingface.co/models/yisol/IDM-VTON"
-const HF_TOKEN = process.env.HUGGINGFACE_API_TOKEN || ""
+import * as fal from "@fal-ai/serverless-client"
 
-const BASE_MODEL_URL = "https://images.unsplash.com/photo-1529626455594-4ff0802cfb7e?w=512&h=768&fit=crop"
+fal.config({
+  credentials: process.env.FAL_KEY || ""
+})
+
+interface FalResult {
+  data: {
+    image: {
+      url: string
+    }
+  }
+}
 
 export async function generateVirtualTryOn(clothingImageUrl: string): Promise<string | null> {
   try {
-    console.log('🎨 Hugging Face try-on başlatılıyor...')
+    console.log('🎨 Fal.ai try-on başlatılıyor...')
 
-    const clothingResponse = await fetch(clothingImageUrl)
-    const clothingBlob = await clothingResponse.blob()
+    const result = await fal.subscribe("fal-ai/idm-vton", {
+      input: {
+        human_image_url: "https://storage.googleapis.com/falserverless/model_tests/idm-vton/model.jpg",
+        garment_image_url: clothingImageUrl
+      }
+    }) as FalResult
 
-    const modelResponse = await fetch(BASE_MODEL_URL)
-    const modelBlob = await modelResponse.blob()
-
-    const formData = new FormData()
-    formData.append('cloth', clothingBlob, 'cloth.jpg')
-    formData.append('model', modelBlob, 'model.jpg')
-
-    const response = await fetch(HF_API_URL, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${HF_TOKEN}`
-      },
-      body: formData
-    })
-
-    if (!response.ok) {
-      const errorText = await response.text()
-      console.error('HF API error:', response.status, errorText)
-      throw new Error(`HF API failed: ${response.status}`)
-    }
-
-    const resultBlob = await response.blob()
-    const base64 = await blobToBase64(resultBlob)
-    
-    console.log('✅ Hugging Face try-on tamamlandı!')
-    return `data:image/jpeg;base64,${base64}`
+    console.log('✅ Fal.ai try-on tamamlandı!')
+    return result.data.image.url
   } catch (error) {
-    console.error('❌ Hugging Face try-on hatası:', error)
+    console.error('❌ Fal.ai try-on hatası:', error)
     return null
   }
 }
@@ -52,16 +41,4 @@ export async function generateFullOutfitTryOn(clothingUrls: string[]): Promise<s
     console.error('❌ Full outfit try-on hatası:', error)
     return null
   }
-}
-
-async function blobToBase64(blob: Blob): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader()
-    reader.onloadend = () => {
-      const base64 = reader.result as string
-      resolve(base64.split(',')[1])
-    }
-    reader.onerror = reject
-    reader.readAsDataURL(blob)
-  })
 }

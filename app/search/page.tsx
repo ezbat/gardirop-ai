@@ -15,7 +15,7 @@ interface User {
   id: string
   name: string
   username: string
-  image: string | null
+  avatar_url: string | null
 }
 
 interface Post {
@@ -23,7 +23,12 @@ interface Post {
   content: string
   image_url: string | null
   created_at: string
-  user: User
+  user: {
+    id: string
+    name: string
+    username: string
+    avatar_url: string | null
+  }
 }
 
 interface Product {
@@ -62,7 +67,7 @@ export default function SearchPage() {
       if (activeTab === "users") {
         const { data, error } = await supabase
           .from('users')
-          .select('id, name, username, image')
+          .select('id,name,username,avatar_url')
           .or(`name.ilike.%${searchQuery}%,username.ilike.%${searchQuery}%`)
           .limit(20)
 
@@ -77,7 +82,7 @@ export default function SearchPage() {
             content,
             image_url,
             created_at,
-            user:users(id, name, username, image)
+            user:users(id, name, username, avatar_url)
           `)
           .ilike('content', `%${searchQuery}%`)
           .order('created_at', { ascending: false })
@@ -191,8 +196,8 @@ export default function SearchPage() {
                       <Link href={`/profile/${user.id}`} className="block glass border border-border rounded-xl p-4 hover:border-primary transition-colors">
                         <div className="flex items-center gap-4">
                           <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center overflow-hidden">
-                            {user.image ? (
-                              <img src={user.image} alt={user.name} className="w-full h-full object-cover" />
+                            {user.avatar_url ? (
+                              <img src={user.avatar_url} alt={user.name} className="w-full h-full object-cover" />
                             ) : (
                               <span className="text-xl">👤</span>
                             )}
@@ -225,8 +230,8 @@ export default function SearchPage() {
                     >
                       <div className="flex items-start gap-4">
                         <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center overflow-hidden flex-shrink-0">
-                          {post.user.image ? (
-                            <img src={post.user.image} alt={post.user.name} className="w-full h-full object-cover" />
+                          {post.user.avatar_url ? (
+                            <img src={post.user.avatar_url} alt={post.user.name} className="w-full h-full object-cover" />
                           ) : (
                             <span>👤</span>
                           )}

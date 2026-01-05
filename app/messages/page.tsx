@@ -1,5 +1,6 @@
 "use client"
 
+import { Suspense } from "react"
 import { useState, useEffect, useRef } from "react"
 import { useSession } from "next-auth/react"
 import { useSearchParams, useRouter } from "next/navigation"
@@ -26,7 +27,7 @@ interface Conversation {
   unreadCount: number
 }
 
-export default function MessagesPage() {
+function MessagesPageContent() {
   const { data: session } = useSession()
   const searchParams = useSearchParams()
   const router = useRouter()
@@ -40,16 +41,12 @@ export default function MessagesPage() {
   const [loading, setLoading] = useState(true)
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
-
-  // Load conversations once
- // Load conversations once
   useEffect(() => {
     if (userId) {
       loadConversations()
     }
   }, [userId])
 
-  // Handle URL parameter (only once after conversations load)
   useEffect(() => {
     if (toUserId && conversations.length > 0) {
       const exists = conversations.find(c => c.userId === toUserId)
@@ -61,26 +58,21 @@ export default function MessagesPage() {
     }
   }, [toUserId, conversations.length])
 
-  // Load messages when user selected
   useEffect(() => {
     if (selectedUser) {
       loadMessages(selectedUser)
     }
   }, [selectedUser])
 
-  // Auto scroll (separate useEffect)
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
   }, [messages.length])
 
   const handleNewConversation = async (otherUserId: string) => {
-  try {
-    // Load user info
-      // Check if conversation already exists
+    try {
       const existing = conversations.find(c => c.userId === otherUserId)
       
       if (!existing) {
-        // Load user info
         const { data: userData } = await supabase
           .from('users')
           .select('id, name, username, avatar_url')
@@ -171,7 +163,6 @@ export default function MessagesPage() {
 
       setMessages(data || [])
 
-      // Mark as read
       await supabase
         .from('messages')
         .update({ is_read: true })
@@ -233,7 +224,6 @@ export default function MessagesPage() {
       <section className="relative py-8 px-4">
         <div className="container mx-auto max-w-6xl">
           
-          {/* Back Button */}
           <button
             onClick={() => router.back()}
             className="flex items-center gap-2 mb-6 text-muted-foreground hover:text-foreground transition-colors"
@@ -245,7 +235,6 @@ export default function MessagesPage() {
           <div className="glass border border-border rounded-2xl overflow-hidden" style={{ height: 'calc(100vh - 200px)' }}>
             <div className="grid grid-cols-12 h-full">
               
-              {/* Conversations List */}
               <div className="col-span-12 md:col-span-4 border-r border-border">
                 <div className="p-4 border-b border-border">
                   <h2 className="text-xl font-bold mb-4">Mesajlar</h2>
@@ -303,11 +292,9 @@ export default function MessagesPage() {
                 </div>
               </div>
 
-              {/* Chat Area */}
               <div className="col-span-12 md:col-span-8 flex flex-col">
                 {selectedUser && selectedConversation ? (
                   <>
-                    {/* Chat Header */}
                     <div className="p-4 border-b border-border flex items-center justify-between">
                       <div className="flex items-center gap-3">
                         <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center overflow-hidden">
@@ -327,7 +314,6 @@ export default function MessagesPage() {
                       </button>
                     </div>
 
-                    {/* Messages */}
                     <div className="flex-1 overflow-y-auto p-4 space-y-4">
                       {messages.length === 0 ? (
                         <div className="text-center py-8 text-muted-foreground">
@@ -360,7 +346,6 @@ export default function MessagesPage() {
                       <div ref={messagesEndRef} />
                     </div>
 
-                    {/* Message Input */}
                     <div className="p-4 border-t border-border">
                       <div className="flex gap-2">
                         <input
@@ -397,5 +382,17 @@ export default function MessagesPage() {
         </div>
       </section>
     </div>
+  )
+}
+
+export default function MessagesPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="w-12 h-12 animate-spin text-primary" />
+      </div>
+    }>
+      <MessagesPageContent />
+    </Suspense>
   )
 }

@@ -18,15 +18,17 @@ export async function generateVirtualTryOn(clothingImageUrl: string): Promise<st
 
     const result = await fal.subscribe("fal-ai/idm-vton", {
       input: {
-        human_image_url: "https://storage.googleapis.com/falserverless/model_tests/idm-vton/model.jpg",
-        garment_image_url: clothingImageUrl
+        human_image_url: "https://storage.googleapis.com/falserverless/model_tests/idm-vton/model_1.png",
+        garment_image_url: clothingImageUrl,
+        description: "A person wearing the garment"
       }
     }) as FalResult
 
-    console.log('✅ Fal.ai try-on tamamlandı!')
+    console.log('✅ Fal.ai result:', result)
     return result.data.image.url
-  } catch (error) {
+  } catch (error: any) {
     console.error('❌ Fal.ai try-on hatası:', error)
+    console.error('❌ Error body:', JSON.stringify(error.body, null, 2))
     return null
   }
 }

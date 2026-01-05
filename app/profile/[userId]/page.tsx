@@ -4,37 +4,42 @@ import { useState, useEffect } from "react"
 import { useSession } from "next-auth/react"
 import { useRouter, useParams } from "next/navigation"
 import { motion } from "framer-motion"
-import { ArrowLeft, MessageCircle, UserPlus, UserMinus, Grid3x3 } from "lucide-react"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { ArrowLeft, MessageCircle, UserPlus, UserMinus, Grid3x3, Loader2 } from "lucide-react"
 import FloatingParticles from "@/components/floating-particles"
-import { useLanguage } from '@/lib/language-context'
-import {
-  type User,
-  type SocialPost,
-  type Story,
-  getUser,
-  getAllSocialPosts,
-  getUserStories,
-  followUser,
-  unfollowUser,
-  isFollowing,
-} from "@/lib/storage"
-import LuxuryButton from "@/components/luxury-button"
+import { supabase } from "@/lib/supabase"
+
+interface User {
+  id: string
+  name: string
+  username: string
+  email: string
+  avatar_url: string | null
+  bio: string | null
+}
+
+interface Post {
+  id: string
+  caption: string
+  image_url: string | null
+  created_at: string
+  likes_count: number
+  comments_count: number
+}
 
 export default function UserProfilePage() {
   const { data: session } = useSession()
   const router = useRouter()
   const params = useParams()
-  const { t } = useLanguage()
   
   const currentUserId = session?.user?.id
   const targetUserId = params.userId as string
 
   const [user, setUser] = useState<User | null>(null)
-  const [posts, setPosts] = useState<SocialPost[]>([])
-  const [stories, setStories] = useState<Story[]>([])
+  const [posts, setPosts] = useState<Post[]>([])
   const [isFollowingUser, setIsFollowingUser] = useState(false)
   const [loading, setLoading] = useState(true)
+  const [followersCount, setFollowersCount] = useState(0)
+  const [followingCount, setFollowingCount] = useState(0)
 
   useEffect(() => {
     if (targetUserId) {
@@ -45,22 +50,81 @@ export default function UserProfilePage() {
   const loadUserData = async () => {
     setLoading(true)
     try {
-      const userData = await getUser(targetUserId)
-      if (!userData) {
-        router.push("/stories")
+      // Get user info
+      const { data: userData, error: userError } = await supabase
+        .from('users')
+        .select('id, name, username, email, avatar_url, bio')
+        .eq('id', targetUserId)
+        .single()
+
+      if (userError || !userData) {
+        console.error('User not found:', userError)
+        router.push('/social')
         return
       }
       setUser(userData)
 
-      const allPosts = await getAllSocialPosts()
-      setPosts(allPosts.filter(p => p.userId === targetUserId))
+      // Get user posts with counts
+ // Get user posts
+const { data: postsData, error: postsError } = await supabase
+  .from('posts')
+  .select('id, caption, image_url, created_at')
+  .eq('user_id', targetUserId)
+  .order('created_at', { ascending: false })
+     if (!postsError && postsData) {
+  // Her post için like ve comment sayısını ayrı çek
+  const formattedPosts = await Promise.all(
+    postsData.map(async (post: any) => {
+      // Likes count
+      const { count: likesCount } = await supabase
+        .from('post_likes')
+        .select('*', { count: 'exact', head: true })
+        .eq('post_id', post.id)
 
-      const userStories = await getUserStories(targetUserId)
-      setStories(userStories)
+      // Comments count
+      const { count: commentsCount } = await supabase
+        .from('post_comments')
+        .select('*', { count: 'exact', head: true })
+        .eq('post_id', post.id)
 
-      if (currentUserId) {
-        const following = await isFollowing(currentUserId, targetUserId)
-        setIsFollowingUser(following)
+   return {
+  id: post.id,
+  caption: post.caption,
+  image_url: post.image_url,
+  created_at: post.created_at,
+  likes_count: likesCount || 0,
+  comments_count: commentsCount || 0
+}
+    })
+  )
+  setPosts(formattedPosts)
+}
+      // Get followers count
+      const { count: followersCountData } = await supabase
+        .from('follows')
+        .select('*', { count: 'exact', head: true })
+        .eq('following_id', targetUserId)
+
+      setFollowersCount(followersCountData || 0)
+
+      // Get following count
+      const { count: followingCountData } = await supabase
+        .from('follows')
+        .select('*', { count: 'exact', head: true })
+        .eq('follower_id', targetUserId)
+
+      setFollowingCount(followingCountData || 0)
+
+      // Check if current user is following
+      if (currentUserId && currentUserId !== targetUserId) {
+        const { data: followData } = await supabase
+  .from('follows')
+  .select('id')
+  .eq('follower_id', currentUserId)
+  .eq('following_id', targetUserId)
+  .maybeSingle()
+
+setIsFollowingUser(!!followData)
       }
     } catch (error) {
       console.error("Failed to load user:", error)
@@ -73,12 +137,27 @@ export default function UserProfilePage() {
     
     try {
       if (isFollowingUser) {
-        await unfollowUser(currentUserId, targetUserId)
+        // Unfollow
+        await supabase
+          .from('follows')
+          .delete()
+          .eq('follower_id', currentUserId)
+          .eq('following_id', targetUserId)
+        
+        setIsFollowingUser(false)
+        setFollowersCount(prev => prev - 1)
       } else {
-        await followUser(currentUserId, targetUserId)
+        // Follow
+        await supabase
+          .from('follows')
+          .insert({
+            follower_id: currentUserId,
+            following_id: targetUserId
+          })
+        
+        setIsFollowingUser(true)
+        setFollowersCount(prev => prev + 1)
       }
-      setIsFollowingUser(!isFollowingUser)
-      await loadUserData()
     } catch (error) {
       console.error("Failed to follow/unfollow:", error)
     }
@@ -91,11 +170,7 @@ export default function UserProfilePage() {
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <motion.div
-          animate={{ rotate: 360 }}
-          transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
-          className="w-16 h-16 rounded-full border-2 border-primary border-t-transparent"
-        />
+        <Loader2 className="w-12 h-12 animate-spin text-primary" />
       </div>
     )
   }
@@ -135,53 +210,53 @@ export default function UserProfilePage() {
           >
             <div className="flex flex-col md:flex-row items-center md:items-start gap-6">
               {/* Avatar */}
-              <div className="relative">
-                <Avatar className="w-32 h-32 border-4 border-primary/20">
-                  <AvatarImage src={user.avatar} alt={user.name} />
-                  <AvatarFallback className="bg-primary/10 text-primary text-4xl">
-                    {user.name[0]}
-                  </AvatarFallback>
-                </Avatar>
-                {stories.length > 0 && (
-                  <div className="absolute -bottom-2 -right-2 bg-primary text-primary-foreground text-xs font-bold px-2 py-1 rounded-full">
-                    {stories.length} 📸
-                  </div>
+              <div className="w-32 h-32 rounded-full bg-primary/10 flex items-center justify-center overflow-hidden border-4 border-primary/20">
+                {user.avatar_url ? (
+                  <img src={user.avatar_url} alt={user.name} className="w-full h-full object-cover" />
+                ) : (
+                  <span className="text-6xl">👤</span>
                 )}
               </div>
 
               {/* Info */}
               <div className="flex-1 text-center md:text-left">
                 <h1 className="text-3xl font-bold mb-2">{user.name}</h1>
-                <p className="text-sm text-muted-foreground mb-4">{user.email}</p>
+                <p className="text-sm text-muted-foreground mb-2">@{user.username}</p>
+                {user.bio && (
+                  <p className="text-muted-foreground mb-4">{user.bio}</p>
+                )}
 
                 {/* Stats */}
                 <div className="flex justify-center md:justify-start gap-6 mb-6">
                   <div className="text-center">
                     <div className="text-2xl font-bold text-primary">{posts.length}</div>
-                    <div className="text-xs text-muted-foreground">{t('posts')}</div>
+                    <div className="text-xs text-muted-foreground">Gönderi</div>
                   </div>
                   <div className="text-center">
-                    <div className="text-2xl font-bold text-primary">{user.followers.length}</div>
-                    <div className="text-xs text-muted-foreground">{t('followers')}</div>
+                    <div className="text-2xl font-bold text-primary">{followersCount}</div>
+                    <div className="text-xs text-muted-foreground">Takipçi</div>
                   </div>
                   <div className="text-center">
-                    <div className="text-2xl font-bold text-primary">{user.following.length}</div>
-                    <div className="text-xs text-muted-foreground">{t('following')}</div>
+                    <div className="text-2xl font-bold text-primary">{followingCount}</div>
+                    <div className="text-xs text-muted-foreground">Takip</div>
                   </div>
                 </div>
 
                 {/* Action Buttons */}
                 {!isOwnProfile && (
                   <div className="flex gap-3 justify-center md:justify-start">
-                    <LuxuryButton
+                    <button
                       onClick={handleFollow}
-                      variant={isFollowingUser ? "outline" : "default"}
-                      className="gap-2"
+                      className={`px-6 py-3 rounded-xl font-semibold flex items-center gap-2 ${
+                        isFollowingUser 
+                          ? "glass border border-border hover:border-primary" 
+                          : "bg-primary text-primary-foreground hover:opacity-90"
+                      }`}
                     >
                       {isFollowingUser ? (
                         <>
                           <UserMinus className="w-4 h-4" />
-                          Takiptesin
+                          Takipten Çık
                         </>
                       ) : (
                         <>
@@ -189,26 +264,25 @@ export default function UserProfilePage() {
                           Takip Et
                         </>
                       )}
-                    </LuxuryButton>
+                    </button>
 
-                    <LuxuryButton
+                    <button
                       onClick={handleMessage}
-                      variant="outline"
-                      className="gap-2"
+                      className="px-6 py-3 rounded-xl font-semibold flex items-center gap-2 glass border border-border hover:border-primary"
                     >
                       <MessageCircle className="w-4 h-4" />
-                      Mesaj Gönder
-                    </LuxuryButton>
+                      Mesaj
+                    </button>
                   </div>
                 )}
 
                 {isOwnProfile && (
-                  <LuxuryButton
+                  <button
                     onClick={() => router.push("/profile")}
-                    variant="outline"
+                    className="px-6 py-3 rounded-xl font-semibold glass border border-border hover:border-primary"
                   >
-                    Profilimi Düzenle
-                  </LuxuryButton>
+                    Profili Düzenle
+                  </button>
                 )}
               </div>
             </div>
@@ -222,28 +296,36 @@ export default function UserProfilePage() {
           >
             <h2 className="text-2xl font-bold mb-4 flex items-center gap-2">
               <Grid3x3 className="w-6 h-6" />
-              Kombinler
+              Gönderiler
             </h2>
 
             {posts.length === 0 ? (
               <div className="text-center py-20 glass rounded-2xl">
                 <Grid3x3 className="w-16 h-16 text-muted-foreground/30 mx-auto mb-4" />
-                <p className="text-muted-foreground">Henüz paylaşım yok</p>
+                <p className="text-muted-foreground">Henüz gönderi yok</p>
               </div>
             ) : (
               <div className="grid grid-cols-3 gap-2">
                 {posts.map(post => (
-                  <button
+                  <motion.button
                     key={post.id}
+                    initial={{ opacity: 0, scale: 0.9 }}
+                    animate={{ opacity: 1, scale: 1 }}
                     onClick={() => router.push("/social")}
-                    className="aspect-square bg-gradient-to-br from-primary/5 to-primary/10 rounded-xl flex items-center justify-center text-6xl hover:opacity-80 transition-opacity relative group"
+                    className="aspect-square rounded-xl overflow-hidden relative group"
                   >
-                    <span>👔</span>
-                    <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity rounded-xl flex items-center justify-center gap-4 text-white">
-                      <span className="text-sm">❤️ {post.likes}</span>
-                      <span className="text-sm">💬 {post.comments.length}</span>
+                    {post.image_url ? (
+                      <img src={post.image_url} alt="Post" className="w-full h-full object-cover" />
+                    ) : (
+                      <div className="w-full h-full bg-gradient-to-br from-primary/5 to-primary/10 flex items-center justify-center">
+                        <span className="text-6xl">👔</span>
+                      </div>
+                    )}
+                    <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-4 text-white text-sm font-semibold">
+                      <span>❤️ {post.likes_count}</span>
+                      <span>💬 {post.comments_count}</span>
                     </div>
-                  </button>
+                  </motion.button>
                 ))}
               </div>
             )}

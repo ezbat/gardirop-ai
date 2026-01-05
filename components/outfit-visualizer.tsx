@@ -18,32 +18,43 @@ export default function OutfitVisualizer({ items }: OutfitVisualizerProps) {
     generateTryOn()
   }, [items])
 
-  const generateTryOn = async () => {
-    if (items.length === 0) return
+const generateTryOn = async () => {
+  if (items.length === 0) return
 
-    setLoading(true)
-    setError(false)
+  setLoading(true)
+  setError(false)
 
-    try {
-      const clothingUrls = items.map(item => item.image_url)
+  try {
+    // PLACEHOLDER URL'LERİ FİLTRELE!
+    const clothingUrls = items
+      .map(item => item.image_url)
+      .filter(url => !url.includes('placeholder') && !url.includes('via.placeholder'))
 
-      const response = await fetch('/api/virtual-tryon', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ clothingUrls })
-      })
+    console.log('🔍 Filtered URLs:', clothingUrls)
 
-      if (!response.ok) throw new Error('Try-on failed')
-
-      const data = await response.json()
-      setTryOnImage(data.imageUrl)
-    } catch (err) {
-      console.error('Try-on error:', err)
+    if (clothingUrls.length === 0) {
+      console.error('❌ Gerçek kıyafet URL\'i yok!')
       setError(true)
-    } finally {
-      setLoading(false)
+      return
     }
+
+    const response = await fetch('/api/virtual-tryon', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ clothingUrls })
+    })
+
+    if (!response.ok) throw new Error('Try-on failed')
+
+    const data = await response.json()
+    setTryOnImage(data.imageUrl)
+  } catch (err) {
+    console.error('Try-on error:', err)
+    setError(true)
+  } finally {
+    setLoading(false)
   }
+}
 
   if (loading) {
     return (

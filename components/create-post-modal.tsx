@@ -52,10 +52,10 @@ export default function CreatePostModal({ isOpen, onClose, onSuccess }: CreatePo
     filesToAdd.forEach(file => {
       const reader = new FileReader()
       reader.onload = (event) => {
-        if (event.target?.result) {
-          setPreviews(prev => [...prev, event.target.result as string])
-        }
-      }
+  if (event.target?.result) {
+    setPreviews(prev => [...prev, event.target!.result as string])
+  }
+}
       reader.readAsDataURL(file)
     })
   }

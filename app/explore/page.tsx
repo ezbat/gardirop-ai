@@ -1,11 +1,13 @@
 "use client"
-import { createNotification } from "@/lib/notifications"
+
 import { useState, useEffect } from "react"
 import { useSession } from "next-auth/react"
 import { motion } from "framer-motion"
 import { Heart, MessageCircle, Share2, Bookmark } from "lucide-react"
 import FloatingParticles from "@/components/floating-particles"
+import PostDetailModal from "@/components/post-detail-modal"
 import { supabase } from "@/lib/supabase"
+import { createNotification } from "@/lib/notifications"
 
 interface Post {
   id: string
@@ -30,6 +32,8 @@ export default function ExplorePage() {
 
   const [posts, setPosts] = useState<Post[]>([])
   const [loading, setLoading] = useState(true)
+  const [selectedPost, setSelectedPost] = useState<Post | null>(null)
+  const [isModalOpen, setIsModalOpen] = useState(false)
 
   useEffect(() => {
     loadPosts()
@@ -65,7 +69,7 @@ export default function ExplorePage() {
               .eq('post_id', post.id)
               .eq('user_id', userId)
               .single()
-            
+
             liked_by_user = !!likeData
           }
 
@@ -86,56 +90,75 @@ export default function ExplorePage() {
     }
   }
 
-const toggleLike = async (postId: string, postUserId: string, currentlyLiked: boolean) => {
-  if (!userId) {
-    alert('Beğenmek için giriş yapın!')
-    return
+  const handlePostClick = (post: Post) => {
+    setSelectedPost(post)
+    setIsModalOpen(true)
   }
 
-  try {
-    if (currentlyLiked) {
-      // Unlike
-      await supabase
-        .from('likes')
-        .delete()
-        .eq('post_id', postId)
-        .eq('user_id', userId)
-
-      setPosts(prev =>
-        prev.map(post =>
-          post.id === postId
-            ? { ...post, likes_count: post.likes_count - 1, liked_by_user: false }
-            : post
-        )
+  const handleLikeToggle = (postId: string, liked: boolean) => {
+    setPosts(prev =>
+      prev.map(post =>
+        post.id === postId
+          ? {
+              ...post,
+              likes_count: liked ? post.likes_count + 1 : post.likes_count - 1,
+              liked_by_user: liked
+            }
+          : post
       )
-    } else {
-      // Like
-      await supabase
-        .from('likes')
-        .insert({ post_id: postId, user_id: userId })
+    )
+  }
 
-      setPosts(prev =>
-        prev.map(post =>
-          post.id === postId
-            ? { ...post, likes_count: post.likes_count + 1, liked_by_user: true }
-            : post
-        )
-      )
-
-      // Bildirim oluştur (kendi postunu beğenmiyorsa)
-      if (postUserId !== userId) {
-        await createNotification(
-          postUserId,
-          userId,
-          'like',
-          'gönderini beğendi'
-        )
-      }
+  const toggleLike = async (postId: string, postUserId: string, currentlyLiked: boolean) => {
+    if (!userId) {
+      alert('Beğenmek için giriş yapın!')
+      return
     }
-  } catch (error) {
-    console.error('Toggle like error:', error)
+
+    try {
+      if (currentlyLiked) {
+        // Unlike
+        await supabase
+          .from('likes')
+          .delete()
+          .eq('post_id', postId)
+          .eq('user_id', userId)
+
+        setPosts(prev =>
+          prev.map(post =>
+            post.id === postId
+              ? { ...post, likes_count: post.likes_count - 1, liked_by_user: false }
+              : post
+          )
+        )
+      } else {
+        // Like
+        await supabase
+          .from('likes')
+          .insert({ post_id: postId, user_id: userId })
+
+        setPosts(prev =>
+          prev.map(post =>
+            post.id === postId
+              ? { ...post, likes_count: post.likes_count + 1, liked_by_user: true }
+              : post
+          )
+        )
+
+        // Bildirim oluştur (kendi postunu beğenmiyorsa)
+        if (postUserId !== userId) {
+          await createNotification(
+            postUserId,
+            userId,
+            'like',
+            'gönderini beğendi'
+          )
+        }
+      }
+    } catch (error) {
+      console.error('Toggle like error:', error)
+    }
   }
-}
 
   if (loading) {
     return (
@@ -199,8 +222,11 @@ const toggleLike = async (postId: string, postUserId: string, currentlyLiked: bo
                     </div>
                   </div>
 
-                  {/* POST IMAGE */}
-                  <div className="aspect-square bg-gradient-to-br from-primary/5 to-primary/10">
+                  {/* POST IMAGE - CLICKABLE */}
+                  <div
+                    onClick={() => handlePostClick(post)}
+                    className="aspect-square bg-gradient-to-br from-primary/5 to-primary/10 cursor-pointer hover:opacity-90 transition-opacity"
+                  >
                     <img
                       src={post.image_url}
                       alt={post.caption}
@@ -212,7 +238,7 @@ const toggleLike = async (postId: string, postUserId: string, currentlyLiked: bo
                   <div className="p-4">
                     <div className="flex items-center gap-4 mb-3">
                       <button
-                       onClick={() => toggleLike(post.id, post.user_id, post.liked_by_user || false)}
+                        onClick={() => toggleLike(post.id, post.user_id, post.liked_by_user || false)}
                         className="flex items-center gap-2 hover:text-red-500 transition-colors"
                       >
                         <Heart
@@ -223,7 +249,10 @@ const toggleLike = async (postId: string, postUserId: string, currentlyLiked: bo
                         <span className="font-semibold">{post.likes_count}</span>
                       </button>
 
-                      <button className="flex items-center gap-2 hover:text-primary transition-colors">
+                      <button
+                        onClick={() => handlePostClick(post)}
+                        className="flex items-center gap-2 hover:text-primary transition-colors"
+                      >
                         <MessageCircle className="w-6 h-6" />
                         <span className="font-semibold">{post.comments_count}</span>
                       </button>
@@ -251,6 +280,14 @@ const toggleLike = async (postId: string, postUserId: string, currentlyLiked: bo
           )}
         </div>
       </section>
+
+      {/* POST DETAIL MODAL */}
+      <PostDetailModal
+        post={selectedPost}
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        onLikeToggle={handleLikeToggle}
+      />
     </div>
   )
 }

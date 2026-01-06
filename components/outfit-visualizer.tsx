@@ -1,8 +1,7 @@
 "use client"
 
-import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
-import { Loader2, Sparkles } from 'lucide-react'
+import { Sparkles } from 'lucide-react'
 import type { ClothingItem } from '@/lib/outfit-generator'
 
 interface OutfitVisualizerProps {
@@ -10,111 +9,80 @@ interface OutfitVisualizerProps {
 }
 
 export default function OutfitVisualizer({ items }: OutfitVisualizerProps) {
-  const [tryOnImage, setTryOnImage] = useState<string | null>(null)
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState(false)
-
-  useEffect(() => {
-    generateTryOn()
-  }, [items])
-
-const generateTryOn = async () => {
-  if (items.length === 0) return
-
-  setLoading(true)
-  setError(false)
-
-  try {
-    // PLACEHOLDER URL'LERİ FİLTRELE!
-    const clothingUrls = items
-      .map(item => item.image_url)
-      .filter(url => !url.includes('placeholder') && !url.includes('via.placeholder'))
-
-    console.log('🔍 Filtered URLs:', clothingUrls)
-
-    if (clothingUrls.length === 0) {
-      console.error('❌ Gerçek kıyafet URL\'i yok!')
-      setError(true)
-      return
-    }
-
-    const response = await fetch('/api/virtual-tryon', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ clothingUrls })
-    })
-
-    if (!response.ok) throw new Error('Try-on failed')
-
-    const data = await response.json()
-    setTryOnImage(data.imageUrl)
-  } catch (err) {
-    console.error('Try-on error:', err)
-    setError(true)
-  } finally {
-    setLoading(false)
-  }
-}
-
-  if (loading) {
-    return (
-      <div className="glass border border-border rounded-2xl p-12 flex flex-col items-center justify-center min-h-[500px]">
-        <motion.div
-          animate={{ rotate: 360 }}
-          transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
-        >
-          <Sparkles className="w-16 h-16 text-primary mb-4" />
-        </motion.div>
-        <p className="text-lg font-semibold mb-2">AI Model Oluşturuluyor...</p>
-        <p className="text-sm text-muted-foreground">Bu 10-20 saniye sürebilir</p>
-      </div>
-    )
-  }
-
-  if (error || !tryOnImage) {
+  if (items.length === 0) {
     return (
       <div className="glass border border-border rounded-2xl p-8">
-        <div className="text-center">
-          <p className="text-muted-foreground mb-4">Model oluşturulamadı</p>
-          <button
-            onClick={generateTryOn}
-            className="px-4 py-2 bg-primary text-primary-foreground rounded-xl font-semibold hover:opacity-90"
-          >
-            Tekrar Dene
-          </button>
+        <div className="text-center text-muted-foreground">
+          <Sparkles className="w-16 h-16 mx-auto mb-4 opacity-50" />
+          <p>Kombin oluşturun</p>
         </div>
       </div>
     )
   }
 
   return (
-    <motion.div
-      initial={{ opacity: 0, scale: 0.95 }}
-      animate={{ opacity: 1, scale: 1 }}
-      className="glass border border-border rounded-2xl overflow-hidden"
-    >
-      <div className="relative aspect-[3/4] bg-gradient-to-br from-primary/5 to-transparent">
-        <img
-          src={tryOnImage}
-          alt="Virtual Try-On"
-          className="w-full h-full object-cover"
-        />
+    <div className="space-y-4">
+      <div className="glass border border-border rounded-2xl p-4">
+        <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+          <Sparkles className="w-5 h-5 text-primary" />
+          Kombininiz
+        </h3>
         
-        {/* AI Badge */}
-        <div className="absolute top-4 right-4 px-3 py-1 bg-primary text-primary-foreground rounded-full text-xs font-bold flex items-center gap-1">
-          <Sparkles className="w-3 h-3" />
-          AI GENERATED
+        {/* Kıyafetleri Grid'de Göster */}
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+          {items.map((item, idx) => (
+            <motion.div
+              key={idx}
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ delay: idx * 0.1 }}
+              className="glass border border-border rounded-xl overflow-hidden"
+            >
+              <div className="aspect-square bg-gradient-to-br from-primary/5 to-transparent">
+                <img
+                  src={item.image_url}
+                  alt={item.name}
+                  className="w-full h-full object-cover"
+                />
+              </div>
+              <div className="p-3 border-t border-border">
+                <p className="font-semibold text-sm truncate">{item.name}</p>
+                <p className="text-xs text-muted-foreground">{item.category}</p>
+                {item.brand && (
+                  <p className="text-xs text-primary mt-1">{item.brand}</p>
+                )}
+              </div>
+            </motion.div>
+          ))}
         </div>
       </div>
 
-      <div className="p-4 text-center">
-        <button
-          onClick={generateTryOn}
-          className="text-sm text-primary hover:underline"
-        >
-          Yeniden Oluştur
-        </button>
+      {/* Virtual Try-On Geçici Mesaj */}
+      <div className="glass border border-primary/50 rounded-2xl p-6 bg-primary/5">
+        <div className="text-center">
+          <Sparkles className="w-12 h-12 mx-auto mb-3 text-primary" />
+          <h4 className="font-bold mb-2">Virtual Try-On Yakında!</h4>
+          <p className="text-sm text-muted-foreground">
+            AI ile model üzerinde görüntüleme özelliği çok yakında eklenecek.
+          </p>
+        </div>
       </div>
-    </motion.div>
+
+      {/* Renk Uyumu Göstergesi */}
+      <div className="glass border border-border rounded-2xl p-4">
+        <h4 className="font-semibold mb-3">Renk Paleti</h4>
+        <div className="flex gap-2 flex-wrap">
+          {items.map((item, idx) => (
+            <div key={idx} className="flex items-center gap-2">
+              <div
+                className="w-8 h-8 rounded-full border-2 border-border"
+                style={{ backgroundColor: item.color_hex }}
+              />
+              <span className="text-xs text-muted-foreground">{item.name}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
   )
 }

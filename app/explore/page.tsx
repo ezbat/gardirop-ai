@@ -24,6 +24,7 @@ interface Post {
     avatar_url: string | null
   }
   liked_by_user?: boolean
+  bookmarked_by_user?: boolean
 }
 
 export default function ExplorePage() {
@@ -42,7 +43,6 @@ export default function ExplorePage() {
   const loadPosts = async () => {
     setLoading(true)
     try {
-      // 1. Tüm public postları çek
       const { data: postsData, error: postsError } = await supabase
         .from('posts')
         .select('*')
@@ -51,7 +51,6 @@ export default function ExplorePage() {
 
       if (postsError) throw postsError
 
-      // 2. Her post için user bilgisini çek
       const postsWithUsers = await Promise.all(
         (postsData || []).map(async (post) => {
           const { data: userData } = await supabase
@@ -60,8 +59,9 @@ export default function ExplorePage() {
             .eq('id', post.user_id)
             .single()
 
-          // 3. Kullanıcı bu postu beğenmiş mi?
           let liked_by_user = false
+          let bookmarked_by_user = false
+
           if (userId) {
             const { data: likeData } = await supabase
               .from('likes')
@@ -69,14 +69,24 @@ export default function ExplorePage() {
               .eq('post_id', post.id)
               .eq('user_id', userId)
               .single()
-
+            
             liked_by_user = !!likeData
+
+            const { data: bookmarkData } = await supabase
+              .from('bookmarks')
+              .select('id')
+              .eq('post_id', post.id)
+              .eq('user_id', userId)
+              .single()
+            
+            bookmarked_by_user = !!bookmarkData
           }
 
           return {
             ...post,
             user: userData || { id: post.user_id, name: 'Unknown', avatar_url: null },
-            liked_by_user
+            liked_by_user,
+            bookmarked_by_user
           }
         })
       )
@@ -117,7 +127,6 @@ export default function ExplorePage() {
 
     try {
       if (currentlyLiked) {
-        // Unlike
         await supabase
           .from('likes')
           .delete()
@@ -132,7 +141,6 @@ export default function ExplorePage() {
           )
         )
       } else {
-        // Like
         await supabase
           .from('likes')
           .insert({ post_id: postId, user_id: userId })
@@ -145,7 +153,6 @@ export default function ExplorePage() {
           )
         )
 
-        // Bildirim oluştur (kendi postunu beğenmiyorsa)
         if (postUserId !== userId) {
           await createNotification(
             postUserId,
@@ -157,6 +164,38 @@ export default function ExplorePage() {
       }
     } catch (error) {
       console.error('Toggle like error:', error)
+    }
+  }
+
+  const toggleBookmark = async (postId: string, currentlyBookmarked: boolean) => {
+    if (!userId) {
+      alert('Kaydetmek için giriş yapın!')
+      return
+    }
+
+    try {
+      const response = await fetch('/api/bookmark', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId,
+          postId,
+          action: currentlyBookmarked ? 'remove' : 'add'
+        })
+      })
+
+      if (!response.ok) throw new Error('Bookmark failed')
+
+      setPosts(prev =>
+        prev.map(post =>
+          post.id === postId
+            ? { ...post, bookmarked_by_user: !currentlyBookmarked }
+            : post
+        )
+      )
+    } catch (error) {
+      console.error('Toggle bookmark error:', error)
+      alert('Kaydetme başarısız!')
     }
   }
 
@@ -261,8 +300,14 @@ export default function ExplorePage() {
                         <Share2 className="w-6 h-6" />
                       </button>
 
-                      <button className="hover:text-primary transition-colors">
-                        <Bookmark className="w-6 h-6" />
+                      <button
+                        onClick={() => toggleBookmark(post.id, post.bookmarked_by_user || false)}
+                        className="hover:text-primary transition-colors"
+                      >
+                        <Bookmark
+                          className="w-6 h-6"
+                          fill={post.bookmarked_by_user ? "currentColor" : "none"}
+                        />
                       </button>
                     </div>
 

@@ -3,7 +3,7 @@
 import { useState } from "react"
 import Link from "next/link"
 import { useSession, signOut } from "next-auth/react"
-import { Menu, X, Search, Bell, User, LogOut, Plus, MessageCircle } from "lucide-react"
+import { Menu, X, Search, Bell, User, LogOut, Plus, MessageCircle, Bookmark } from "lucide-react"
 import { motion, AnimatePresence } from "framer-motion"
 import CreatePostModal from "./create-post-modal"
 
@@ -24,7 +24,7 @@ export default function Navbar() {
       <nav className="sticky top-0 z-40 glass border-b border-border backdrop-blur-xl">
         <div className="container mx-auto px-4">
           <div className="flex items-center justify-between h-16">
-            
+
             {/* LOGO */}
             <Link href="/" className="flex items-center gap-2">
               <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-primary/50 flex items-center justify-center">
@@ -48,7 +48,7 @@ export default function Navbar() {
 
             {/* RIGHT ICONS */}
             <div className="flex items-center gap-2">
-              
+
               {/* SEARCH - Direct link to search page */}
               <Link
                 href="/search"
@@ -76,6 +76,15 @@ export default function Navbar() {
                     title="Mesajlar"
                   >
                     <MessageCircle className="w-5 h-5" />
+                  </Link>
+
+                  {/* SAVED/BOOKMARKS */}
+                  <Link
+                    href="/saved"
+                    className="p-2 glass border border-border rounded-xl hover:border-primary transition-colors"
+                    title="Kaydedilenler"
+                  >
+                    <Bookmark className="w-5 h-5" />
                   </Link>
 
                   {/* NOTIFICATIONS */}
@@ -154,6 +163,26 @@ export default function Navbar() {
                 >
                   Ara
                 </Link>
+                {session && (
+                  <>
+                    {/* SAVED LINK FOR MOBILE */}
+                    <Link
+                      href="/saved"
+                      onClick={() => setIsOpen(false)}
+                      className="block px-4 py-2 glass rounded-xl hover:border-primary transition-colors"
+                    >
+                      Kaydedilenler
+                    </Link>
+                    {/* MESSAGES LINK FOR MOBILE */}
+                    <Link
+                      href="/messages"
+                      onClick={() => setIsOpen(false)}
+                      className="block px-4 py-2 glass rounded-xl hover:border-primary transition-colors"
+                    >
+                      Mesajlar
+                    </Link>
+                  </>
+                )}
               </div>
             </motion.div>
           )}

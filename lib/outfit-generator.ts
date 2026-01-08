@@ -1,8 +1,7 @@
-import { supabase } from './supabase'
+import { SANZO_WADA_PALETTES, getRandomSanzoPalette, type ColorPalette } from './sanzo-wada-colors'
 
 export interface ClothingItem {
   id: string
-  user_id: string
   name: string
   category: string
   brand: string | null
@@ -10,117 +9,170 @@ export interface ClothingItem {
   image_url: string
   season: string[]
   occasions: string[]
-  is_favorite: boolean
 }
 
-export interface OutfitSuggestion {
-  id: string
+export interface OutfitResult {
   items: ClothingItem[]
+  colorPalette: ColorPalette
   score: number
-  reasoning: string
-  colorHarmony: number
-  styleNotes: string[]
+  reason: string
 }
 
-function hexToRgb(hex: string): { r: number; g: number; b: number } {
-  const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex)
-  return result ? { r: parseInt(result[1], 16), g: parseInt(result[2], 16), b: parseInt(result[3], 16) } : { r: 0, g: 0, b: 0 }
+// Renk uyumunu hesapla (hex color karşılaştırma)
+function calculateColorHarmony(color1: string, color2: string): number {
+  const r1 = parseInt(color1.slice(1, 3), 16)
+  const g1 = parseInt(color1.slice(3, 5), 16)
+  const b1 = parseInt(color1.slice(5, 7), 16)
+  
+  const r2 = parseInt(color2.slice(1, 3), 16)
+  const g2 = parseInt(color2.slice(3, 5), 16)
+  const b2 = parseInt(color2.slice(5, 7), 16)
+  
+  const distance = Math.sqrt(
+    Math.pow(r1 - r2, 2) +
+    Math.pow(g1 - g2, 2) +
+    Math.pow(b1 - b2, 2)
+  )
+  
+  return 1 - (distance / 441.67) // Normalize 0-1
 }
 
-function getColorHarmonyScore(colors: string[]): number {
-  if (colors.length < 2) return 100
-  let totalScore = 0
-  let comparisons = 0
-  for (let i = 0; i < colors.length; i++) {
-    for (let j = i + 1; j < colors.length; j++) {
-      const rgb1 = hexToRgb(colors[i])
-      const rgb2 = hexToRgb(colors[j])
-      const brightness1 = (rgb1.r + rgb1.g + rgb1.b) / 3
-      const brightness2 = (rgb2.r + rgb2.g + rgb2.b) / 3
-      const brightnessDiff = Math.abs(brightness1 - brightness2)
-      let contrastScore = 100
-      if (brightnessDiff < 30) contrastScore = 50
-      else if (brightnessDiff > 150) contrastScore = 70
-      else contrastScore = 95
-      const warmth1 = rgb1.r - rgb1.b
-      const warmth2 = rgb2.r - rgb2.b
-      const warmthMatch = Math.abs(warmth1 - warmth2) < 100 ? 95 : 75
-      totalScore += (contrastScore + warmthMatch) / 2
-      comparisons++
-    }
-  }
-  return comparisons > 0 ? totalScore / comparisons : 100
-}
-
-export async function generateOutfits(userId: string, options: { weatherTemp?: number; maxOutfits?: number } = {}): Promise<OutfitSuggestion[]> {
-  const { weatherTemp = 20, maxOutfits = 3 } = options
-  const { data: allClothes, error } = await supabase.from('clothes').select('*').eq('user_id', userId)
-  if (error || !allClothes || allClothes.length === 0) return []
-  const tops = allClothes.filter(c => ['T-shirt', 'Shirt', 'Sweater'].includes(c.category))
-  const bottoms = allClothes.filter(c => ['Pants', 'Shorts', 'Skirt'].includes(c.category))
-  const dresses = allClothes.filter(c => c.category === 'Dress')
-  const outerwear = allClothes.filter(c => ['Jacket', 'Coat'].includes(c.category))
-  const shoes = allClothes.filter(c => c.category === 'Shoes')
-  const outfits: ClothingItem[][] = []
-  for (const dress of dresses.slice(0, 2)) {
-    const combo: ClothingItem[] = [dress]
-    if (shoes.length > 0) combo.push(shoes[0])
-    outfits.push(combo)
-  }
-  const maxTops = Math.min(tops.length, 4)
-  const maxBottoms = Math.min(bottoms.length, 3)
-  for (let i = 0; i < maxTops; i++) {
-    for (let j = 0; j < maxBottoms; j++) {
-      const combo: ClothingItem[] = [tops[i], bottoms[j]]
-      if (shoes.length > 0) {
-        const bestShoe = findBestColorMatch(combo, shoes)
-        if (bestShoe) combo.push(bestShoe)
-      }
-      if (weatherTemp < 15 && outerwear.length > 0) {
-        const bestJacket = findBestColorMatch(combo, outerwear)
-        if (bestJacket) combo.push(bestJacket)
-      }
-      outfits.push(combo)
-      if (outfits.length >= maxOutfits * 3) break
-    }
-    if (outfits.length >= maxOutfits * 3) break
-  }
-  const scored = outfits.map((items, idx) => scoreOutfit(items, idx)).sort((a, b) => b.score - a.score).slice(0, maxOutfits)
-  return scored
-}
-
-function findBestColorMatch(currentItems: ClothingItem[], candidates: ClothingItem[]): ClothingItem | null {
-  if (candidates.length === 0) return null
-  const currentColors = currentItems.map(item => item.color_hex)
-  let bestMatch = candidates[0]
+// En uyumlu Sanzo Wada paletini bul
+function findBestSanzoPalette(clothingColors: string[]): ColorPalette {
+  let bestPalette = SANZO_WADA_PALETTES[0]
   let bestScore = 0
-  for (const candidate of candidates) {
-    const allColors = [...currentColors, candidate.color_hex]
-    const score = getColorHarmonyScore(allColors)
-    if (score > bestScore) {
-      bestScore = score
-      bestMatch = candidate
+  
+  for (const palette of SANZO_WADA_PALETTES) {
+    let totalScore = 0
+    
+    for (const clothingColor of clothingColors) {
+      for (const paletteColor of palette.colors) {
+        const harmony = calculateColorHarmony(clothingColor, paletteColor)
+        totalScore += harmony
+      }
+    }
+    
+    const avgScore = totalScore / (clothingColors.length * palette.colors.length)
+    
+    if (avgScore > bestScore) {
+      bestScore = avgScore
+      bestPalette = palette
     }
   }
-  return bestMatch
+  
+  return bestPalette
 }
 
-function scoreOutfit(items: ClothingItem[], index: number): OutfitSuggestion {
-  const colors = items.map(item => item.color_hex)
-  const colorScore = getColorHarmonyScore(colors)
-  let totalScore = colorScore
-  const favoriteCount = items.filter(item => item.is_favorite).length
-  totalScore += favoriteCount * 5
-  const uniqueCategories = new Set(items.map(item => item.category)).size
-  totalScore += uniqueCategories * 2
-  const styleNotes: string[] = []
-  if (colorScore > 90) styleNotes.push('Mükemmel renk uyumu! 🎨')
-  else if (colorScore > 75) styleNotes.push('Harika kombinasyon! ✨')
-  else if (colorScore > 60) styleNotes.push('İyi bir seçim! 👍')
-  if (favoriteCount > 0) styleNotes.push(`${favoriteCount} favori parça ❤️`)
-  let reasoning = `Bu kombin ${Math.round(colorScore)} renk uyumu skoruna sahip. `
-  if (colorScore > 85) reasoning += 'Renkler birbirini mükemmel tamamlıyor!'
-  else if (colorScore > 70) reasoning += 'Dengeli bir renk paleti.'
-  else reasoning += 'Klasik bir kombinasyon.'
-  return { id: `outfit-${index}`, items, score: Math.round(totalScore), reasoning, colorHarmony: Math.round(colorScore), styleNotes }
+export function generateOutfit(
+  allClothes: ClothingItem[],
+  preferences?: {
+    season?: string
+    occasion?: string
+  }
+): OutfitResult | null {
+  if (allClothes.length === 0) return null
+
+  // Filtreleme
+  let availableClothes = allClothes
+
+  if (preferences?.season) {
+    availableClothes = availableClothes.filter(item =>
+      item.season.includes(preferences.season!)
+    )
+  }
+
+  if (preferences?.occasion) {
+    availableClothes = availableClothes.filter(item =>
+      item.occasions.includes(preferences.occasion!)
+    )
+  }
+
+  if (availableClothes.length < 2) {
+    availableClothes = allClothes
+  }
+
+  // Kategori bazlı seçim
+  const tops = availableClothes.filter(item =>
+    ['T-shirt', 'Shirt', 'Blouse', 'Dress'].includes(item.category)
+  )
+  const bottoms = availableClothes.filter(item =>
+    ['Pants', 'Skirt', 'Shorts'].includes(item.category)
+  )
+  const outerwear = availableClothes.filter(item =>
+    ['Jacket', 'Coat', 'Cardigan'].includes(item.category)
+  )
+  const accessories = availableClothes.filter(item =>
+    ['Shoes', 'Accessories', 'Bag', 'Hat'].includes(item.category)
+  )
+
+  const selectedItems: ClothingItem[] = []
+
+  // Top seç
+  if (tops.length > 0) {
+    const randomTop = tops[Math.floor(Math.random() * tops.length)]
+    selectedItems.push(randomTop)
+  }
+
+  // Bottom seç (elbise değilse)
+  if (selectedItems[0]?.category !== 'Dress' && bottoms.length > 0) {
+    const randomBottom = bottoms[Math.floor(Math.random() * bottoms.length)]
+    selectedItems.push(randomBottom)
+  }
+
+  // %50 şans ile outerwear ekle
+  if (Math.random() > 0.5 && outerwear.length > 0) {
+    const randomOuter = outerwear[Math.floor(Math.random() * outerwear.length)]
+    selectedItems.push(randomOuter)
+  }
+
+  // Aksesuar ekle
+  if (accessories.length > 0) {
+    const randomAccessory = accessories[Math.floor(Math.random() * accessories.length)]
+    selectedItems.push(randomAccessory)
+  }
+
+  if (selectedItems.length === 0) return null
+
+  // Kıyafetlerin renklerini topla
+  const clothingColors = selectedItems.map(item => item.color_hex)
+
+  // En uyumlu Sanzo Wada paletini bul
+  const bestPalette = findBestSanzoPalette(clothingColors)
+
+  // Renk uyum skoru
+  let totalHarmony = 0
+  for (let i = 0; i < clothingColors.length; i++) {
+    for (let j = i + 1; j < clothingColors.length; j++) {
+      totalHarmony += calculateColorHarmony(clothingColors[i], clothingColors[j])
+    }
+  }
+  const harmonyScore = clothingColors.length > 1
+    ? totalHarmony / ((clothingColors.length * (clothingColors.length - 1)) / 2)
+    : 1
+
+  const score = Math.round(harmonyScore * 100)
+
+  return {
+    items: selectedItems,
+    colorPalette: bestPalette,
+    score,
+    reason: `Sanzo Wada "${bestPalette.name}" paletine göre ${score}% uyumlu`
+  }
+}
+
+export function generateMultipleOutfits(
+  allClothes: ClothingItem[],
+  count: number = 3,
+  preferences?: { season?: string; occasion?: string }
+): OutfitResult[] {
+  const outfits: OutfitResult[] = []
+  
+  for (let i = 0; i < count; i++) {
+    const outfit = generateOutfit(allClothes, preferences)
+    if (outfit) {
+      outfits.push(outfit)
+    }
+  }
+  
+  return outfits.sort((a, b) => b.score - a.score)
 }

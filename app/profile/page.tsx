@@ -3,9 +3,21 @@
 import { useState, useEffect } from "react"
 import { useSession } from "next-auth/react"
 import { motion } from "framer-motion"
-import { Edit2, Calendar, Heart, Trash2 } from "lucide-react"
+import { Edit2, Calendar, Heart, Trash2, Instagram, Shirt } from "lucide-react"
+import Link from "next/link"
 import FloatingParticles from "@/components/floating-particles"
 import { supabase } from "@/lib/supabase"
+
+interface UserProfile {
+  id: string
+  name: string
+  email: string
+  avatar_url: string | null
+  username: string | null
+  bio: string | null
+  instagram: string | null
+  style: string | null
+}
 
 interface SavedOutfit {
   id: string
@@ -23,41 +35,42 @@ interface SavedOutfit {
 export default function ProfilePage() {
   const { data: session } = useSession()
   const userId = session?.user?.id
-
   const [activeTab, setActiveTab] = useState<'posts' | 'saved'>('posts')
   const [savedOutfits, setSavedOutfits] = useState<SavedOutfit[]>([])
   const [loading, setLoading] = useState(true)
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null)
 
   useEffect(() => {
     if (userId) {
+      loadUserProfile()
       loadSavedOutfits()
     }
   }, [userId])
+
+  const loadUserProfile = async () => {
+    if (!userId) return
+    try {
+      const { data, error } = await supabase.from('users').select('id, name, email, avatar_url, username, bio, instagram, style').eq('id', userId).single()
+      if (error) throw error
+      setUserProfile(data)
+    } catch (error) {
+      console.error('Load profile error:', error)
+    }
+  }
 
   const loadSavedOutfits = async () => {
     if (!userId) return
     setLoading(true)
     try {
-      const { data: outfitsData, error } = await supabase
-        .from('outfits')
-        .select('*')
-        .eq('user_id', userId)
-        .order('created_at', { ascending: false })
-
+      const { data: outfitsData, error } = await supabase.from('outfits').select('*').eq('user_id', userId).order('created_at', { ascending: false })
       if (error) throw error
-
-      const outfitsWithClothes = await Promise.all(
-        (outfitsData || []).map(async (outfit) => {
-          if (outfit.cloth_ids?.length > 0) {
-            const { data: clothes } = await supabase
-              .from('clothes')
-              .select('*')
-              .in('id', outfit.cloth_ids)
-            return { ...outfit, clothes: clothes || [] }
-          }
-          return { ...outfit, clothes: [] }
-        })
-      )
+      const outfitsWithClothes = await Promise.all((outfitsData || []).map(async (outfit) => {
+        if (outfit.cloth_ids?.length > 0) {
+          const { data: clothes } = await supabase.from('clothes').select('*').in('id', outfit.cloth_ids)
+          return { ...outfit, clothes: clothes || [] }
+        }
+        return { ...outfit, clothes: [] }
+      }))
       setSavedOutfits(outfitsWithClothes)
     } catch (error) {
       console.error('Error:', error)
@@ -67,7 +80,7 @@ export default function ProfilePage() {
   }
 
   const deleteOutfit = async (outfitId: string) => {
-    if (!confirm('Silmek istediginize emin misiniz?')) return
+    if (!confirm('Silmek istediğinize emin misiniz?')) return
     try {
       await supabase.from('outfits').delete().eq('id', outfitId)
       setSavedOutfits(prev => prev.filter(item => item.id !== outfitId))
@@ -101,56 +114,38 @@ export default function ProfilePage() {
           <div className="glass border border-border rounded-2xl p-8 mb-6">
             <div className="flex items-start gap-6">
               <div className="w-32 h-32 rounded-full overflow-hidden bg-primary">
-                {session?.user?.image ? (
-                  <img src={session.user.image} alt="Avatar" className="w-full h-full object-cover" />
+                {userProfile?.avatar_url || session?.user?.image ? (
+                  <img src={userProfile?.avatar_url || session?.user?.image || ''} alt="Avatar" className="w-full h-full object-cover" />
                 ) : (
-                  <div className="w-full h-full flex items-center justify-center text-white text-5xl font-bold">{session?.user?.name?.[0]?.toUpperCase() || 'U'}</div>
+                  <div className="w-full h-full flex items-center justify-center text-white text-5xl font-bold">{userProfile?.name?.[0]?.toUpperCase() || session?.user?.name?.[0]?.toUpperCase() || 'U'}</div>
                 )}
               </div>
               <div className="flex-1">
                 <div className="flex items-center justify-between mb-4">
-                  <h1 className="font-serif text-3xl font-bold">{session?.user?.name || 'Kullanici'}</h1>
-                  <button className="px-4 py-2 glass border border-border rounded-xl hover:border-primary transition-colors flex items-center gap-2"><Edit2 className="w-4 h-4" />Duzenle</button>
+                  <div>
+                    <h1 className="font-serif text-3xl font-bold">{userProfile?.name || session?.user?.name || 'Kullanıcı'}</h1>
+                    {userProfile?.username && (<p className="text-muted-foreground">@{userProfile.username}</p>)}
+                  </div>
+                  <Link href="/profile/edit" className="px-4 py-2 glass border border-border rounded-xl hover:border-primary transition-colors flex items-center gap-2"><Edit2 className="w-4 h-4" />Düzenle</Link>
                 </div>
-                <p className="text-muted-foreground mb-4">{session?.user?.email}</p>
-                <div className="flex items-center gap-2 text-sm"><Calendar className="w-4 h-4 text-muted-foreground" /><span className="text-muted-foreground">Gardirop AI</span></div>
+                {userProfile?.bio && (<p className="text-muted-foreground mb-4">{userProfile.bio}</p>)}
+                <p className="text-sm text-muted-foreground mb-4">{userProfile?.email || session?.user?.email}</p>
+                <div className="flex items-center gap-4 text-sm mb-2">
+                  <div className="flex items-center gap-2"><Calendar className="w-4 h-4 text-muted-foreground" /><span className="text-muted-foreground">Gardırop AI üyesi</span></div>
+                  {userProfile?.style && (<div className="flex items-center gap-2"><Shirt className="w-4 h-4 text-primary" /><span className="text-primary font-semibold">{userProfile.style}</span></div>)}
+                </div>
+                {userProfile?.instagram && (<a href={`https://instagram.com/${userProfile.instagram}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-primary transition-colors"><Instagram className="w-4 h-4" />@{userProfile.instagram}</a>)}
               </div>
             </div>
           </div>
           <div className="flex gap-4 mb-6">
-            <button onClick={() => setActiveTab('posts')} className={`px-6 py-3 rounded-xl font-semibold transition-all ${activeTab === 'posts' ? "bg-primary text-primary-foreground" : "glass border border-border hover:border-primary"}`}>Gonderiler</button>
-            <button onClick={() => setActiveTab('saved')} className={`px-6 py-3 rounded-xl font-semibold transition-all ${activeTab === 'saved' ? "bg-primary text-primary-foreground" : "glass border border-border hover:border-primary"}`}>Kayitli ({savedOutfits.length})</button>
+            <button onClick={() => setActiveTab('posts')} className={`px-6 py-3 rounded-xl font-semibold transition-all ${activeTab === 'posts' ? "bg-primary text-primary-foreground" : "glass border border-border hover:border-primary"}`}>Gönderiler</button>
+            <button onClick={() => setActiveTab('saved')} className={`px-6 py-3 rounded-xl font-semibold transition-all ${activeTab === 'saved' ? "bg-primary text-primary-foreground" : "glass border border-border hover:border-primary"}`}>Kayıtlı ({savedOutfits.length})</button>
           </div>
           <div className="min-h-96">
-            {activeTab === 'posts' && (
-              <div className="text-center py-20 glass border border-border rounded-2xl"><div className="text-9xl mb-6">📱</div><h3 className="text-2xl font-bold mb-3">Henuz gonderi yok</h3><p className="text-muted-foreground">Ilk gonderini paylas!</p></div>
-            )}
-            {activeTab === 'saved' && savedOutfits.length === 0 && (
-              <div className="text-center py-20 glass border border-border rounded-2xl"><div className="text-9xl mb-6">💾</div><h3 className="text-2xl font-bold mb-3">Henuz kayitli kombin yok</h3><p className="text-muted-foreground mb-6">Ana sayfadan AI kombin olustur ve Kaydet butonuna tikla!</p><a href="/" className="px-6 py-3 bg-primary text-primary-foreground rounded-xl font-semibold hover:opacity-90 transition-opacity inline-block">Kombin Olustur</a></div>
-            )}
-            {activeTab === 'saved' && savedOutfits.length > 0 && (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {savedOutfits.map((outfit) => (
-                  <div key={outfit.id} className="glass border border-border rounded-2xl overflow-hidden hover:border-primary transition-colors">
-                    <div className="flex flex-col gap-2 p-4 bg-primary/5">
-                      {outfit.clothes?.slice(0, 4).map((item) => (
-                        <div key={item.id} className="flex items-center gap-3 bg-white rounded-lg p-2">
-                          <div className="w-14 h-14"><img src={item.image_url} alt={item.name} className="w-full h-full object-contain" /></div>
-                          <div className="flex-1 min-w-0"><p className="text-xs text-primary font-semibold">{item.category}</p><p className="text-sm font-bold truncate">{item.name}</p></div>
-                        </div>
-                      ))}
-                    </div>
-                    <div className="p-4">
-                      <h3 className="text-lg font-bold mb-2">{outfit.name}</h3>
-                      {outfit.description && <p className="text-sm text-muted-foreground mb-3 line-clamp-2">{outfit.description}</p>}
-                      <div className="flex items-center gap-2 mb-3"><span className="px-2 py-1 glass border border-border rounded-full text-xs font-semibold">{outfit.season}</span><span className="px-2 py-1 glass border border-border rounded-full text-xs font-semibold">{outfit.occasion}</span></div>
-                      <div className="flex items-center justify-between mb-3"><div><p className="text-xs text-muted-foreground">Uyum</p><p className="text-xl font-bold text-primary">{outfit.color_harmony_score}/100</p></div><div className="text-right"><p className="text-xs text-muted-foreground">Tarih</p><p className="text-sm font-semibold">{new Date(outfit.created_at).toLocaleDateString('tr-TR')}</p></div></div>
-                      <div className="flex gap-2"><button onClick={() => toggleFavorite(outfit.id, outfit.is_favorite)} className="flex-1 p-2 glass border border-border rounded-xl hover:border-red-500 transition-colors"><Heart className="w-4 h-4 mx-auto" fill={outfit.is_favorite ? "currentColor" : "none"} /></button><button onClick={() => deleteOutfit(outfit.id)} className="flex-1 p-2 glass border border-border rounded-xl hover:bg-red-500 hover:text-white transition-colors"><Trash2 className="w-4 h-4 mx-auto" /></button></div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
+            {activeTab === 'posts' && (<div className="text-center py-20 glass border border-border rounded-2xl"><div className="text-9xl mb-6">📱</div><h3 className="text-2xl font-bold mb-3">Henüz gönderi yok</h3><p className="text-muted-foreground">İlk gönderini paylaş!</p></div>)}
+            {activeTab === 'saved' && savedOutfits.length === 0 && (<div className="text-center py-20 glass border border-border rounded-2xl"><div className="text-9xl mb-6">💾</div><h3 className="text-2xl font-bold mb-3">Henüz kayıtlı kombin yok</h3><p className="text-muted-foreground mb-6">Ana sayfadan AI kombin oluştur ve Kaydet butonuna tıkla!</p><a href="/" className="px-6 py-3 bg-primary text-primary-foreground rounded-xl font-semibold hover:opacity-90 transition-opacity inline-block">Kombin Oluştur</a></div>)}
+            {activeTab === 'saved' && savedOutfits.length > 0 && (<div className="grid grid-cols-1 md:grid-cols-2 gap-6">{savedOutfits.map((outfit) => (<div key={outfit.id} className="glass border border-border rounded-2xl overflow-hidden hover:border-primary transition-colors"><div className="flex flex-col gap-2 p-4 bg-primary/5">{outfit.clothes?.slice(0, 4).map((item) => (<div key={item.id} className="flex items-center gap-3 bg-white rounded-lg p-2"><div className="w-14 h-14"><img src={item.image_url} alt={item.name} className="w-full h-full object-contain" /></div><div className="flex-1 min-w-0"><p className="text-xs text-primary font-semibold">{item.category}</p><p className="text-sm font-bold truncate">{item.name}</p></div></div>))}</div><div className="p-4"><h3 className="text-lg font-bold mb-2">{outfit.name}</h3>{outfit.description && (<p className="text-sm text-muted-foreground mb-3 line-clamp-2">{outfit.description}</p>)}<div className="flex items-center gap-2 mb-3"><span className="px-2 py-1 glass border border-border rounded-full text-xs font-semibold">{outfit.season}</span><span className="px-2 py-1 glass border border-border rounded-full text-xs font-semibold">{outfit.occasion}</span></div><div className="flex items-center justify-between mb-3"><div><p className="text-xs text-muted-foreground">Uyum</p><p className="text-xl font-bold text-primary">{outfit.color_harmony_score}/100</p></div><div className="text-right"><p className="text-xs text-muted-foreground">Tarih</p><p className="text-sm font-semibold">{new Date(outfit.created_at).toLocaleDateString('tr-TR')}</p></div></div><div className="flex gap-2"><button onClick={() => toggleFavorite(outfit.id, outfit.is_favorite)} className="flex-1 p-2 glass border border-border rounded-xl hover:border-red-500 transition-colors"><Heart className="w-4 h-4 mx-auto" fill={outfit.is_favorite ? "currentColor" : "none"} /></button><button onClick={() => deleteOutfit(outfit.id)} className="flex-1 p-2 glass border border-border rounded-xl hover:bg-red-500 hover:text-white transition-colors"><Trash2 className="w-4 h-4 mx-auto" /></button></div></div></div>))}</div>)}
           </div>
         </div>
       </section>

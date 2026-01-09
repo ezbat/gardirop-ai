@@ -3,9 +3,10 @@
 import { useState, useEffect } from "react"
 import { useSession } from "next-auth/react"
 import { motion } from "framer-motion"
-import { Edit2, Calendar, Heart, Trash2, Instagram, Shirt } from "lucide-react"
+import { Edit2, Calendar, Heart, Trash2, Instagram, Shirt, MessageCircle } from "lucide-react"
 import Link from "next/link"
 import FloatingParticles from "@/components/floating-particles"
+import PostDetailModal from "@/components/post-detail-modal"
 import { supabase } from "@/lib/supabase"
 
 interface UserProfile {
@@ -17,6 +18,18 @@ interface UserProfile {
   bio: string | null
   instagram: string | null
   style: string | null
+}
+
+interface Post {
+  id: string
+  user_id: string
+  caption: string
+  image_url: string
+  likes_count: number
+  comments_count: number
+  created_at: string
+  liked_by_user?: boolean
+  bookmarked_by_user?: boolean
 }
 
 interface SavedOutfit {
@@ -37,12 +50,16 @@ export default function ProfilePage() {
   const userId = session?.user?.id
   const [activeTab, setActiveTab] = useState<'posts' | 'saved'>('posts')
   const [savedOutfits, setSavedOutfits] = useState<SavedOutfit[]>([])
+  const [userPosts, setUserPosts] = useState<Post[]>([])
   const [loading, setLoading] = useState(true)
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null)
+  const [selectedPost, setSelectedPost] = useState<Post | null>(null)
+  const [isModalOpen, setIsModalOpen] = useState(false)
 
   useEffect(() => {
     if (userId) {
       loadUserProfile()
+      loadUserPosts()
       loadSavedOutfits()
     }
   }, [userId])
@@ -55,6 +72,22 @@ export default function ProfilePage() {
       setUserProfile(data)
     } catch (error) {
       console.error('Load profile error:', error)
+    }
+  }
+
+  const loadUserPosts = async () => {
+    if (!userId) return
+    try {
+      const { data: postsData, error } = await supabase.from('posts').select('*').eq('user_id', userId).order('created_at', { ascending: false })
+      if (error) throw error
+      const postsWithStatus = await Promise.all((postsData || []).map(async (post) => {
+        const { data: likeData } = await supabase.from('likes').select('id').eq('post_id', post.id).eq('user_id', userId).single()
+        const { data: bookmarkData } = await supabase.from('bookmarks').select('id').eq('post_id', post.id).eq('user_id', userId).single()
+        return { ...post, liked_by_user: !!likeData, bookmarked_by_user: !!bookmarkData }
+      }))
+      setUserPosts(postsWithStatus)
+    } catch (error) {
+      console.error('Load posts error:', error)
     }
   }
 
@@ -98,6 +131,27 @@ export default function ProfilePage() {
     }
   }
 
+  const handlePostClick = (post: Post) => {
+    setSelectedPost(post)
+    setIsModalOpen(true)
+  }
+
+  const handleLikeToggle = (postId: string, liked: boolean) => {
+    setUserPosts(prev => prev.map(post => post.id === postId ? { ...post, likes_count: liked ? post.likes_count + 1 : post.likes_count - 1, liked_by_user: liked } : post))
+  }
+
+  const deletePost = async (postId: string) => {
+    if (!confirm('Gönderiyi silmek istediğinize emin misiniz?')) return
+    try {
+      await supabase.from('posts').delete().eq('id', postId)
+      setUserPosts(prev => prev.filter(p => p.id !== postId))
+      setIsModalOpen(false)
+    } catch (error) {
+      console.error('Delete post error:', error)
+      alert('Silme başarısız!')
+    }
+  }
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -137,18 +191,25 @@ export default function ProfilePage() {
                 {userProfile?.instagram && (<a href={`https://instagram.com/${userProfile.instagram}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-primary transition-colors"><Instagram className="w-4 h-4" />@{userProfile.instagram}</a>)}
               </div>
             </div>
+            <div className="grid grid-cols-3 gap-4 mt-6 pt-6 border-t border-border">
+              <div className="text-center"><p className="text-2xl font-bold">{userPosts.length}</p><p className="text-sm text-muted-foreground">Gönderi</p></div>
+              <div className="text-center"><p className="text-2xl font-bold">{savedOutfits.length}</p><p className="text-sm text-muted-foreground">Kombin</p></div>
+              <div className="text-center"><p className="text-2xl font-bold">{userPosts.reduce((sum, p) => sum + p.likes_count, 0)}</p><p className="text-sm text-muted-foreground">Beğeni</p></div>
+            </div>
           </div>
           <div className="flex gap-4 mb-6">
-            <button onClick={() => setActiveTab('posts')} className={`px-6 py-3 rounded-xl font-semibold transition-all ${activeTab === 'posts' ? "bg-primary text-primary-foreground" : "glass border border-border hover:border-primary"}`}>Gönderiler</button>
-            <button onClick={() => setActiveTab('saved')} className={`px-6 py-3 rounded-xl font-semibold transition-all ${activeTab === 'saved' ? "bg-primary text-primary-foreground" : "glass border border-border hover:border-primary"}`}>Kayıtlı ({savedOutfits.length})</button>
+            <button onClick={() => setActiveTab('posts')} className={`px-6 py-3 rounded-xl font-semibold transition-all ${activeTab === 'posts' ? "bg-primary text-primary-foreground" : "glass border border-border hover:border-primary"}`}>Gönderiler ({userPosts.length})</button>
+            <button onClick={() => setActiveTab('saved')} className={`px-6 py-3 rounded-xl font-semibold transition-all ${activeTab === 'saved' ? "bg-primary text-primary-foreground" : "glass border border-border hover:border-primary"}`}>Kombinler ({savedOutfits.length})</button>
           </div>
           <div className="min-h-96">
-            {activeTab === 'posts' && (<div className="text-center py-20 glass border border-border rounded-2xl"><div className="text-9xl mb-6">📱</div><h3 className="text-2xl font-bold mb-3">Henüz gönderi yok</h3><p className="text-muted-foreground">İlk gönderini paylaş!</p></div>)}
+            {activeTab === 'posts' && userPosts.length === 0 && (<div className="text-center py-20 glass border border-border rounded-2xl"><div className="text-9xl mb-6">📱</div><h3 className="text-2xl font-bold mb-3">Henüz gönderi yok</h3><p className="text-muted-foreground">İlk gönderini paylaş!</p></div>)}
+            {activeTab === 'posts' && userPosts.length > 0 && (<div className="grid grid-cols-3 gap-2">{userPosts.map((post, idx) => (<motion.div key={post.id} initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: idx * 0.05 }} onClick={() => handlePostClick(post)} className="aspect-square glass border border-border rounded-xl overflow-hidden cursor-pointer group"><div className="relative w-full h-full bg-gradient-to-br from-primary/5 to-primary/10"><img src={post.image_url} alt={post.caption} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" /><div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-6"><div className="flex items-center gap-2 text-white"><Heart className="w-6 h-6" fill="white" /><span className="font-bold">{post.likes_count}</span></div><div className="flex items-center gap-2 text-white"><MessageCircle className="w-6 h-6" fill="white" /><span className="font-bold">{post.comments_count}</span></div></div></div></motion.div>))}</div>)}
             {activeTab === 'saved' && savedOutfits.length === 0 && (<div className="text-center py-20 glass border border-border rounded-2xl"><div className="text-9xl mb-6">💾</div><h3 className="text-2xl font-bold mb-3">Henüz kayıtlı kombin yok</h3><p className="text-muted-foreground mb-6">Ana sayfadan AI kombin oluştur ve Kaydet butonuna tıkla!</p><a href="/" className="px-6 py-3 bg-primary text-primary-foreground rounded-xl font-semibold hover:opacity-90 transition-opacity inline-block">Kombin Oluştur</a></div>)}
             {activeTab === 'saved' && savedOutfits.length > 0 && (<div className="grid grid-cols-1 md:grid-cols-2 gap-6">{savedOutfits.map((outfit) => (<div key={outfit.id} className="glass border border-border rounded-2xl overflow-hidden hover:border-primary transition-colors"><div className="flex flex-col gap-2 p-4 bg-primary/5">{outfit.clothes?.slice(0, 4).map((item) => (<div key={item.id} className="flex items-center gap-3 bg-white rounded-lg p-2"><div className="w-14 h-14"><img src={item.image_url} alt={item.name} className="w-full h-full object-contain" /></div><div className="flex-1 min-w-0"><p className="text-xs text-primary font-semibold">{item.category}</p><p className="text-sm font-bold truncate">{item.name}</p></div></div>))}</div><div className="p-4"><h3 className="text-lg font-bold mb-2">{outfit.name}</h3>{outfit.description && (<p className="text-sm text-muted-foreground mb-3 line-clamp-2">{outfit.description}</p>)}<div className="flex items-center gap-2 mb-3"><span className="px-2 py-1 glass border border-border rounded-full text-xs font-semibold">{outfit.season}</span><span className="px-2 py-1 glass border border-border rounded-full text-xs font-semibold">{outfit.occasion}</span></div><div className="flex items-center justify-between mb-3"><div><p className="text-xs text-muted-foreground">Uyum</p><p className="text-xl font-bold text-primary">{outfit.color_harmony_score}/100</p></div><div className="text-right"><p className="text-xs text-muted-foreground">Tarih</p><p className="text-sm font-semibold">{new Date(outfit.created_at).toLocaleDateString('tr-TR')}</p></div></div><div className="flex gap-2"><button onClick={() => toggleFavorite(outfit.id, outfit.is_favorite)} className="flex-1 p-2 glass border border-border rounded-xl hover:border-red-500 transition-colors"><Heart className="w-4 h-4 mx-auto" fill={outfit.is_favorite ? "currentColor" : "none"} /></button><button onClick={() => deleteOutfit(outfit.id)} className="flex-1 p-2 glass border border-border rounded-xl hover:bg-red-500 hover:text-white transition-colors"><Trash2 className="w-4 h-4 mx-auto" /></button></div></div></div>))}</div>)}
           </div>
         </div>
       </section>
+      <PostDetailModal post={selectedPost} isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} onLikeToggle={handleLikeToggle} onDelete={deletePost} />
     </div>
   )
 }

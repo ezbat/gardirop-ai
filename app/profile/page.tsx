@@ -1,9 +1,10 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { useSession } from "next-auth/react"
-import { motion } from "framer-motion"
-import { Edit2, Calendar, Heart, Trash2, Instagram, Shirt, MessageCircle } from "lucide-react"
+import { useSession, signOut } from "next-auth/react"
+import { useRouter } from "next/navigation"
+import { motion, AnimatePresence } from "framer-motion"
+import { Heart, MessageCircle, Grid3x3, Bookmark, Menu, Settings, Bell, LogOut, Share2, Instagram, Shirt, X } from "lucide-react"
 import Link from "next/link"
 import FloatingParticles from "@/components/floating-particles"
 import PostDetailModal from "@/components/post-detail-modal"
@@ -45,8 +46,16 @@ interface SavedOutfit {
   clothes?: any[]
 }
 
+interface Stats {
+  posts: number
+  followers: number
+  following: number
+  totalLikes: number
+}
+
 export default function ProfilePage() {
   const { data: session } = useSession()
+  const router = useRouter()
   const userId = session?.user?.id
   const [activeTab, setActiveTab] = useState<'posts' | 'saved'>('posts')
   const [savedOutfits, setSavedOutfits] = useState<SavedOutfit[]>([])
@@ -55,12 +64,15 @@ export default function ProfilePage() {
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null)
   const [selectedPost, setSelectedPost] = useState<Post | null>(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
+  const [showMenu, setShowMenu] = useState(false)
+  const [stats, setStats] = useState<Stats>({ posts: 0, followers: 0, following: 0, totalLikes: 0 })
 
   useEffect(() => {
     if (userId) {
       loadUserProfile()
       loadUserPosts()
       loadSavedOutfits()
+      loadStats()
     }
   }, [userId])
 
@@ -112,22 +124,16 @@ export default function ProfilePage() {
     }
   }
 
-  const deleteOutfit = async (outfitId: string) => {
-    if (!confirm('Silmek istediğinize emin misiniz?')) return
+  const loadStats = async () => {
+    if (!userId) return
     try {
-      await supabase.from('outfits').delete().eq('id', outfitId)
-      setSavedOutfits(prev => prev.filter(item => item.id !== outfitId))
+      const { data: followersData } = await supabase.from('follows').select('id').eq('following_id', userId)
+      const { data: followingData } = await supabase.from('follows').select('id').eq('follower_id', userId)
+      const { data: postsData } = await supabase.from('posts').select('id, likes_count').eq('user_id', userId)
+      const totalLikes = (postsData || []).reduce((sum, p) => sum + (p.likes_count || 0), 0)
+      setStats({ posts: postsData?.length || 0, followers: followersData?.length || 0, following: followingData?.length || 0, totalLikes })
     } catch (error) {
-      console.error('Error:', error)
-    }
-  }
-
-  const toggleFavorite = async (outfitId: string, currentFavorite: boolean) => {
-    try {
-      await supabase.from('outfits').update({ is_favorite: !currentFavorite }).eq('id', outfitId)
-      setSavedOutfits(prev => prev.map(item => item.id === outfitId ? { ...item, is_favorite: !currentFavorite } : item))
-    } catch (error) {
-      console.error('Error:', error)
+      console.error('Load stats error:', error)
     }
   }
 
@@ -138,6 +144,7 @@ export default function ProfilePage() {
 
   const handleLikeToggle = (postId: string, liked: boolean) => {
     setUserPosts(prev => prev.map(post => post.id === postId ? { ...post, likes_count: liked ? post.likes_count + 1 : post.likes_count - 1, liked_by_user: liked } : post))
+    loadStats()
   }
 
   const deletePost = async (postId: string) => {
@@ -146,9 +153,24 @@ export default function ProfilePage() {
       await supabase.from('posts').delete().eq('id', postId)
       setUserPosts(prev => prev.filter(p => p.id !== postId))
       setIsModalOpen(false)
+      loadStats()
     } catch (error) {
       console.error('Delete post error:', error)
       alert('Silme başarısız!')
+    }
+  }
+
+  const handleShare = async () => {
+    const profileUrl = `${window.location.origin}/profile/${userId}`
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: `${userProfile?.name}'in Profili`, text: `${userProfile?.name} - Gardırop AI`, url: profileUrl })
+      } catch (error) {
+        console.log('Share cancelled')
+      }
+    } else {
+      navigator.clipboard.writeText(profileUrl)
+      alert('Profil linki kopyalandı!')
     }
   }
 
@@ -163,52 +185,49 @@ export default function ProfilePage() {
   return (
     <div className="min-h-screen relative overflow-hidden">
       <FloatingParticles />
-      <section className="relative py-8 px-4">
-        <div className="container mx-auto max-w-5xl">
-          <div className="glass border border-border rounded-2xl p-8 mb-6">
-            <div className="flex items-start gap-6">
-              <div className="w-32 h-32 rounded-full overflow-hidden bg-primary">
-                {userProfile?.avatar_url || session?.user?.image ? (
-                  <img src={userProfile?.avatar_url || session?.user?.image || ''} alt="Avatar" className="w-full h-full object-cover" />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center text-white text-5xl font-bold">{userProfile?.name?.[0]?.toUpperCase() || session?.user?.name?.[0]?.toUpperCase() || 'U'}</div>
-                )}
+      <section className="relative py-4 px-4">
+        <div className="container mx-auto max-w-4xl">
+          <div className="flex items-center justify-between mb-6">
+            <h1 className="font-bold text-xl">{userProfile?.username || userProfile?.name || 'Profil'}</h1>
+            <button onClick={() => setShowMenu(!showMenu)} className="p-2 hover:bg-secondary rounded-lg transition-colors"><Menu className="w-6 h-6" /></button>
+          </div>
+          <div className="mb-6">
+            <div className="flex items-center gap-6 mb-4">
+              <div className="w-20 h-20 rounded-full overflow-hidden bg-primary ring-2 ring-primary/20">
+                {userProfile?.avatar_url || session?.user?.image ? (<img src={userProfile?.avatar_url || session?.user?.image || ''} alt="Avatar" className="w-full h-full object-cover" />) : (<div className="w-full h-full flex items-center justify-center text-white text-3xl font-bold">{userProfile?.name?.[0]?.toUpperCase() || 'U'}</div>)}
               </div>
-              <div className="flex-1">
-                <div className="flex items-center justify-between mb-4">
-                  <div>
-                    <h1 className="font-serif text-3xl font-bold">{userProfile?.name || session?.user?.name || 'Kullanıcı'}</h1>
-                    {userProfile?.username && (<p className="text-muted-foreground">@{userProfile.username}</p>)}
-                  </div>
-                  <Link href="/profile/edit" className="px-4 py-2 glass border border-border rounded-xl hover:border-primary transition-colors flex items-center gap-2"><Edit2 className="w-4 h-4" />Düzenle</Link>
-                </div>
-                {userProfile?.bio && (<p className="text-muted-foreground mb-4">{userProfile.bio}</p>)}
-                <p className="text-sm text-muted-foreground mb-4">{userProfile?.email || session?.user?.email}</p>
-                <div className="flex items-center gap-4 text-sm mb-2">
-                  <div className="flex items-center gap-2"><Calendar className="w-4 h-4 text-muted-foreground" /><span className="text-muted-foreground">Gardırop AI üyesi</span></div>
-                  {userProfile?.style && (<div className="flex items-center gap-2"><Shirt className="w-4 h-4 text-primary" /><span className="text-primary font-semibold">{userProfile.style}</span></div>)}
-                </div>
-                {userProfile?.instagram && (<a href={`https://instagram.com/${userProfile.instagram}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-primary transition-colors"><Instagram className="w-4 h-4" />@{userProfile.instagram}</a>)}
+              <div className="flex-1 grid grid-cols-3 gap-4 text-center">
+                <div><p className="text-xl font-bold">{stats.posts}</p><p className="text-xs text-muted-foreground">gönderi</p></div>
+                <div><p className="text-xl font-bold">{stats.followers}</p><p className="text-xs text-muted-foreground">takipçi</p></div>
+                <div><p className="text-xl font-bold">{stats.following}</p><p className="text-xs text-muted-foreground">takip</p></div>
               </div>
             </div>
-            <div className="grid grid-cols-3 gap-4 mt-6 pt-6 border-t border-border">
-              <div className="text-center"><p className="text-2xl font-bold">{userPosts.length}</p><p className="text-sm text-muted-foreground">Gönderi</p></div>
-              <div className="text-center"><p className="text-2xl font-bold">{savedOutfits.length}</p><p className="text-sm text-muted-foreground">Kombin</p></div>
-              <div className="text-center"><p className="text-2xl font-bold">{userPosts.reduce((sum, p) => sum + p.likes_count, 0)}</p><p className="text-sm text-muted-foreground">Beğeni</p></div>
+            <div className="mb-4">
+              <p className="font-bold">{userProfile?.name}</p>
+              {userProfile?.bio && (<p className="text-sm mt-1">{userProfile.bio}</p>)}
+              {userProfile?.style && (<div className="flex items-center gap-2 mt-2"><Shirt className="w-4 h-4 text-primary" /><span className="text-sm text-primary font-semibold">{userProfile.style}</span></div>)}
+              {userProfile?.instagram && (<a href={`https://instagram.com/${userProfile.instagram}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-primary transition-colors mt-1"><Instagram className="w-4 h-4" />@{userProfile.instagram}</a>)}
+            </div>
+            <div className="flex gap-2">
+              <Link href="/profile/edit" className="flex-1 px-4 py-2 glass border border-border rounded-lg font-semibold text-center text-sm hover:bg-secondary transition-colors">Profili düzenle</Link>
+              <button onClick={handleShare} className="flex-1 px-4 py-2 glass border border-border rounded-lg font-semibold text-center text-sm hover:bg-secondary transition-colors">Profili paylaş</button>
             </div>
           </div>
-          <div className="flex gap-4 mb-6">
-            <button onClick={() => setActiveTab('posts')} className={`px-6 py-3 rounded-xl font-semibold transition-all ${activeTab === 'posts' ? "bg-primary text-primary-foreground" : "glass border border-border hover:border-primary"}`}>Gönderiler ({userPosts.length})</button>
-            <button onClick={() => setActiveTab('saved')} className={`px-6 py-3 rounded-xl font-semibold transition-all ${activeTab === 'saved' ? "bg-primary text-primary-foreground" : "glass border border-border hover:border-primary"}`}>Kombinler ({savedOutfits.length})</button>
+          <div className="border-t border-border">
+            <div className="flex">
+              <button onClick={() => setActiveTab('posts')} className={`flex-1 py-3 flex items-center justify-center gap-2 border-b-2 transition-colors ${activeTab === 'posts' ? 'border-primary' : 'border-transparent'}`}><Grid3x3 className="w-5 h-5" /></button>
+              <button onClick={() => setActiveTab('saved')} className={`flex-1 py-3 flex items-center justify-center gap-2 border-b-2 transition-colors ${activeTab === 'saved' ? 'border-primary' : 'border-transparent'}`}><Bookmark className="w-5 h-5" /></button>
+            </div>
           </div>
-          <div className="min-h-96">
-            {activeTab === 'posts' && userPosts.length === 0 && (<div className="text-center py-20 glass border border-border rounded-2xl"><div className="text-9xl mb-6">📱</div><h3 className="text-2xl font-bold mb-3">Henüz gönderi yok</h3><p className="text-muted-foreground">İlk gönderini paylaş!</p></div>)}
-            {activeTab === 'posts' && userPosts.length > 0 && (<div className="grid grid-cols-3 gap-2">{userPosts.map((post, idx) => (<motion.div key={post.id} initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: idx * 0.05 }} onClick={() => handlePostClick(post)} className="aspect-square glass border border-border rounded-xl overflow-hidden cursor-pointer group"><div className="relative w-full h-full bg-gradient-to-br from-primary/5 to-primary/10"><img src={post.image_url} alt={post.caption} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" /><div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-6"><div className="flex items-center gap-2 text-white"><Heart className="w-6 h-6" fill="white" /><span className="font-bold">{post.likes_count}</span></div><div className="flex items-center gap-2 text-white"><MessageCircle className="w-6 h-6" fill="white" /><span className="font-bold">{post.comments_count}</span></div></div></div></motion.div>))}</div>)}
-            {activeTab === 'saved' && savedOutfits.length === 0 && (<div className="text-center py-20 glass border border-border rounded-2xl"><div className="text-9xl mb-6">💾</div><h3 className="text-2xl font-bold mb-3">Henüz kayıtlı kombin yok</h3><p className="text-muted-foreground mb-6">Ana sayfadan AI kombin oluştur ve Kaydet butonuna tıkla!</p><a href="/" className="px-6 py-3 bg-primary text-primary-foreground rounded-xl font-semibold hover:opacity-90 transition-opacity inline-block">Kombin Oluştur</a></div>)}
-            {activeTab === 'saved' && savedOutfits.length > 0 && (<div className="grid grid-cols-1 md:grid-cols-2 gap-6">{savedOutfits.map((outfit) => (<div key={outfit.id} className="glass border border-border rounded-2xl overflow-hidden hover:border-primary transition-colors"><div className="flex flex-col gap-2 p-4 bg-primary/5">{outfit.clothes?.slice(0, 4).map((item) => (<div key={item.id} className="flex items-center gap-3 bg-white rounded-lg p-2"><div className="w-14 h-14"><img src={item.image_url} alt={item.name} className="w-full h-full object-contain" /></div><div className="flex-1 min-w-0"><p className="text-xs text-primary font-semibold">{item.category}</p><p className="text-sm font-bold truncate">{item.name}</p></div></div>))}</div><div className="p-4"><h3 className="text-lg font-bold mb-2">{outfit.name}</h3>{outfit.description && (<p className="text-sm text-muted-foreground mb-3 line-clamp-2">{outfit.description}</p>)}<div className="flex items-center gap-2 mb-3"><span className="px-2 py-1 glass border border-border rounded-full text-xs font-semibold">{outfit.season}</span><span className="px-2 py-1 glass border border-border rounded-full text-xs font-semibold">{outfit.occasion}</span></div><div className="flex items-center justify-between mb-3"><div><p className="text-xs text-muted-foreground">Uyum</p><p className="text-xl font-bold text-primary">{outfit.color_harmony_score}/100</p></div><div className="text-right"><p className="text-xs text-muted-foreground">Tarih</p><p className="text-sm font-semibold">{new Date(outfit.created_at).toLocaleDateString('tr-TR')}</p></div></div><div className="flex gap-2"><button onClick={() => toggleFavorite(outfit.id, outfit.is_favorite)} className="flex-1 p-2 glass border border-border rounded-xl hover:border-red-500 transition-colors"><Heart className="w-4 h-4 mx-auto" fill={outfit.is_favorite ? "currentColor" : "none"} /></button><button onClick={() => deleteOutfit(outfit.id)} className="flex-1 p-2 glass border border-border rounded-xl hover:bg-red-500 hover:text-white transition-colors"><Trash2 className="w-4 h-4 mx-auto" /></button></div></div></div>))}</div>)}
+          <div className="mt-4">
+            {activeTab === 'posts' && userPosts.length === 0 && (<div className="text-center py-20"><div className="text-6xl mb-4">📷</div><h3 className="text-xl font-bold mb-2">Henüz gönderi yok</h3><p className="text-sm text-muted-foreground">İlk gönderini paylaş!</p></div>)}
+            {activeTab === 'posts' && userPosts.length > 0 && (<div className="grid grid-cols-3 gap-1">{userPosts.map((post) => (<div key={post.id} onClick={() => handlePostClick(post)} className="aspect-square bg-gradient-to-br from-primary/5 to-primary/10 cursor-pointer group relative"><img src={post.image_url} alt={post.caption} className="w-full h-full object-cover" /><div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-4"><div className="flex items-center gap-1 text-white"><Heart className="w-5 h-5" fill="white" /><span className="font-bold text-sm">{post.likes_count}</span></div><div className="flex items-center gap-1 text-white"><MessageCircle className="w-5 h-5" fill="white" /><span className="font-bold text-sm">{post.comments_count}</span></div></div></div>))}</div>)}
+            {activeTab === 'saved' && savedOutfits.length === 0 && (<div className="text-center py-20"><div className="text-6xl mb-4">💾</div><h3 className="text-xl font-bold mb-2">Henüz kayıtlı kombin yok</h3><p className="text-sm text-muted-foreground mb-4">AI kombin oluştur ve kaydet!</p><Link href="/" className="inline-block px-6 py-3 bg-primary text-primary-foreground rounded-xl font-semibold hover:opacity-90 transition-opacity">Kombin Oluştur</Link></div>)}
+            {activeTab === 'saved' && savedOutfits.length > 0 && (<div className="grid grid-cols-2 gap-4">{savedOutfits.map((outfit) => (<div key={outfit.id} className="glass border border-border rounded-xl overflow-hidden"><div className="aspect-square bg-primary/5 p-2 flex flex-col gap-1">{outfit.clothes?.slice(0, 2).map((item) => (<div key={item.id} className="flex-1 bg-white rounded-lg p-1 flex items-center justify-center"><img src={item.image_url} alt={item.name} className="w-full h-full object-contain" /></div>))}</div><div className="p-3"><p className="font-bold text-sm truncate">{outfit.name}</p><div className="flex items-center gap-2 mt-2"><span className="text-xs px-2 py-1 bg-primary/10 text-primary rounded-full">{outfit.season}</span><span className="text-xs font-bold text-primary">{outfit.color_harmony_score}/100</span></div></div></div>))}</div>)}
           </div>
         </div>
       </section>
+      <AnimatePresence>{showMenu && (<motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setShowMenu(false)} className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-end justify-center" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}><motion.div initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }} onClick={(e) => e.stopPropagation()} className="w-full max-w-md glass border-t border-border rounded-t-3xl p-6 space-y-2"><div className="w-12 h-1 bg-border rounded-full mx-auto mb-4" /><button onClick={() => { router.push('/saved'); setShowMenu(false) }} className="w-full px-4 py-3 glass border border-border rounded-xl hover:border-primary transition-colors flex items-center gap-3"><Bookmark className="w-5 h-5" /><span className="font-semibold">Kaydedilenler</span></button><button onClick={() => { router.push('/notifications'); setShowMenu(false) }} className="w-full px-4 py-3 glass border border-border rounded-xl hover:border-primary transition-colors flex items-center gap-3"><Bell className="w-5 h-5" /><span className="font-semibold">Bildirimler</span></button><button onClick={() => { router.push('/profile/edit'); setShowMenu(false) }} className="w-full px-4 py-3 glass border border-border rounded-xl hover:border-primary transition-colors flex items-center gap-3"><Settings className="w-5 h-5" /><span className="font-semibold">Profili Düzenle</span></button><button onClick={() => signOut()} className="w-full px-4 py-3 glass border border-red-500 text-red-500 rounded-xl hover:bg-red-500 hover:text-white transition-colors flex items-center gap-3"><LogOut className="w-5 h-5" /><span className="font-semibold">Çıkış Yap</span></button><button onClick={() => setShowMenu(false)} className="w-full px-4 py-3 glass border border-border rounded-xl hover:border-primary transition-colors flex items-center justify-center gap-3"><X className="w-5 h-5" /><span className="font-semibold">İptal</span></button></motion.div></motion.div>)}</AnimatePresence>
       <PostDetailModal post={selectedPost} isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} onLikeToggle={handleLikeToggle} onDelete={deletePost} />
     </div>
   )

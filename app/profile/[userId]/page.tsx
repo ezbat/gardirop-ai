@@ -4,334 +4,289 @@ import { useState, useEffect } from "react"
 import { useSession } from "next-auth/react"
 import { useRouter, useParams } from "next/navigation"
 import { motion } from "framer-motion"
-import { ArrowLeft, MessageCircle, UserPlus, UserMinus, Grid3x3, Loader2 } from "lucide-react"
+import { Heart, MessageCircle, Grid3x3, ChevronLeft, Share2, Instagram, Shirt, Loader2, MoreVertical } from "lucide-react"
 import FloatingParticles from "@/components/floating-particles"
+import PostDetailModal from "@/components/post-detail-modal"
 import { supabase } from "@/lib/supabase"
 
-interface User {
+interface UserProfile {
   id: string
   name: string
-  username: string
   email: string
   avatar_url: string | null
+  username: string | null
   bio: string | null
+  instagram: string | null
+  style: string | null
+  is_private: boolean
 }
 
 interface Post {
   id: string
+  user_id: string
   caption: string
-  image_url: string | null
-  created_at: string
+  image_url: string
   likes_count: number
   comments_count: number
+  created_at: string
+  liked_by_user?: boolean
+  bookmarked_by_user?: boolean
+}
+
+interface Stats {
+  posts: number
+  followers: number
+  following: number
 }
 
 export default function UserProfilePage() {
   const { data: session } = useSession()
   const router = useRouter()
   const params = useParams()
-  
-  const currentUserId = session?.user?.id
-  const targetUserId = params.userId as string
-
-  const [user, setUser] = useState<User | null>(null)
-  const [posts, setPosts] = useState<Post[]>([])
-  const [isFollowingUser, setIsFollowingUser] = useState(false)
+  const viewerId = session?.user?.id
+  const profileUserId = params.userId as string
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null)
+  const [userPosts, setUserPosts] = useState<Post[]>([])
   const [loading, setLoading] = useState(true)
-  const [followersCount, setFollowersCount] = useState(0)
-  const [followingCount, setFollowingCount] = useState(0)
+  const [selectedPost, setSelectedPost] = useState<Post | null>(null)
+  const [isModalOpen, setIsModalOpen] = useState(false)
+  const [stats, setStats] = useState<Stats>({ posts: 0, followers: 0, following: 0 })
+  const [isFollowing, setIsFollowing] = useState(false)
+  const [hasRequestPending, setHasRequestPending] = useState(false)
+  const [isBlocked, setIsBlocked] = useState(false)
+  const [actionLoading, setActionLoading] = useState(false)
 
   useEffect(() => {
-    if (targetUserId) {
-      loadUserData()
-    }
-  }, [targetUserId, currentUserId])
-
-  const loadUserData = async () => {
-    setLoading(true)
-    try {
-      // Get user info
-      const { data: userData, error: userError } = await supabase
-        .from('users')
-        .select('id, name, username, email, avatar_url, bio')
-        .eq('id', targetUserId)
-        .single()
-
-      if (userError || !userData) {
-        console.error('User not found:', userError)
-        router.push('/social')
+    if (profileUserId && viewerId) {
+      if (profileUserId === viewerId) {
+        router.push('/profile')
         return
       }
-      setUser(userData)
-
-      // Get user posts with counts
- // Get user posts
-const { data: postsData, error: postsError } = await supabase
-  .from('posts')
-  .select('id, caption, image_url, created_at')
-  .eq('user_id', targetUserId)
-  .order('created_at', { ascending: false })
-     if (!postsError && postsData) {
-  // Her post için like ve comment sayısını ayrı çek
-  const formattedPosts = await Promise.all(
-    postsData.map(async (post: any) => {
-      // Likes count
-      const { count: likesCount } = await supabase
-        .from('post_likes')
-        .select('*', { count: 'exact', head: true })
-        .eq('post_id', post.id)
-
-      // Comments count
-      const { count: commentsCount } = await supabase
-        .from('post_comments')
-        .select('*', { count: 'exact', head: true })
-        .eq('post_id', post.id)
-
-   return {
-  id: post.id,
-  caption: post.caption,
-  image_url: post.image_url,
-  created_at: post.created_at,
-  likes_count: likesCount || 0,
-  comments_count: commentsCount || 0
-}
-    })
-  )
-  setPosts(formattedPosts)
-}
-      // Get followers count
-      const { count: followersCountData } = await supabase
-        .from('follows')
-        .select('*', { count: 'exact', head: true })
-        .eq('following_id', targetUserId)
-
-      setFollowersCount(followersCountData || 0)
-
-      // Get following count
-      const { count: followingCountData } = await supabase
-        .from('follows')
-        .select('*', { count: 'exact', head: true })
-        .eq('follower_id', targetUserId)
-
-      setFollowingCount(followingCountData || 0)
-
-      // Check if current user is following
-      if (currentUserId && currentUserId !== targetUserId) {
-        const { data: followData } = await supabase
-  .from('follows')
-  .select('id')
-  .eq('follower_id', currentUserId)
-  .eq('following_id', targetUserId)
-  .maybeSingle()
-
-setIsFollowingUser(!!followData)
-      }
-    } catch (error) {
-      console.error("Failed to load user:", error)
+      loadUserProfile()
+      loadUserPosts()
+      loadStats()
+      checkFollowStatus()
+      checkBlockStatus()
     }
-    setLoading(false)
-  }
+  }, [profileUserId, viewerId])
 
-  const handleFollow = async () => {
-    if (!currentUserId) return
-    
+  const loadUserProfile = async () => {
+    if (!profileUserId) return
     try {
-      if (isFollowingUser) {
-        // Unfollow
-        await supabase
-          .from('follows')
-          .delete()
-          .eq('follower_id', currentUserId)
-          .eq('following_id', targetUserId)
-        
-        setIsFollowingUser(false)
-        setFollowersCount(prev => prev - 1)
-      } else {
-        // Follow
-        await supabase
-          .from('follows')
-          .insert({
-            follower_id: currentUserId,
-            following_id: targetUserId
-          })
-        
-        setIsFollowingUser(true)
-        setFollowersCount(prev => prev + 1)
-      }
+      const { data, error } = await supabase.from('users').select('id, name, email, avatar_url, username, bio, instagram, style, is_private').eq('id', profileUserId).single()
+      if (error) throw error
+      setUserProfile(data)
     } catch (error) {
-      console.error("Failed to follow/unfollow:", error)
+      console.error('Load profile error:', error)
     }
   }
 
-  const handleMessage = () => {
-    router.push(`/messages?to=${targetUserId}`)
+  const loadUserPosts = async () => {
+    if (!profileUserId) return
+    try {
+      const { data: postsData, error } = await supabase.from('posts').select('*').eq('user_id', profileUserId).eq('is_archived', false).order('created_at', { ascending: false })
+      if (error) throw error
+      if (viewerId) {
+        const postsWithStatus = await Promise.all((postsData || []).map(async (post) => {
+          const { data: likeData } = await supabase.from('likes').select('id').eq('post_id', post.id).eq('user_id', viewerId).single()
+          const { data: bookmarkData } = await supabase.from('bookmarks').select('id').eq('post_id', post.id).eq('user_id', viewerId).single()
+          return { ...post, liked_by_user: !!likeData, bookmarked_by_user: !!bookmarkData }
+        }))
+        setUserPosts(postsWithStatus)
+      } else {
+        setUserPosts(postsData || [])
+      }
+    } catch (error) {
+      console.error('Load posts error:', error)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const loadStats = async () => {
+    if (!profileUserId) return
+    try {
+      const { data: followersData } = await supabase.from('follows').select('id').eq('following_id', profileUserId)
+      const { data: followingData } = await supabase.from('follows').select('id').eq('follower_id', profileUserId)
+      const { data: postsData } = await supabase.from('posts').select('id').eq('user_id', profileUserId).eq('is_archived', false)
+      setStats({ posts: postsData?.length || 0, followers: followersData?.length || 0, following: followingData?.length || 0 })
+    } catch (error) {
+      console.error('Load stats error:', error)
+    }
+  }
+
+  const checkFollowStatus = async () => {
+    if (!viewerId || !profileUserId) return
+    try {
+      const { data: followData } = await supabase.from('follows').select('id').eq('follower_id', viewerId).eq('following_id', profileUserId).single()
+      setIsFollowing(!!followData)
+      
+      const { data: requestData } = await supabase.from('follow_requests').select('id').eq('requester_id', viewerId).eq('requested_id', profileUserId).eq('status', 'pending').single()
+      setHasRequestPending(!!requestData)
+    } catch (error) {
+      console.error('Check follow status error:', error)
+    }
+  }
+
+  const checkBlockStatus = async () => {
+    if (!viewerId || !profileUserId) return
+    try {
+      const { data: blockedData } = await supabase.from('blocked_users').select('id').eq('blocker_id', profileUserId).eq('blocked_id', viewerId).single()
+      setIsBlocked(!!blockedData)
+    } catch (error) {
+      console.error('Check block status error:', error)
+    }
+  }
+
+  const handleFollowAction = async () => {
+    if (!viewerId || !profileUserId || actionLoading) return
+    setActionLoading(true)
+    try {
+      if (isFollowing) {
+        const response = await fetch('/api/follow', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ followerId: viewerId, followingId: profileUserId, action: 'unfollow' }) })
+        if (!response.ok) throw new Error('Failed')
+        setIsFollowing(false)
+        loadStats()
+      } else if (hasRequestPending) {
+        const response = await fetch('/api/follow-request', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ requesterId: viewerId, requestedId: profileUserId, action: 'cancel' }) })
+        if (!response.ok) throw new Error('Failed')
+        setHasRequestPending(false)
+      } else {
+        const response = await fetch('/api/follow-request', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ requesterId: viewerId, requestedId: profileUserId, action: 'send' }) })
+        if (!response.ok) throw new Error('Failed')
+        const data = await response.json()
+        if (data.following) {
+          setIsFollowing(true)
+          loadStats()
+          loadUserPosts()
+        } else if (data.requestSent) {
+          setHasRequestPending(true)
+        }
+      }
+    } catch (error) {
+      console.error('Follow action error:', error)
+      alert('İşlem başarısız!')
+    } finally {
+      setActionLoading(false)
+    }
+  }
+
+  const handlePostClick = (post: Post) => {
+    setSelectedPost(post)
+    setIsModalOpen(true)
+  }
+
+  const handleLikeToggle = (postId: string, liked: boolean) => {
+    setUserPosts(prev => prev.map(post => post.id === postId ? { ...post, likes_count: liked ? post.likes_count + 1 : post.likes_count - 1, liked_by_user: liked } : post))
+  }
+
+  const handleShare = async () => {
+    const profileUrl = `${window.location.origin}/profile/${profileUserId}`
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: `${userProfile?.name}'in Profili`, text: `${userProfile?.name} - Gardırop AI`, url: profileUrl })
+      } catch (error) {
+        console.log('Share cancelled')
+      }
+    } else {
+      navigator.clipboard.writeText(profileUrl)
+      alert('Profil linki kopyalandı!')
+    }
   }
 
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <Loader2 className="w-12 h-12 animate-spin text-primary" />
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
       </div>
     )
   }
 
-  if (!user) {
+  if (isBlocked) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <p className="text-muted-foreground">Kullanıcı bulunamadı</p>
+      <div className="min-h-screen flex items-center justify-center px-4">
+        <div className="text-center">
+          <div className="text-6xl mb-4">🚫</div>
+          <h3 className="text-xl font-bold mb-2">Profil Görüntülenemiyor</h3>
+          <p className="text-sm text-muted-foreground">Bu kullanıcının profilini görüntüleyemezsiniz</p>
+        </div>
       </div>
     )
   }
 
-  const isOwnProfile = currentUserId === targetUserId
+  const canViewPosts = !userProfile?.is_private || isFollowing
+  const followButtonText = isFollowing ? 'Takip Ediliyor' : hasRequestPending ? 'İstek Gönderildi' : 'Takip Et'
 
   return (
     <div className="min-h-screen relative overflow-hidden">
       <FloatingParticles />
-
-      <section className="relative py-8 px-4">
+      <section className="relative py-4 px-4">
         <div className="container mx-auto max-w-4xl">
-          {/* Back Button */}
-          <motion.button
-            initial={{ opacity: 0, x: -20 }}
-            animate={{ opacity: 1, x: 0 }}
-            onClick={() => router.back()}
-            className="flex items-center gap-2 mb-6 text-muted-foreground hover:text-foreground transition-colors"
-          >
-            <ArrowLeft className="w-5 h-5" />
-            Geri
-          </motion.button>
-
-          {/* Profile Header */}
-          <motion.div
-            initial={{ opacity: 0, y: 30 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="glass rounded-2xl p-8 border border-border mb-8"
-          >
-            <div className="flex flex-col md:flex-row items-center md:items-start gap-6">
-              {/* Avatar */}
-              <div className="w-32 h-32 rounded-full bg-primary/10 flex items-center justify-center overflow-hidden border-4 border-primary/20">
-                {user.avatar_url ? (
-                  <img src={user.avatar_url} alt={user.name} className="w-full h-full object-cover" />
-                ) : (
-                  <span className="text-6xl">👤</span>
-                )}
+          <div className="flex items-center justify-between mb-6">
+            <button onClick={() => router.back()} className="p-2 hover:bg-secondary rounded-lg transition-colors"><ChevronLeft className="w-6 h-6" /></button>
+            <h1 className="font-bold text-xl">{userProfile?.username || userProfile?.name}</h1>
+            <button className="p-2 hover:bg-secondary rounded-lg transition-colors"><MoreVertical className="w-6 h-6" /></button>
+          </div>
+          <div className="mb-6">
+            <div className="flex items-center gap-6 mb-4">
+              <div className="w-20 h-20 rounded-full overflow-hidden bg-primary ring-2 ring-primary/20">
+                {userProfile?.avatar_url ? (<img src={userProfile.avatar_url} alt="Avatar" className="w-full h-full object-cover" />) : (<div className="w-full h-full flex items-center justify-center text-white text-3xl font-bold">{userProfile?.name?.[0]?.toUpperCase() || 'U'}</div>)}
               </div>
-
-              {/* Info */}
-              <div className="flex-1 text-center md:text-left">
-                <h1 className="text-3xl font-bold mb-2">{user.name}</h1>
-                <p className="text-sm text-muted-foreground mb-2">@{user.username}</p>
-                {user.bio && (
-                  <p className="text-muted-foreground mb-4">{user.bio}</p>
-                )}
-
-                {/* Stats */}
-                <div className="flex justify-center md:justify-start gap-6 mb-6">
-                  <div className="text-center">
-                    <div className="text-2xl font-bold text-primary">{posts.length}</div>
-                    <div className="text-xs text-muted-foreground">Gönderi</div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-2xl font-bold text-primary">{followersCount}</div>
-                    <div className="text-xs text-muted-foreground">Takipçi</div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-2xl font-bold text-primary">{followingCount}</div>
-                    <div className="text-xs text-muted-foreground">Takip</div>
-                  </div>
-                </div>
-
-                {/* Action Buttons */}
-                {!isOwnProfile && (
-                  <div className="flex gap-3 justify-center md:justify-start">
-                    <button
-                      onClick={handleFollow}
-                      className={`px-6 py-3 rounded-xl font-semibold flex items-center gap-2 ${
-                        isFollowingUser 
-                          ? "glass border border-border hover:border-primary" 
-                          : "bg-primary text-primary-foreground hover:opacity-90"
-                      }`}
-                    >
-                      {isFollowingUser ? (
-                        <>
-                          <UserMinus className="w-4 h-4" />
-                          Takipten Çık
-                        </>
-                      ) : (
-                        <>
-                          <UserPlus className="w-4 h-4" />
-                          Takip Et
-                        </>
-                      )}
-                    </button>
-
-                    <button
-                      onClick={handleMessage}
-                      className="px-6 py-3 rounded-xl font-semibold flex items-center gap-2 glass border border-border hover:border-primary"
-                    >
-                      <MessageCircle className="w-4 h-4" />
-                      Mesaj
-                    </button>
-                  </div>
-                )}
-
-                {isOwnProfile && (
-                  <button
-                    onClick={() => router.push("/profile")}
-                    className="px-6 py-3 rounded-xl font-semibold glass border border-border hover:border-primary"
-                  >
-                    Profili Düzenle
-                  </button>
-                )}
+              <div className="flex-1 grid grid-cols-3 gap-4 text-center">
+                <div><p className="text-xl font-bold">{stats.posts}</p><p className="text-xs text-muted-foreground">gönderi</p></div>
+                <div><p className="text-xl font-bold">{stats.followers}</p><p className="text-xs text-muted-foreground">takipçi</p></div>
+                <div><p className="text-xl font-bold">{stats.following}</p><p className="text-xs text-muted-foreground">takip</p></div>
               </div>
             </div>
-          </motion.div>
-
-          {/* Posts Grid */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.2 }}
-          >
-            <h2 className="text-2xl font-bold mb-4 flex items-center gap-2">
-              <Grid3x3 className="w-6 h-6" />
-              Gönderiler
-            </h2>
-
-            {posts.length === 0 ? (
-              <div className="text-center py-20 glass rounded-2xl">
-                <Grid3x3 className="w-16 h-16 text-muted-foreground/30 mx-auto mb-4" />
-                <p className="text-muted-foreground">Henüz gönderi yok</p>
+            <div className="mb-4">
+              <p className="font-bold">{userProfile?.name}</p>
+              {userProfile?.bio && (<p className="text-sm mt-1">{userProfile.bio}</p>)}
+              {userProfile?.style && (<div className="flex items-center gap-2 mt-2"><Shirt className="w-4 h-4 text-primary" /><span className="text-sm text-primary font-semibold">{userProfile.style}</span></div>)}
+              {userProfile?.instagram && (<a href={`https://instagram.com/${userProfile.instagram}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-primary transition-colors mt-1"><Instagram className="w-4 h-4" />@{userProfile.instagram}</a>)}
+            </div>
+            <div className="flex gap-2">
+              <button onClick={handleFollowAction} disabled={actionLoading} className={`flex-1 px-4 py-2 rounded-lg font-semibold text-sm transition-colors ${isFollowing ? 'glass border border-border hover:bg-secondary' : 'bg-primary text-primary-foreground hover:opacity-90'} disabled:opacity-50`}>
+                {actionLoading ? <Loader2 className="w-4 h-4 animate-spin mx-auto" /> : followButtonText}
+              </button>
+              <button onClick={() => router.push(`/messages?userId=${profileUserId}`)} className="flex-1 px-4 py-2 glass border border-border rounded-lg font-semibold text-sm hover:bg-secondary transition-colors">Mesaj Gönder</button>
+              <button onClick={handleShare} className="px-4 py-2 glass border border-border rounded-lg font-semibold text-sm hover:bg-secondary transition-colors"><Share2 className="w-4 h-4" /></button>
+            </div>
+          </div>
+          <div className="border-t border-border">
+            <div className="flex">
+              <button className="flex-1 py-3 flex items-center justify-center gap-2 border-b-2 border-primary"><Grid3x3 className="w-5 h-5" /></button>
+            </div>
+          </div>
+          <div className="mt-4">
+            {!canViewPosts ? (
+              <div className="text-center py-20">
+                <div className="text-6xl mb-4">🔒</div>
+                <h3 className="text-xl font-bold mb-2">Bu Hesap Gizli</h3>
+                <p className="text-sm text-muted-foreground">Fotoğrafları veya videoları görmek için takip et</p>
+              </div>
+            ) : userPosts.length === 0 ? (
+              <div className="text-center py-20">
+                <div className="text-6xl mb-4">📷</div>
+                <h3 className="text-xl font-bold mb-2">Henüz gönderi yok</h3>
+                <p className="text-sm text-muted-foreground">Gönderi paylaşıldığında burada görünür</p>
               </div>
             ) : (
-              <div className="grid grid-cols-3 gap-2">
-                {posts.map(post => (
-                  <motion.button
-                    key={post.id}
-                    initial={{ opacity: 0, scale: 0.9 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    onClick={() => router.push("/social")}
-                    className="aspect-square rounded-xl overflow-hidden relative group"
-                  >
-                    {post.image_url ? (
-                      <img src={post.image_url} alt="Post" className="w-full h-full object-cover" />
-                    ) : (
-                      <div className="w-full h-full bg-gradient-to-br from-primary/5 to-primary/10 flex items-center justify-center">
-                        <span className="text-6xl">👔</span>
-                      </div>
-                    )}
-                    <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-4 text-white text-sm font-semibold">
-                      <span>❤️ {post.likes_count}</span>
-                      <span>💬 {post.comments_count}</span>
+              <div className="grid grid-cols-3 gap-1">
+                {userPosts.map((post) => (
+                  <div key={post.id} onClick={() => handlePostClick(post)} className="aspect-square bg-gradient-to-br from-primary/5 to-primary/10 cursor-pointer group relative">
+                    <img src={post.image_url} alt={post.caption} className="w-full h-full object-cover" />
+                    <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-4">
+                      <div className="flex items-center gap-1 text-white"><Heart className="w-5 h-5" fill="white" /><span className="font-bold text-sm">{post.likes_count}</span></div>
+                      <div className="flex items-center gap-1 text-white"><MessageCircle className="w-5 h-5" fill="white" /><span className="font-bold text-sm">{post.comments_count}</span></div>
                     </div>
-                  </motion.button>
+                  </div>
                 ))}
               </div>
             )}
-          </motion.div>
+          </div>
         </div>
       </section>
+      <PostDetailModal post={selectedPost} isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} onLikeToggle={handleLikeToggle} />
     </div>
   )
 }

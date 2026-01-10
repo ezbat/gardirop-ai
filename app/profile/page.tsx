@@ -209,11 +209,11 @@ export default function ProfilePage() {
               <div className="w-20 h-20 rounded-full overflow-hidden bg-primary ring-2 ring-primary/20">
                 {userProfile?.avatar_url || session?.user?.image ? (<img src={userProfile?.avatar_url || session?.user?.image || ''} alt="Avatar" className="w-full h-full object-cover" />) : (<div className="w-full h-full flex items-center justify-center text-white text-3xl font-bold">{userProfile?.name?.[0]?.toUpperCase() || 'U'}</div>)}
               </div>
-              <div className="flex-1 grid grid-cols-3 gap-4 text-center">
-                <div><p className="text-xl font-bold">{stats.posts}</p><p className="text-xs text-muted-foreground">gönderi</p></div>
-                <div><p className="text-xl font-bold">{stats.followers}</p><p className="text-xs text-muted-foreground">takipçi</p></div>
-                <div><p className="text-xl font-bold">{stats.following}</p><p className="text-xs text-muted-foreground">takip</p></div>
-              </div>
+            <div className="flex-1 grid grid-cols-3 gap-4 text-center">
+  <div><p className="text-xl font-bold">{stats.posts}</p><p className="text-xs text-muted-foreground">gönderi</p></div>
+  <button onClick={() => router.push('/profile/followers?tab=followers')} className="hover:opacity-70 transition-opacity"><p className="text-xl font-bold">{stats.followers}</p><p className="text-xs text-muted-foreground">takipçi</p></button>
+  <button onClick={() => router.push('/profile/followers?tab=following')} className="hover:opacity-70 transition-opacity"><p className="text-xl font-bold">{stats.following}</p><p className="text-xs text-muted-foreground">takip</p></button>
+</div>
             </div>
             <div className="mb-4">
               <p className="font-bold">{userProfile?.name}</p>

@@ -143,17 +143,20 @@ export default function UserProfilePage() {
     setActionLoading(true)
     try {
       if (isFollowing) {
+        // Unfollow - use /api/follow
         const response = await fetch('/api/follow', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ followerId: viewerId, followingId: profileUserId, action: 'unfollow' }) })
-        if (!response.ok) throw new Error('Failed')
+        if (!response.ok) throw new Error('Unfollow failed')
         setIsFollowing(false)
         loadStats()
       } else if (hasRequestPending) {
+        // Cancel request - use /api/follow-request
         const response = await fetch('/api/follow-request', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ requesterId: viewerId, requestedId: profileUserId, action: 'cancel' }) })
-        if (!response.ok) throw new Error('Failed')
+        if (!response.ok) throw new Error('Cancel failed')
         setHasRequestPending(false)
       } else {
+        // Send follow request or follow directly - use /api/follow-request
         const response = await fetch('/api/follow-request', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ requesterId: viewerId, requestedId: profileUserId, action: 'send' }) })
-        if (!response.ok) throw new Error('Failed')
+        if (!response.ok) throw new Error('Follow failed')
         const data = await response.json()
         if (data.following) {
           setIsFollowing(true)
@@ -234,8 +237,8 @@ export default function UserProfilePage() {
               </div>
               <div className="flex-1 grid grid-cols-3 gap-4 text-center">
                 <div><p className="text-xl font-bold">{stats.posts}</p><p className="text-xs text-muted-foreground">gönderi</p></div>
-                <div><p className="text-xl font-bold">{stats.followers}</p><p className="text-xs text-muted-foreground">takipçi</p></div>
-                <div><p className="text-xl font-bold">{stats.following}</p><p className="text-xs text-muted-foreground">takip</p></div>
+                <button onClick={() => router.push(`/profile/followers?userId=${profileUserId}&tab=followers`)} className="hover:opacity-70 transition-opacity"><p className="text-xl font-bold">{stats.followers}</p><p className="text-xs text-muted-foreground">takipçi</p></button>
+                <button onClick={() => router.push(`/profile/followers?userId=${profileUserId}&tab=following`)} className="hover:opacity-70 transition-opacity"><p className="text-xl font-bold">{stats.following}</p><p className="text-xs text-muted-foreground">takip</p></button>
               </div>
             </div>
             <div className="mb-4">

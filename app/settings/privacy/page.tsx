@@ -38,6 +38,7 @@ export default function PrivacySettingsPage() {
       const response = await fetch('/api/privacy', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ userId, isPrivate: value }) })
       if (!response.ok) throw new Error('Failed to update')
       setIsPrivate(value)
+      alert(value ? 'Hesabın artık gizli!' : 'Hesabın artık herkese açık!')
     } catch (error) {
       console.error('Update error:', error)
       alert('Güncelleme başarısız!')
@@ -62,16 +63,22 @@ export default function PrivacySettingsPage() {
       </div>
       <div className="p-4 space-y-6">
         <div className="space-y-4">
-          <div className="flex items-center justify-between p-4 glass border border-border rounded-xl">
-            <div className="flex-1">
+          <div className="flex items-start justify-between p-4 glass border border-border rounded-xl">
+            <div className="flex-1 pr-4">
               <p className="font-bold mb-1">Gizli Hesap</p>
-              <p className="text-sm text-muted-foreground">Hesabın herkese açık olduğunda, profilini ve gönderilerini Instagram hesabı olan veya olmayan herkes görebilir.</p>
+              <p className="text-sm text-muted-foreground">Hesabın herkese açık olduğunda, profilini ve gönderilerini Gardırop AI hesabı olan veya olmayan herkes görebilir.</p>
               <p className="text-sm text-muted-foreground mt-2">Hesabın gizli olduğunda, konu etiketi ve konum sayfalarındaki fotoğrafların veya videoların dahil olmak üzere paylaştığın şeyleri ve takipçilerini ve takip listelerini sadece onayladığın takipçilerin görebilir.</p>
             </div>
-            <button onClick={() => handleToggle(!isPrivate)} disabled={updating} className={`ml-4 w-12 h-6 rounded-full transition-colors ${isPrivate ? 'bg-primary' : 'bg-border'}`}>
+            <button onClick={() => handleToggle(!isPrivate)} disabled={updating} className={`ml-4 w-12 h-6 rounded-full transition-colors flex-shrink-0 ${isPrivate ? 'bg-primary' : 'bg-border'} ${updating ? 'opacity-50' : ''}`}>
               <div className={`w-5 h-5 rounded-full bg-white transition-transform ${isPrivate ? 'translate-x-6' : 'translate-x-1'}`} />
             </button>
           </div>
+          {isPrivate && (
+            <div className="p-4 bg-primary/10 border border-primary/20 rounded-xl">
+              <p className="text-sm font-semibold text-primary mb-2">✓ Hesabın gizli</p>
+              <p className="text-sm text-muted-foreground">Seni takip etmek isteyen kişiler istek gönderecek. İstekleri onaylayabilir veya reddedebilirsin.</p>
+            </div>
+          )}
           <div className="p-4 glass border border-border rounded-xl">
             <p className="font-bold mb-2">Profil resmini genişletmeye izin ver</p>
             <p className="text-sm text-muted-foreground mb-3">İnsanların sen olduğunu anlamalarına yardımcı olmak için profil resminin daha büyük bir versiyonunu görmelerine izin ver.</p>
@@ -79,7 +86,7 @@ export default function PrivacySettingsPage() {
           </div>
           <div className="p-4 glass border border-border rounded-xl">
             <p className="font-bold mb-2">Herkese açık fotoğraf ve videoların arama motoru sonuçlarında görünmesine izin ver</p>
-            <p className="text-sm text-muted-foreground mb-3">Açıkken, Google gibi arama motorları herkese açık fotoğraflarını ve videolarını Instagram arama sonuçlarında gösterebilir.</p>
+            <p className="text-sm text-muted-foreground mb-3">Açıkken, Google gibi arama motorları herkese açık fotoğraflarını ve videolarını Gardırop AI arama sonuçlarında gösterebilir.</p>
             <button className="w-full px-4 py-2 glass border border-border rounded-lg font-semibold hover:bg-secondary transition-colors">Herkese açık</button>
           </div>
         </div>

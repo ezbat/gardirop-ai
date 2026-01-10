@@ -154,10 +154,13 @@ export default function UserProfilePage() {
         if (!response.ok) throw new Error('Cancel failed')
         setHasRequestPending(false)
       } else {
-        // Send follow request or follow directly - use /api/follow-request
-        const response = await fetch('/api/follow-request', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ requesterId: viewerId, requestedId: profileUserId, action: 'send' }) })
-        if (!response.ok) throw new Error('Follow failed')
-        const data = await response.json()
+  // Send follow request or follow directly - use /api/follow-request
+  console.log('🚀 Sending follow request:', { viewerId, profileUserId })
+  const response = await fetch('/api/follow-request', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ requesterId: viewerId, requestedId: profileUserId, action: 'send' }) })
+  console.log('📥 Response status:', response.status)
+  const data = await response.json()
+  console.log('📦 Response data:', data)
+  if (!response.ok) throw new Error(data.error || 'Follow failed')
         if (data.following) {
           setIsFollowing(true)
           loadStats()

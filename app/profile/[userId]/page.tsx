@@ -254,7 +254,7 @@ export default function UserProfilePage() {
               <button onClick={handleFollowAction} disabled={actionLoading} className={`flex-1 px-4 py-2 rounded-lg font-semibold text-sm transition-colors ${isFollowing ? 'glass border border-border hover:bg-secondary' : 'bg-primary text-primary-foreground hover:opacity-90'} disabled:opacity-50`}>
                 {actionLoading ? <Loader2 className="w-4 h-4 animate-spin mx-auto" /> : followButtonText}
               </button>
-              <button onClick={() => router.push(`/messages?userId=${profileUserId}`)} className="flex-1 px-4 py-2 glass border border-border rounded-lg font-semibold text-sm hover:bg-secondary transition-colors">Mesaj Gönder</button>
+             <button onClick={() => router.push(`/messages?to=${profileUserId}`)} className="flex-1 px-4 py-2 glass border border-border rounded-lg font-semibold text-sm hover:bg-secondary transition-colors">Mesaj Gönder</button>
               <button onClick={handleShare} className="px-4 py-2 glass border border-border rounded-lg font-semibold text-sm hover:bg-secondary transition-colors"><Share2 className="w-4 h-4" /></button>
             </div>
           </div>

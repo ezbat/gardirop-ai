@@ -47,16 +47,16 @@ function MessagesPageContent() {
     }
   }, [userId])
 
-  useEffect(() => {
-    if (toUserId && conversations.length > 0) {
-      const exists = conversations.find(c => c.userId === toUserId)
-      if (!exists) {
-        handleNewConversation(toUserId)
-      } else {
-        setSelectedUser(toUserId)
-      }
+ useEffect(() => {
+  if (toUserId) {
+    // Direkt kullanıcıyı seç, conversation yoksa oluştur
+    setSelectedUser(toUserId)
+    const exists = conversations.find(c => c.userId === toUserId)
+    if (!exists) {
+      handleNewConversation(toUserId)
     }
-  }, [toUserId, conversations.length])
+  }
+}, [toUserId])
 
   useEffect(() => {
     if (selectedUser) {

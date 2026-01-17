@@ -87,7 +87,6 @@ export default function SellerApplyPage() {
     )
   }
 
-  // Show application status if exists
   if (status?.application) {
     return (
       <div className="min-h-screen relative overflow-hidden">

@@ -17,6 +17,7 @@ export default function Navbar() {
     { href: "/wardrobe", label: "Gardırop" },
     { href: "/explore", label: "Keşfet" },
     { href: "/store", label: "Mağaza" },
+    { href: "/admin/sellers", label: "Admin" },
   ]
 
   return (

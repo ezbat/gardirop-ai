@@ -1,53 +1,71 @@
-"use client"
+'use client'
 
-import { useState, useEffect } from "react"
-import { useSession } from "next-auth/react"
-import { motion } from "framer-motion"
-import { Package, Clock, CheckCircle, XCircle, Truck } from "lucide-react"
-import Link from "next/link"
-import FloatingParticles from "@/components/floating-particles"
-import { supabase } from "@/lib/supabase"
+import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
+import { Package, Loader2, ChevronRight } from 'lucide-react'
+import { supabase } from '@/lib/supabase'
+import FloatingParticles from '@/components/floating-particles'
 
 interface Order {
   id: string
-  user_id: string
-  user_email: string
-  user_name: string
-  user_address: string
-  user_phone: string
-  items: any[]
-  total_amount: number
-  status: string
-  payment_method: string
   created_at: string
+  status: string
+  total_amount: number
+  order_items: any[]
+}
+
+const statusColors: any = {
+  pending: 'bg-yellow-500',
+  processing: 'bg-blue-500',
+  shipped: 'bg-purple-500',
+  delivered: 'bg-green-500',
+  cancelled: 'bg-red-500'
+}
+
+const statusLabels: any = {
+  pending: 'Beklemede',
+  processing: 'Hazırlanıyor',
+  shipped: 'Kargoda',
+  delivered: 'Teslim Edildi',
+  cancelled: 'İptal Edildi'
 }
 
 export default function OrdersPage() {
-  const { data: session } = useSession()
-  const userId = session?.user?.id
-
+  const router = useRouter()
+  const [user, setUser] = useState<any>(null)
   const [orders, setOrders] = useState<Order[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    if (userId) {
-      loadOrders()
-    }
-  }, [userId])
+    checkAuth()
+  }, [])
 
-  const loadOrders = async () => {
-    if (!userId) return
-    setLoading(true)
+  const checkAuth = async () => {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) {
+      router.push('/login')
+      return
+    }
+    setUser(user)
+    loadOrders(user.id)
+  }
+
+  const loadOrders = async (userId: string) => {
     try {
       const { data, error } = await supabase
         .from('orders')
-        .select('*')
+        .select(`
+          *,
+          order_items (
+            *,
+            product:products (*)
+          )
+        `)
         .eq('user_id', userId)
         .order('created_at', { ascending: false })
 
       if (error) throw error
       setOrders(data || [])
-      console.log('✅ Orders loaded:', data?.length || 0)
     } catch (error) {
       console.error('Load orders error:', error)
     } finally {
@@ -55,44 +73,10 @@ export default function OrdersPage() {
     }
   }
 
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case 'pending': return <Clock className="w-5 h-5 text-yellow-500" />
-      case 'processing': return <Truck className="w-5 h-5 text-blue-500" />
-      case 'shipped': return <Package className="w-5 h-5 text-purple-500" />
-      case 'delivered': return <CheckCircle className="w-5 h-5 text-green-500" />
-      case 'cancelled': return <XCircle className="w-5 h-5 text-red-500" />
-      default: return <Clock className="w-5 h-5" />
-    }
-  }
-
-  const getStatusText = (status: string) => {
-    switch (status) {
-      case 'pending': return 'Beklemede'
-      case 'processing': return 'Hazırlanıyor'
-      case 'shipped': return 'Kargoda'
-      case 'delivered': return 'Teslim Edildi'
-      case 'cancelled': return 'İptal Edildi'
-      default: return status
-    }
-  }
-
-  if (!session) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <div className="text-9xl mb-6">🔒</div>
-          <h2 className="text-2xl font-bold mb-4">Giriş Yapmalısınız</h2>
-          <Link href="/api/auth/signin" className="px-6 py-3 bg-primary text-primary-foreground rounded-xl font-semibold hover:opacity-90 inline-block">Giriş Yap</Link>
-        </div>
-      </div>
-    )
-  }
-
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <motion.div animate={{ rotate: 360 }} transition={{ duration: 2, repeat: Infinity }} className="w-16 h-16 rounded-full border-2 border-primary border-t-transparent" />
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
       </div>
     )
   }
@@ -101,69 +85,73 @@ export default function OrdersPage() {
     <div className="min-h-screen relative overflow-hidden">
       <FloatingParticles />
       <section className="relative py-8 px-4">
-        <div className="container mx-auto max-w-5xl">
+        <div className="container mx-auto max-w-4xl">
           <h1 className="font-serif text-4xl font-bold mb-8">Siparişlerim</h1>
 
           {orders.length === 0 ? (
-            <div className="text-center py-20 glass border border-border rounded-2xl">
-              <div className="text-9xl mb-6">📦</div>
-              <h3 className="text-2xl font-bold mb-3">Henüz sipariş yok</h3>
-              <p className="text-muted-foreground mb-6">İlk siparişinizi verin!</p>
-              <Link href="/store" className="px-6 py-3 bg-primary text-primary-foreground rounded-xl font-semibold hover:opacity-90 inline-block">Mağazaya Git</Link>
+            <div className="glass border border-border rounded-2xl p-12 text-center">
+              <Package className="w-16 h-16 mx-auto mb-4 text-muted-foreground" />
+              <h2 className="text-xl font-bold mb-2">Henüz sipariş yok</h2>
+              <p className="text-muted-foreground mb-6">İlk siparişinizi vermek için alışverişe başlayın!</p>
+              <button
+                onClick={() => router.push('/marketplace')}
+                className="px-6 py-3 bg-primary text-primary-foreground rounded-xl font-semibold hover:opacity-90 transition-opacity"
+              >
+                Alışverişe Başla
+              </button>
             </div>
           ) : (
-            <div className="space-y-6">
-              {orders.map((order, idx) => (
-                <motion.div key={order.id} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: idx * 0.1 }} className="glass border border-border rounded-2xl overflow-hidden">
-                  
-                  {/* ORDER HEADER */}
-                  <div className="p-6 border-b border-border bg-primary/5">
-                    <div className="flex items-center justify-between mb-4">
-                      <div>
-                        <p className="text-sm text-muted-foreground">Sipariş No</p>
-                        <p className="font-mono font-bold">{order.id.slice(0, 8).toUpperCase()}</p>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-sm text-muted-foreground">Tarih</p>
-                        <p className="font-semibold">{new Date(order.created_at).toLocaleDateString('tr-TR')}</p>
-                      </div>
+            <div className="space-y-4">
+              {orders.map(order => (
+                <div
+                  key={order.id}
+                  onClick={() => router.push(`/orders/${order.id}`)}
+                  className="glass border border-border rounded-2xl p-6 hover:border-primary transition-colors cursor-pointer"
+                >
+                  <div className="flex items-start justify-between mb-4">
+                    <div>
+                      <p className="text-sm text-muted-foreground mb-1">
+                        Sipariş #{order.id.slice(0, 8)}
+                      </p>
+                      <p className="text-sm text-muted-foreground">
+                        {new Date(order.created_at).toLocaleDateString('tr-TR', {
+                          year: 'numeric',
+                          month: 'long',
+                          day: 'numeric'
+                        })}
+                      </p>
                     </div>
                     <div className="flex items-center gap-2">
-                      {getStatusIcon(order.status)}
-                      <span className="font-semibold">{getStatusText(order.status)}</span>
+                      <span className={`px-3 py-1 rounded-full text-xs font-semibold text-white ${statusColors[order.status]}`}>
+                        {statusLabels[order.status]}
+                      </span>
+                      <ChevronRight className="w-5 h-5 text-muted-foreground" />
                     </div>
                   </div>
 
-                  {/* ORDER ITEMS */}
-                  <div className="p-6">
-                    <div className="space-y-3 mb-4">
-                      {order.items.map((item: any, i: number) => (
-                        <div key={i} className="flex items-center gap-4">
-                          <div className="w-16 h-16 rounded-lg overflow-hidden bg-primary/5 flex-shrink-0">
-                            <img src={item.image_url} alt={item.product_name} className="w-full h-full object-cover" />
-                          </div>
-                          <div className="flex-1">
-                            <p className="font-semibold">{item.product_name}</p>
-                            <p className="text-sm text-muted-foreground">Adet: {item.quantity}</p>
-                          </div>
-                          <p className="font-bold">€{(item.price * item.quantity).toFixed(2)}</p>
-                        </div>
-                      ))}
-                    </div>
-
-                    {/* ORDER TOTAL */}
-                    <div className="border-t border-border pt-4 flex items-center justify-between">
-                      <div>
-                        <p className="text-sm text-muted-foreground">Teslimat Adresi</p>
-                        <p className="text-sm">{order.user_address}</p>
+                  <div className="flex gap-3 mb-4">
+                    {order.order_items.slice(0, 3).map((item: any, idx: number) => (
+                      <img
+                        key={idx}
+                        src={item.product.images[0]}
+                        alt={item.product.title}
+                        className="w-16 h-16 object-cover rounded-lg"
+                      />
+                    ))}
+                    {order.order_items.length > 3 && (
+                      <div className="w-16 h-16 glass border border-border rounded-lg flex items-center justify-center">
+                        <span className="text-sm font-semibold">+{order.order_items.length - 3}</span>
                       </div>
-                      <div className="text-right">
-                        <p className="text-sm text-muted-foreground">Toplam</p>
-                        <p className="text-2xl font-bold text-primary">€{order.total_amount.toFixed(2)}</p>
-                      </div>
-                    </div>
+                    )}
                   </div>
-                </motion.div>
+
+                  <div className="flex justify-between items-center">
+                    <p className="text-sm text-muted-foreground">
+                      {order.order_items.length} ürün
+                    </p>
+                    <p className="text-lg font-bold">₺{order.total_amount.toFixed(2)}</p>
+                  </div>
+                </div>
               ))}
             </div>
           )}

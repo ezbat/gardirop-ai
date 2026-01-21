@@ -4,11 +4,12 @@ import { useState, useEffect } from "react"
 import { useSession, signOut } from "next-auth/react"
 import { useRouter } from "next/navigation"
 import { motion, AnimatePresence } from "framer-motion"
-import { Heart, MessageCircle, Grid3x3, Bookmark, Menu, Settings, Bell, LogOut, Share2, Instagram, Shirt, X, ChevronRight, BarChart3, Lock, Users, Ban, MessageSquare, Activity, Clock, Archive, Star, Image, UserPlus, TrendingUp, Store, Package } from "lucide-react"
+import { Heart, MessageCircle, Grid3x3, Bookmark, Menu, Settings, Bell, LogOut, Share2, Instagram, Shirt, X, ChevronRight, BarChart3, Lock, Users, Ban, MessageSquare, Activity, Clock, Archive, Star, Image, UserPlus, TrendingUp, Store, Package, Languages, Check } from "lucide-react"
 import Link from "next/link"
 import FloatingParticles from "@/components/floating-particles"
 import PostDetailModal from "@/components/post-detail-modal"
 import { supabase } from "@/lib/supabase"
+import { useLanguage } from "@/lib/language-context"
 
 interface UserProfile {
   id: string
@@ -56,6 +57,7 @@ interface Stats {
 export default function ProfilePage() {
   const { data: session } = useSession()
   const router = useRouter()
+  const { language, setLanguage, t } = useLanguage()
   const userId = session?.user?.id
   const [activeTab, setActiveTab] = useState<'posts' | 'saved'>('posts')
   const [savedOutfits, setSavedOutfits] = useState<SavedOutfit[]>([])
@@ -336,6 +338,34 @@ export default function ProfilePage() {
                         <span className="text-sm text-muted-foreground">0</span>
                         <ChevronRight className="w-5 h-5 text-muted-foreground" />
                       </div>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Dil Seçimi */}
+                <div>
+                  <p className="text-xs text-muted-foreground font-semibold mb-3 px-4">Dil / Language / Sprache</p>
+                  <div className="space-y-1">
+                    <button onClick={() => setLanguage('tr')} className="w-full px-4 py-3 flex items-center justify-between hover:bg-secondary/50 rounded-lg transition-colors">
+                      <div className="flex items-center gap-3">
+                        <span className="text-2xl">🇹🇷</span>
+                        <span>Türkçe</span>
+                      </div>
+                      {language === 'tr' && <Check className="w-5 h-5 text-primary" />}
+                    </button>
+                    <button onClick={() => setLanguage('en')} className="w-full px-4 py-3 flex items-center justify-between hover:bg-secondary/50 rounded-lg transition-colors">
+                      <div className="flex items-center gap-3">
+                        <span className="text-2xl">🇬🇧</span>
+                        <span>English</span>
+                      </div>
+                      {language === 'en' && <Check className="w-5 h-5 text-primary" />}
+                    </button>
+                    <button onClick={() => setLanguage('de')} className="w-full px-4 py-3 flex items-center justify-between hover:bg-secondary/50 rounded-lg transition-colors">
+                      <div className="flex items-center gap-3">
+                        <span className="text-2xl">🇩🇪</span>
+                        <span>Deutsch</span>
+                      </div>
+                      {language === 'de' && <Check className="w-5 h-5 text-primary" />}
                     </button>
                   </div>
                 </div>

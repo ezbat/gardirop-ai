@@ -3,17 +3,16 @@
 import { useState } from "react"
 import Link from "next/link"
 import { useSession, signOut } from "next-auth/react"
-import { Menu, X, Search, User, LogOut, Plus, MessageCircle, Languages } from "lucide-react"
+import { Menu, X, Search, User, LogOut, Plus, MessageCircle } from "lucide-react"
 import { motion, AnimatePresence } from "framer-motion"
 import CreatePostModal from "./create-post-modal"
 import { useLanguage } from "@/lib/language-context"
 
 export default function Navbar() {
   const { data: session } = useSession()
-  const { language, setLanguage, t } = useLanguage()
+  const { t } = useLanguage()
   const [isOpen, setIsOpen] = useState(false)
   const [showCreatePost, setShowCreatePost] = useState(false)
-  const [showLangMenu, setShowLangMenu] = useState(false)
 
   const navLinks = [
     { href: "/", label: t('home') },
@@ -22,14 +21,6 @@ export default function Navbar() {
     { href: "/store", label: t('store') },
     { href: "/admin/sellers", label: "Admin" },
   ]
-
-  const languages = [
-    { code: 'tr', name: 'Türkçe', flag: '🇹🇷' },
-    { code: 'en', name: 'English', flag: '🇬🇧' },
-    { code: 'de', name: 'Deutsch', flag: '🇩🇪' },
-  ]
-
-  const currentLang = languages.find(l => l.code === language)
 
   return (
     <>
@@ -48,44 +39,6 @@ export default function Navbar() {
               ))}
             </div>
             <div className="flex items-center gap-2">
-              {/* Language Selector */}
-              <div className="relative">
-                <button
-                  onClick={() => setShowLangMenu(!showLangMenu)}
-                  className="p-2 glass border border-border rounded-xl hover:border-primary transition-colors flex items-center gap-1"
-                  title={t('settings')}
-                >
-                  <span className="text-lg">{currentLang?.flag}</span>
-                  <Languages className="w-4 h-4" />
-                </button>
-                <AnimatePresence>
-                  {showLangMenu && (
-                    <motion.div
-                      initial={{ opacity: 0, y: -10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: -10 }}
-                      className="absolute right-0 mt-2 w-40 glass border border-border rounded-xl shadow-lg overflow-hidden"
-                    >
-                      {languages.map((lang) => (
-                        <button
-                          key={lang.code}
-                          onClick={() => {
-                            setLanguage(lang.code as 'tr' | 'en' | 'de')
-                            setShowLangMenu(false)
-                          }}
-                          className={`w-full px-4 py-2 flex items-center gap-2 hover:bg-primary/10 transition-colors text-left ${
-                            language === lang.code ? 'bg-primary/5 text-primary font-semibold' : ''
-                          }`}
-                        >
-                          <span className="text-lg">{lang.flag}</span>
-                          <span className="text-sm">{lang.name}</span>
-                        </button>
-                      ))}
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </div>
-
               <Link href="/search" className="p-2 glass border border-border rounded-xl hover:border-primary transition-colors" title={t('search')}><Search className="w-5 h-5" /></Link>
               {session ? (
                 <>

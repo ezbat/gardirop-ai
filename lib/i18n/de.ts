@@ -1,4 +1,8 @@
 export const de = {
+  // APP
+  appName: "Wearo",
+  appSlogan: "Entdecke deinen Stil, Erstelle deinen Look",
+
   // NAVBAR
   home: "Startseite",
   explore: "Entdecken",
@@ -12,6 +16,7 @@ export const de = {
   settings: "Einstellungen",
   logout: "Abmelden",
   login: "Anmelden",
+  signup: "Registrieren",
 
   // FEED
   newOutfit: "Neues Outfit",

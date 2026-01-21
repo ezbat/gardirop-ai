@@ -1,4 +1,8 @@
 export const en = {
+  // APP
+  appName: "Wearo",
+  appSlogan: "Discover Your Style, Create Your Look",
+
   // NAVBAR
   home: "Home",
   explore: "Explore",
@@ -12,6 +16,7 @@ export const en = {
   settings: "Settings",
   logout: "Logout",
   login: "Login",
+  signup: "Sign Up",
 
   // FEED
   newOutfit: "New Outfit",

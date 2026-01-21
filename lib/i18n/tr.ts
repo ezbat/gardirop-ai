@@ -1,4 +1,8 @@
 export const tr = {
+  // APP
+  appName: "Wearo",
+  appSlogan: "Stilini Keşfet, Kombinini Oluştur",
+
   // NAVBAR
   home: "Ana Sayfa",
   explore: "Keşfet",
@@ -12,6 +16,7 @@ export const tr = {
   settings: "Ayarlar",
   logout: "Çıkış Yap",
   login: "Giriş Yap",
+  signup: "Kayıt Ol",
 
   // FEED
   newOutfit: "Yeni Kombin",

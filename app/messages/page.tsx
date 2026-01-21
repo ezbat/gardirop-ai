@@ -40,6 +40,7 @@ function MessagesPageContent() {
   const [newMessage, setNewMessage] = useState("")
   const [loading, setLoading] = useState(true)
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const processedToUserRef = useRef<string | null>(null)
 
   useEffect(() => {
     if (userId) {
@@ -48,11 +49,12 @@ function MessagesPageContent() {
   }, [userId])
 
   useEffect(() => {
-    // toUserId varsa ve conversations yüklendiyse
-    if (toUserId && !loading) {
+    // toUserId varsa ve conversations yüklendiyse ve henüz işlenmemişse
+    if (toUserId && !loading && processedToUserRef.current !== toUserId) {
+      processedToUserRef.current = toUserId
       handleNewConversation(toUserId)
     }
-  }, [toUserId, loading, conversations])
+  }, [toUserId, loading])
 
   useEffect(() => {
     if (selectedUser) {
@@ -67,10 +69,10 @@ function MessagesPageContent() {
   const handleNewConversation = async (otherUserId: string) => {
     try {
       console.log('🔍 Opening conversation with:', otherUserId)
-      
+
       // Önce mevcut conversation'ları kontrol et
       const existing = conversations.find(c => c.userId === otherUserId)
-      
+
       if (!existing) {
         console.log('📝 Creating new conversation')
         // Kullanıcı bilgilerini al
@@ -96,12 +98,18 @@ function MessagesPageContent() {
             lastMessageTime: new Date().toISOString(),
             unreadCount: 0
           }
-          setConversations(prev => [newConv, ...prev])
+          // Tekrar kontrol et, başka bir useEffect eklemiş olabilir
+          setConversations(prev => {
+            if (prev.find(c => c.userId === otherUserId)) {
+              return prev
+            }
+            return [newConv, ...prev]
+          })
         }
       } else {
         console.log('✅ Existing conversation found')
       }
-      
+
       // Kullanıcıyı seç
       setSelectedUser(otherUserId)
     } catch (error) {

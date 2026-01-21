@@ -46,7 +46,7 @@ export default function Navbar() {
                   <button onClick={() => signOut()} className="p-2 glass border border-border rounded-xl hover:border-red-500 hover:text-red-500 transition-colors" title="Çıkış"><LogOut className="w-5 h-5" /></button>
                 </>
               ) : (
-                <Link href="/api/auth/signin" className="px-4 py-2 bg-primary text-primary-foreground rounded-xl font-semibold hover:opacity-90 transition-opacity">Giriş Yap</Link>
+                <Link href="/auth/signin" className="px-4 py-2 bg-primary text-primary-foreground rounded-xl font-semibold hover:opacity-90 transition-opacity">Giriş Yap</Link>
               )}
               <button onClick={() => setIsOpen(!isOpen)} className="md:hidden p-2 glass border border-border rounded-xl">{isOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}</button>
             </div>

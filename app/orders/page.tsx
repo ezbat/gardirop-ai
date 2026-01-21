@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+import { useSession } from 'next-auth/react'
 import { Package, Loader2, ChevronRight } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import FloatingParticles from '@/components/floating-particles'
@@ -32,46 +33,107 @@ const statusLabels: any = {
 
 export default function OrdersPage() {
   const router = useRouter()
-  const [user, setUser] = useState<any>(null)
+  const { data: session } = useSession()
+  const userId = session?.user?.id
+  
   const [orders, setOrders] = useState<Order[]>([])
   const [loading, setLoading] = useState(true)
 
-  useEffect(() => {
-    checkAuth()
-  }, [])
+ useEffect(() => {
+  console.log('🔄 useEffect triggered, userId:', userId, 'session:', session?.user?.id)
+  
+  if (userId) {
+    console.log('✅ userId exists, loading orders...')
+    loadOrders()
+  } else if (session === undefined) {
+    console.log('⏳ Session loading...')
+    // Session henüz yükleniyor, bekle
+  } else if (session === null) {
+    console.log('❌ No session, redirecting to login')
+    router.push('/login')
+  } else {
+    console.log('⚠️ Session exists but no userId')
+  }
+}, [userId, session])
 
-  const checkAuth = async () => {
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) {
-      router.push('/login')
+
+ const loadOrders = async () => {
+  if (!userId) {
+    console.log('❌ No userId, skipping load')
+    return
+  }
+
+  try {
+    console.log('🔍 Loading orders for user:', userId)
+
+    // Önce siparişleri al
+    const { data: ordersData, error: ordersError } = await supabase
+      .from('orders')
+      .select('*')
+      .order('created_at', { ascending: false })
+
+    console.log('📊 Raw orders data:', ordersData)
+    console.log('❌ Orders error:', ordersError)
+    console.log('📦 Orders count:', ordersData?.length)
+
+    if (ordersError) {
+      console.error('❌ Orders error:', ordersError)
+      throw ordersError
+    }
+
+    if (!ordersData || ordersData.length === 0) {
+      console.log('⚠️ No orders found!')
+      setOrders([])
+      setLoading(false)
       return
     }
-    setUser(user)
-    loadOrders(user.id)
-  }
 
-  const loadOrders = async (userId: string) => {
-    try {
-      const { data, error } = await supabase
-        .from('orders')
-        .select(`
-          *,
-          order_items (
-            *,
-            product:products (*)
-          )
-        `)
-        .eq('user_id', userId)
-        .order('created_at', { ascending: false })
+    console.log('✅ Found orders:', ordersData.length)
 
-      if (error) throw error
-      setOrders(data || [])
-    } catch (error) {
-      console.error('Load orders error:', error)
-    } finally {
-      setLoading(false)
-    }
+    // Her sipariş için order_items ve products'ı al
+    const ordersWithItems = await Promise.all(
+      ordersData.map(async (order) => {
+        console.log('🔄 Processing order:', order.id)
+        
+        const { data: items, error: itemsError } = await supabase
+          .from('order_items')
+          .select('*')
+          .eq('order_id', order.id)
+
+        console.log('  📦 Items for order', order.id, ':', items?.length)
+
+        if (itemsError) {
+          console.error('❌ Order items error:', itemsError)
+          return { ...order, order_items: [] }
+        }
+
+        // Her item için product bilgisini al
+        const itemsWithProducts = await Promise.all(
+          (items || []).map(async (item) => {
+            const { data: product } = await supabase
+              .from('products')
+              .select('*')
+              .eq('id', item.product_id)
+              .single()
+
+            console.log('    🛍️ Product loaded:', product?.title)
+            return { ...item, product }
+          })
+        )
+
+        return { ...order, order_items: itemsWithProducts }
+      })
+    )
+
+    console.log('✅ Final orders with items:', ordersWithItems)
+    setOrders(ordersWithItems)
+  } catch (error) {
+    console.error('❌ Load orders error:', error)
+  } finally {
+    setLoading(false)
   }
+}
+
 
   if (loading) {
     return (
@@ -94,7 +156,7 @@ export default function OrdersPage() {
               <h2 className="text-xl font-bold mb-2">Henüz sipariş yok</h2>
               <p className="text-muted-foreground mb-6">İlk siparişinizi vermek için alışverişe başlayın!</p>
               <button
-                onClick={() => router.push('/marketplace')}
+                onClick={() => router.push('/store')}
                 className="px-6 py-3 bg-primary text-primary-foreground rounded-xl font-semibold hover:opacity-90 transition-opacity"
               >
                 Alışverişe Başla
@@ -111,7 +173,7 @@ export default function OrdersPage() {
                   <div className="flex items-start justify-between mb-4">
                     <div>
                       <p className="text-sm text-muted-foreground mb-1">
-                        Sipariş #{order.id.slice(0, 8)}
+                        Sipariş #{order.id.slice(0, 8).toUpperCase()}
                       </p>
                       <p className="text-sm text-muted-foreground">
                         {new Date(order.created_at).toLocaleDateString('tr-TR', {
@@ -129,28 +191,34 @@ export default function OrdersPage() {
                     </div>
                   </div>
 
-                  <div className="flex gap-3 mb-4">
-                    {order.order_items.slice(0, 3).map((item: any, idx: number) => (
-                      <img
-                        key={idx}
-                        src={item.product.images[0]}
-                        alt={item.product.title}
-                        className="w-16 h-16 object-cover rounded-lg"
-                      />
-                    ))}
-                    {order.order_items.length > 3 && (
-                      <div className="w-16 h-16 glass border border-border rounded-lg flex items-center justify-center">
-                        <span className="text-sm font-semibold">+{order.order_items.length - 3}</span>
+                  {order.order_items && order.order_items.length > 0 && (
+                    <>
+                      <div className="flex gap-3 mb-4">
+                        {order.order_items.slice(0, 3).map((item: any, idx: number) => (
+                          item.product && (
+                            <img
+                              key={idx}
+                              src={item.product.images?.[0] || '/placeholder.png'}
+                              alt={item.product.title}
+                              className="w-16 h-16 object-cover rounded-lg"
+                            />
+                          )
+                        ))}
+                        {order.order_items.length > 3 && (
+                          <div className="w-16 h-16 glass border border-border rounded-lg flex items-center justify-center">
+                            <span className="text-sm font-semibold">+{order.order_items.length - 3}</span>
+                          </div>
+                        )}
                       </div>
-                    )}
-                  </div>
 
-                  <div className="flex justify-between items-center">
-                    <p className="text-sm text-muted-foreground">
-                      {order.order_items.length} ürün
-                    </p>
-                    <p className="text-lg font-bold">₺{order.total_amount.toFixed(2)}</p>
-                  </div>
+                      <div className="flex justify-between items-center">
+                        <p className="text-sm text-muted-foreground">
+                          {order.order_items.length} ürün
+                        </p>
+                        <p className="text-lg font-bold text-primary">₺{order.total_amount.toFixed(2)}</p>
+                      </div>
+                    </>
+                  )}
                 </div>
               ))}
             </div>

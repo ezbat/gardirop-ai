@@ -47,16 +47,12 @@ function MessagesPageContent() {
     }
   }, [userId])
 
- useEffect(() => {
-  if (toUserId) {
-    // Direkt kullanıcıyı seç, conversation yoksa oluştur
-    setSelectedUser(toUserId)
-    const exists = conversations.find(c => c.userId === toUserId)
-    if (!exists) {
+  useEffect(() => {
+    // toUserId varsa ve conversations yüklendiyse
+    if (toUserId && !loading) {
       handleNewConversation(toUserId)
     }
-  }
-}, [toUserId])
+  }, [toUserId, loading, conversations])
 
   useEffect(() => {
     if (selectedUser) {
@@ -70,19 +66,31 @@ function MessagesPageContent() {
 
   const handleNewConversation = async (otherUserId: string) => {
     try {
+      console.log('🔍 Opening conversation with:', otherUserId)
+      
+      // Önce mevcut conversation'ları kontrol et
       const existing = conversations.find(c => c.userId === otherUserId)
       
       if (!existing) {
-        const { data: userData } = await supabase
+        console.log('📝 Creating new conversation')
+        // Kullanıcı bilgilerini al
+        const { data: userData, error } = await supabase
           .from('users')
           .select('id, name, username, avatar_url')
           .eq('id', otherUserId)
           .single()
 
+        if (error) {
+          console.error('❌ User fetch error:', error)
+          alert('Kullanıcı bulunamadı!')
+          return
+        }
+
         if (userData) {
+          console.log('✅ User found:', userData.name)
           const newConv: Conversation = {
             userId: userData.id,
-            userName: userData.name,
+            userName: userData.username || userData.name,
             userAvatar: userData.avatar_url,
             lastMessage: 'Yeni sohbet',
             lastMessageTime: new Date().toISOString(),
@@ -90,11 +98,15 @@ function MessagesPageContent() {
           }
           setConversations(prev => [newConv, ...prev])
         }
+      } else {
+        console.log('✅ Existing conversation found')
       }
       
+      // Kullanıcıyı seç
       setSelectedUser(otherUserId)
     } catch (error) {
-      console.error('Handle new conversation error:', error)
+      console.error('❌ Handle new conversation error:', error)
+      alert('Sohbet açılamadı!')
     }
   }
 
@@ -103,6 +115,8 @@ function MessagesPageContent() {
 
     setLoading(true)
     try {
+      console.log('📦 Loading conversations...')
+      
       const { data: messagesData, error } = await supabase
         .from('messages')
         .select('*')
@@ -132,7 +146,7 @@ function MessagesPageContent() {
 
           conversationsMap.set(otherUserId, {
             userId: otherUserId,
-            userName: userData?.name || 'Bilinmeyen',
+            userName: userData?.username || userData?.name || 'Bilinmeyen',
             userAvatar: userData?.avatar_url || null,
             lastMessage: msg.content,
             lastMessageTime: msg.created_at,
@@ -141,9 +155,11 @@ function MessagesPageContent() {
         }
       }
 
-      setConversations(Array.from(conversationsMap.values()))
+      const convArray = Array.from(conversationsMap.values())
+      console.log('✅ Loaded conversations:', convArray.length)
+      setConversations(convArray)
     } catch (error) {
-      console.error('Load conversations error:', error)
+      console.error('❌ Load conversations error:', error)
     } finally {
       setLoading(false)
     }
@@ -153,6 +169,8 @@ function MessagesPageContent() {
     if (!userId) return
 
     try {
+      console.log('📬 Loading messages with:', otherUserId)
+      
       const { data, error } = await supabase
         .from('messages')
         .select('*')
@@ -161,8 +179,10 @@ function MessagesPageContent() {
 
       if (error) throw error
 
+      console.log('✅ Loaded messages:', data?.length || 0)
       setMessages(data || [])
 
+      // Okunmamış mesajları işaretle
       await supabase
         .from('messages')
         .update({ is_read: true })
@@ -170,7 +190,7 @@ function MessagesPageContent() {
         .eq('receiver_id', userId)
         .eq('is_read', false)
     } catch (error) {
-      console.error('Load messages error:', error)
+      console.error('❌ Load messages error:', error)
     }
   }
 
@@ -178,6 +198,8 @@ function MessagesPageContent() {
     if (!userId || !selectedUser || !newMessage.trim()) return
 
     try {
+      console.log('📤 Sending message to:', selectedUser)
+      
       const { error } = await supabase
         .from('messages')
         .insert({
@@ -189,11 +211,13 @@ function MessagesPageContent() {
 
       if (error) throw error
 
+      console.log('✅ Message sent')
       setNewMessage("")
       await loadMessages(selectedUser)
       await loadConversations()
     } catch (error) {
-      console.error('Send message error:', error)
+      console.error('❌ Send message error:', error)
+      alert('Mesaj gönderilemedi!')
     }
   }
 
@@ -235,6 +259,7 @@ function MessagesPageContent() {
           <div className="glass border border-border rounded-2xl overflow-hidden" style={{ height: 'calc(100vh - 200px)' }}>
             <div className="grid grid-cols-12 h-full">
               
+              {/* Conversations List */}
               <div className="col-span-12 md:col-span-4 border-r border-border">
                 <div className="p-4 border-b border-border">
                   <h2 className="text-xl font-bold mb-4">Mesajlar</h2>
@@ -255,7 +280,10 @@ function MessagesPageContent() {
                     </div>
                   ) : conversations.length === 0 ? (
                     <div className="text-center py-8 text-muted-foreground">
-                      <p>Henüz mesaj yok</p>
+                      <p className="text-sm">Henüz mesaj yok</p>
+                      {toUserId && (
+                        <p className="text-xs mt-2">Yeni sohbet başlatılıyor...</p>
+                      )}
                     </div>
                   ) : (
                     conversations.map(conv => (
@@ -292,9 +320,11 @@ function MessagesPageContent() {
                 </div>
               </div>
 
+              {/* Chat Area */}
               <div className="col-span-12 md:col-span-8 flex flex-col">
                 {selectedUser && selectedConversation ? (
                   <>
+                    {/* Chat Header */}
                     <div className="p-4 border-b border-border flex items-center justify-between">
                       <div className="flex items-center gap-3">
                         <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center overflow-hidden">
@@ -314,6 +344,7 @@ function MessagesPageContent() {
                       </button>
                     </div>
 
+                    {/* Messages */}
                     <div className="flex-1 overflow-y-auto p-4 space-y-4">
                       {messages.length === 0 ? (
                         <div className="text-center py-8 text-muted-foreground">
@@ -346,6 +377,7 @@ function MessagesPageContent() {
                       <div ref={messagesEndRef} />
                     </div>
 
+                    {/* Message Input */}
                     <div className="p-4 border-t border-border">
                       <div className="flex gap-2">
                         <input
@@ -371,7 +403,9 @@ function MessagesPageContent() {
                     <div className="text-center">
                       <div className="text-6xl mb-4">💬</div>
                       <p className="text-xl font-semibold mb-2">Mesajlarınız</p>
-                      <p className="text-sm">Bir sohbet seçin veya yeni bir konuşma başlatın</p>
+                      <p className="text-sm">
+                        {loading ? 'Yükleniyor...' : 'Bir sohbet seçin veya yeni bir konuşma başlatın'}
+                      </p>
                     </div>
                   </div>
                 )}

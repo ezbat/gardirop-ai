@@ -1,73 +1,88 @@
-"use client"
+'use client'
 
-import { useState, useEffect } from "react"
-import { useSession } from "next-auth/react"
-import { motion } from "framer-motion"
-import { Trash2, Plus, Minus, ShoppingBag, ArrowRight } from "lucide-react"
-import Link from "next/link"
-import FloatingParticles from "@/components/floating-particles"
-import { getCart, updateCartQuantity, removeFromCart, type CartItem } from "@/lib/cart"
+import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
+import { ArrowLeft, Trash2, Plus, Minus, ShoppingBag, Loader2 } from 'lucide-react'
+import FloatingParticles from '@/components/floating-particles'
+
+interface CartItem {
+  id: string
+  product: {
+    id: string
+    title: string
+    price: number
+    images: string[]
+    stock_quantity: number
+  }
+  quantity: number
+  selectedSize?: string
+}
 
 export default function CartPage() {
-  const { data: session } = useSession()
-  const userId = session?.user?.id
-
-  const [cart, setCart] = useState<CartItem[]>([])
+  const router = useRouter()
+  const [cartItems, setCartItems] = useState<CartItem[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    if (userId) {
-      loadCart()
-    }
-  }, [userId])
+    loadCart()
+  }, [])
 
-  const loadCart = async () => {
-    if (!userId) return
-    setLoading(true)
-    const cartData = await getCart(userId)
-    setCart(cartData)
-    setLoading(false)
-  }
-
-  const handleUpdateQuantity = async (cartItemId: string, newQuantity: number) => {
-    if (newQuantity < 1) return
-    const success = await updateCartQuantity(cartItemId, newQuantity)
-    if (success) {
-      setCart(prev => prev.map(item => 
-        item.id === cartItemId ? { ...item, quantity: newQuantity } : item
-      ))
+  const loadCart = () => {
+    try {
+      const saved = localStorage.getItem('cart')
+      if (saved) {
+        setCartItems(JSON.parse(saved))
+      }
+    } catch (error) {
+      console.error('Load cart error:', error)
+    } finally {
+      setLoading(false)
     }
   }
 
-  const handleRemove = async (cartItemId: string) => {
-    if (!confirm('Bu ürünü sepetten çıkarmak istediğinize emin misiniz?')) return
-    const success = await removeFromCart(cartItemId)
-    if (success) {
-      setCart(prev => prev.filter(item => item.id !== cartItemId))
+  const updateQuantity = (itemId: string, newQuantity: number) => {
+    const updated = cartItems.map(item => {
+      if (item.id === itemId) {
+        // Check stock limit
+        const maxQuantity = item.product.stock_quantity
+        return { ...item, quantity: Math.min(Math.max(1, newQuantity), maxQuantity) }
+      }
+      return item
+    })
+    setCartItems(updated)
+    localStorage.setItem('cart', JSON.stringify(updated))
+  }
+
+  const removeItem = (itemId: string) => {
+    const updated = cartItems.filter(item => item.id !== itemId)
+    setCartItems(updated)
+    localStorage.setItem('cart', JSON.stringify(updated))
+  }
+
+  const clearCart = () => {
+    if (confirm('Sepeti tamamen boşaltmak istediğinizden emin misiniz?')) {
+      setCartItems([])
+      localStorage.removeItem('cart')
     }
   }
 
-  const subtotal = cart.reduce((sum, item) => sum + (item.product?.price || 0) * item.quantity, 0)
-  const shipping = subtotal > 0 ? 9.99 : 0
-  const total = subtotal + shipping
+  const calculateSubtotal = () => {
+    return cartItems.reduce((sum, item) => sum + (item.product.price * item.quantity), 0)
+  }
 
-  if (!session) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <div className="text-9xl mb-6">🔒</div>
-          <h2 className="text-2xl font-bold mb-4">Giriş Yapmalısınız</h2>
-          <p className="text-muted-foreground mb-6">Sepetinizi görmek için lütfen giriş yapın</p>
-          <Link href="/api/auth/signin" className="px-6 py-3 bg-primary text-primary-foreground rounded-xl font-semibold hover:opacity-90 inline-block">Giriş Yap</Link>
-        </div>
-      </div>
-    )
+  const calculateShipping = () => {
+    const subtotal = calculateSubtotal()
+    return subtotal > 500 ? 0 : 29.99
+  }
+
+  const calculateTotal = () => {
+    return calculateSubtotal() + calculateShipping()
   }
 
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <motion.div animate={{ rotate: 360 }} transition={{ duration: 2, repeat: Infinity }} className="w-16 h-16 rounded-full border-2 border-primary border-t-transparent" />
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
       </div>
     )
   }
@@ -77,52 +92,176 @@ export default function CartPage() {
       <FloatingParticles />
       <section className="relative py-8 px-4">
         <div className="container mx-auto max-w-6xl">
+          {/* Header */}
+          <div className="flex items-center justify-between mb-8">
+            <button
+              onClick={() => router.back()}
+              className="flex items-center gap-2 hover:text-primary transition-colors"
+            >
+              <ArrowLeft className="w-5 h-5" />
+              Geri
+            </button>
+            {cartItems.length > 0 && (
+              <button
+                onClick={clearCart}
+                className="text-sm text-red-500 hover:text-red-600 transition-colors"
+              >
+                Sepeti Temizle
+              </button>
+            )}
+          </div>
+
           <h1 className="font-serif text-4xl font-bold mb-8">Sepetim</h1>
 
-          {cart.length === 0 ? (
-            <div className="text-center py-20 glass border border-border rounded-2xl">
-              <div className="text-9xl mb-6">🛒</div>
-              <h3 className="text-2xl font-bold mb-3">Sepetiniz boş</h3>
-              <p className="text-muted-foreground mb-6">Mağazadan ürün ekleyerek başlayın!</p>
-              <Link href="/store" className="px-6 py-3 bg-primary text-primary-foreground rounded-xl font-semibold hover:opacity-90 inline-block">Mağazaya Git</Link>
+          {/* Empty Cart */}
+          {cartItems.length === 0 ? (
+            <div className="glass border border-border rounded-2xl p-20 text-center">
+              <ShoppingBag className="w-20 h-20 mx-auto mb-6 text-muted-foreground" />
+              <h2 className="text-2xl font-bold mb-2">Sepetiniz Boş</h2>
+              <p className="text-muted-foreground mb-6">
+                Hemen alışverişe başlayın ve favori ürünlerinizi sepete ekleyin!
+              </p>
+              <button
+                onClick={() => router.push('/store')}
+                className="px-6 py-3 bg-primary text-primary-foreground rounded-xl font-semibold hover:opacity-90 transition-opacity"
+              >
+                Alışverişe Başla
+              </button>
             </div>
           ) : (
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="grid lg:grid-cols-3 gap-8">
+              {/* Left: Cart Items */}
               <div className="lg:col-span-2 space-y-4">
-                {cart.map((item) => (
-                  <motion.div key={item.id} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="glass border border-border rounded-2xl p-4 flex gap-4">
-                    <div className="w-24 h-24 rounded-xl overflow-hidden bg-primary/5 flex-shrink-0">
-                      <img src={item.product?.image_url} alt={item.product?.product_name} className="w-full h-full object-cover" />
-                    </div>
-                    <div className="flex-1">
-                      <h3 className="font-bold text-lg mb-1">{item.product?.product_name}</h3>
-                      <p className="text-sm text-muted-foreground mb-3">{item.product?.store_name}</p>
-                      <div className="flex items-center gap-4">
-                        <div className="flex items-center gap-2 glass border border-border rounded-lg">
-                          <button onClick={() => handleUpdateQuantity(item.id, item.quantity - 1)} disabled={item.quantity <= 1} className="p-2 hover:bg-secondary rounded-lg disabled:opacity-50"><Minus className="w-4 h-4" /></button>
-                          <span className="w-8 text-center font-semibold">{item.quantity}</span>
-                          <button onClick={() => handleUpdateQuantity(item.id, item.quantity + 1)} className="p-2 hover:bg-secondary rounded-lg"><Plus className="w-4 h-4" /></button>
+                {cartItems.map(item => (
+                  <div key={item.id} className="glass border border-border rounded-2xl p-6">
+                    <div className="flex gap-6">
+                      {/* Image */}
+                      <div
+                        className="w-32 h-32 glass border border-border rounded-xl overflow-hidden cursor-pointer"
+                        onClick={() => router.push(`/store/${item.product.id}`)}
+                      >
+                        <img
+                          src={item.product.images[0]}
+                          alt={item.product.title}
+                          className="w-full h-full object-cover hover:scale-105 transition-transform"
+                        />
+                      </div>
+
+                      {/* Info */}
+                      <div className="flex-1">
+                        <h3
+                          className="font-bold text-lg mb-2 cursor-pointer hover:text-primary transition-colors"
+                          onClick={() => router.push(`/store/${item.product.id}`)}
+                        >
+                          {item.product.title}
+                        </h3>
+
+                        {item.selectedSize && (
+                          <p className="text-sm text-muted-foreground mb-2">
+                            Beden: {item.selectedSize}
+                          </p>
+                        )}
+
+                        <p className="text-2xl font-bold text-primary mb-4">
+                          ₺{item.product.price.toFixed(2)}
+                        </p>
+
+                        <div className="flex items-center gap-4">
+                          {/* Quantity Controls */}
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => updateQuantity(item.id, item.quantity - 1)}
+                              disabled={item.quantity <= 1}
+                              className="p-2 glass border border-border rounded-lg hover:bg-primary/10 transition-colors disabled:opacity-50"
+                            >
+                              <Minus className="w-4 h-4" />
+                            </button>
+                            <span className="w-12 text-center font-bold">{item.quantity}</span>
+                            <button
+                              onClick={() => updateQuantity(item.id, item.quantity + 1)}
+                              disabled={item.quantity >= item.product.stock_quantity}
+                              className="p-2 glass border border-border rounded-lg hover:bg-primary/10 transition-colors disabled:opacity-50"
+                            >
+                              <Plus className="w-4 h-4" />
+                            </button>
+                          </div>
+
+                          {/* Remove Button */}
+                          <button
+                            onClick={() => removeItem(item.id)}
+                            className="p-2 text-red-500 hover:bg-red-500/10 rounded-lg transition-colors"
+                          >
+                            <Trash2 className="w-5 h-5" />
+                          </button>
                         </div>
-                        <p className="text-xl font-bold">€{((item.product?.price || 0) * item.quantity).toFixed(2)}</p>
+
+                        {/* Stock Warning */}
+                        {item.quantity >= item.product.stock_quantity && (
+                          <p className="text-sm text-orange-500 mt-2">
+                            ⚠️ Maksimum stok adedine ulaştınız
+                          </p>
+                        )}
+                      </div>
+
+                      {/* Item Total */}
+                      <div className="text-right">
+                        <p className="text-sm text-muted-foreground mb-1">Toplam</p>
+                        <p className="text-2xl font-bold">
+                          ₺{(item.product.price * item.quantity).toFixed(2)}
+                        </p>
                       </div>
                     </div>
-                    <button onClick={() => handleRemove(item.id)} className="p-2 glass border border-border rounded-lg hover:border-red-500 hover:text-red-500 h-fit"><Trash2 className="w-5 h-5" /></button>
-                  </motion.div>
+                  </div>
                 ))}
               </div>
 
+              {/* Right: Order Summary */}
               <div className="lg:col-span-1">
-                <div className="glass border border-border rounded-2xl p-6 sticky top-24">
-                  <h3 className="text-xl font-bold mb-4">Sipariş Özeti</h3>
-                  <div className="space-y-3 mb-6">
-                    <div className="flex justify-between"><span className="text-muted-foreground">Ara Toplam</span><span className="font-semibold">€{subtotal.toFixed(2)}</span></div>
-                    <div className="flex justify-between"><span className="text-muted-foreground">Kargo</span><span className="font-semibold">€{shipping.toFixed(2)}</span></div>
-                    <div className="border-t border-border pt-3 flex justify-between text-lg"><span className="font-bold">Toplam</span><span className="font-bold text-primary">€{total.toFixed(2)}</span></div>
+                <div className="glass border border-border rounded-2xl p-6 sticky top-8">
+                  <h2 className="text-2xl font-bold mb-6">Sipariş Özeti</h2>
+
+                  <div className="space-y-4 mb-6">
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">Ara Toplam</span>
+                      <span className="font-semibold">₺{calculateSubtotal().toFixed(2)}</span>
+                    </div>
+
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">Kargo</span>
+                      <span className={`font-semibold ${calculateShipping() === 0 ? 'text-green-500' : ''}`}>
+                        {calculateShipping() === 0 ? 'ÜCRETSİZ' : `₺${calculateShipping().toFixed(2)}`}
+                      </span>
+                    </div>
+
+                    {calculateSubtotal() < 500 && calculateSubtotal() > 0 && (
+                      <div className="p-3 bg-primary/10 border border-primary/20 rounded-lg">
+                        <p className="text-xs text-primary font-semibold">
+                          🎉 ₺{(500 - calculateSubtotal()).toFixed(2)} daha alışveriş yapın, kargo ücretsiz!
+                        </p>
+                      </div>
+                    )}
+
+                    <div className="border-t border-border pt-4">
+                      <div className="flex justify-between text-lg font-bold">
+                        <span>Toplam</span>
+                        <span className="text-primary">₺{calculateTotal().toFixed(2)}</span>
+                      </div>
+                    </div>
                   </div>
-                  <Link href="/checkout" className="w-full px-6 py-3 bg-primary text-primary-foreground rounded-xl font-semibold hover:opacity-90 flex items-center justify-center gap-2">
-                    <ShoppingBag className="w-5 h-5" />Ödemeye Geç<ArrowRight className="w-5 h-5" />
-                  </Link>
-                  <Link href="/store" className="w-full mt-3 px-6 py-3 glass border border-border rounded-xl font-semibold hover:border-primary flex items-center justify-center">Alışverişe Devam</Link>
+
+                  <button
+                    onClick={() => router.push('/checkout')}
+                    className="w-full px-6 py-4 bg-primary text-primary-foreground rounded-xl font-semibold hover:opacity-90 transition-opacity"
+                  >
+                    Ödemeye Geç
+                  </button>
+
+                  <button
+                    onClick={() => router.push('/store')}
+                    className="w-full px-6 py-3 mt-3 glass border border-border rounded-xl font-semibold hover:border-primary transition-colors"
+                  >
+                    Alışverişe Devam Et
+                  </button>
                 </div>
               </div>
             </div>

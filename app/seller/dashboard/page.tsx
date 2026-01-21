@@ -4,7 +4,7 @@ import { useState, useEffect } from "react"
 import { useSession } from "next-auth/react"
 import { useRouter } from "next/navigation"
 import { motion } from "framer-motion"
-import { Store, Package, DollarSign, TrendingUp, Plus, Loader2 } from "lucide-react"
+import { Store, Package, DollarSign, TrendingUp, Plus, Loader2, ShoppingBag, MessageCircle } from "lucide-react"
 import Link from "next/link"
 import FloatingParticles from "@/components/floating-particles"
 
@@ -74,10 +74,20 @@ export default function SellerDashboardPage() {
               <h1 className="font-serif text-4xl font-bold mb-2">{seller?.shop_name}</h1>
               <p className="text-muted-foreground">Mağaza Yönetimi</p>
             </div>
-            <Link href="/seller/products/create" className="px-6 py-3 bg-primary text-primary-foreground rounded-xl font-semibold hover:opacity-90 transition-opacity flex items-center gap-2">
-              <Plus className="w-5 h-5" />
-              Ürün Ekle
-            </Link>
+            <div className="flex items-center gap-3">
+              <Link href="/messages" className="px-6 py-3 border border-border rounded-xl font-semibold hover:bg-primary/5 transition-colors flex items-center gap-2">
+                <MessageCircle className="w-5 h-5" />
+                Mesajlar
+              </Link>
+              <Link href="/seller/orders" className="px-6 py-3 border border-border rounded-xl font-semibold hover:bg-primary/5 transition-colors flex items-center gap-2">
+                <ShoppingBag className="w-5 h-5" />
+                Siparişler
+              </Link>
+              <Link href="/seller/products/create" className="px-6 py-3 bg-primary text-primary-foreground rounded-xl font-semibold hover:opacity-90 transition-opacity flex items-center gap-2">
+                <Plus className="w-5 h-5" />
+                Ürün Ekle
+              </Link>
+            </div>
           </div>
 
           {/* Stats */}

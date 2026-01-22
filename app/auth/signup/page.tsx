@@ -7,9 +7,11 @@ import Link from "next/link"
 import { motion } from "framer-motion"
 import { Mail, Lock, User, UserCircle, Loader2, Sparkles } from "lucide-react"
 import FloatingParticles from "@/components/floating-particles"
+import { useLanguage } from "@/lib/language-context"
 
 export default function SignupPage() {
   const router = useRouter()
+  const { t } = useLanguage()
   const [formData, setFormData] = useState({
     email: "",
     password: "",
@@ -32,7 +34,6 @@ export default function SignupPage() {
     setLoading(true)
 
     try {
-      // Signup API'sine istek
       const response = await fetch('/api/auth/signup', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -47,7 +48,6 @@ export default function SignupPage() {
         return
       }
 
-      // Otomatik giriş yap
       const result = await signIn('credentials', {
         email: formData.email,
         password: formData.password,
@@ -55,13 +55,13 @@ export default function SignupPage() {
       })
 
       if (result?.error) {
-        setError('Kayıt başarılı ama giriş yapılamadı. Lütfen giriş yapın.')
+        setError(t('error'))
         router.push('/auth/signin')
       } else {
         router.push('/')
       }
     } catch (error) {
-      setError('Bir hata oluştu')
+      setError(t('error'))
     } finally {
       setLoading(false)
     }
@@ -93,10 +93,10 @@ export default function SignupPage() {
               <div className="absolute -top-2 -right-2 w-6 h-6 bg-yellow-400 rounded-full animate-pulse" />
             </motion.div>
             <h1 className="font-serif text-4xl font-bold mb-2 bg-gradient-to-r from-primary to-purple-500 bg-clip-text text-transparent">
-              Gardirop AI'ya Katıl
+              {t('signupTitle')}
             </h1>
             <p className="text-muted-foreground">
-              Gardırobunu dijitalleştir, stil önerilerini keşfet
+              {t('signupSubtitle')}
             </p>
           </div>
 
@@ -120,7 +120,7 @@ export default function SignupPage() {
             <form onSubmit={handleSubmit} className="space-y-5">
               {/* Name Input */}
               <div>
-                <label className="block text-sm font-medium mb-2">Ad Soyad</label>
+                <label className="block text-sm font-medium mb-2">{t('fullName')}</label>
                 <div className="relative">
                   <User className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
                   <input
@@ -137,7 +137,7 @@ export default function SignupPage() {
 
               {/* Username Input */}
               <div>
-                <label className="block text-sm font-medium mb-2">Kullanıcı Adı</label>
+                <label className="block text-sm font-medium mb-2">{t('username')}</label>
                 <div className="relative">
                   <UserCircle className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
                   <input
@@ -154,7 +154,7 @@ export default function SignupPage() {
 
               {/* Email Input */}
               <div>
-                <label className="block text-sm font-medium mb-2">Email</label>
+                <label className="block text-sm font-medium mb-2">{t('email')}</label>
                 <div className="relative">
                   <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
                   <input
@@ -162,7 +162,7 @@ export default function SignupPage() {
                     name="email"
                     value={formData.email}
                     onChange={handleChange}
-                    placeholder="ornek@email.com"
+                    placeholder="example@email.com"
                     required
                     className="w-full pl-12 pr-4 py-3 glass border border-border rounded-xl outline-none focus:border-primary transition-colors"
                   />
@@ -171,7 +171,7 @@ export default function SignupPage() {
 
               {/* Password Input */}
               <div>
-                <label className="block text-sm font-medium mb-2">Şifre</label>
+                <label className="block text-sm font-medium mb-2">{t('password')}</label>
                 <div className="relative">
                   <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
                   <input
@@ -179,7 +179,7 @@ export default function SignupPage() {
                     name="password"
                     value={formData.password}
                     onChange={handleChange}
-                    placeholder="En az 6 karakter"
+                    placeholder={t('passwordMinLength')}
                     required
                     minLength={6}
                     className="w-full pl-12 pr-4 py-3 glass border border-border rounded-xl outline-none focus:border-primary transition-colors"
@@ -196,10 +196,10 @@ export default function SignupPage() {
                 {loading ? (
                   <>
                     <Loader2 className="w-5 h-5 animate-spin" />
-                    Hesap Oluşturuluyor...
+                    {t('creatingAccount')}
                   </>
                 ) : (
-                  'Hesap Oluştur'
+                  t('createAccount')
                 )}
               </button>
             </form>
@@ -207,7 +207,7 @@ export default function SignupPage() {
             {/* Divider */}
             <div className="flex items-center gap-4 my-6">
               <div className="flex-1 h-px bg-border" />
-              <span className="text-sm text-muted-foreground">veya</span>
+              <span className="text-sm text-muted-foreground">{t('orContinueWith')}</span>
               <div className="flex-1 h-px bg-border" />
             </div>
 
@@ -234,29 +234,29 @@ export default function SignupPage() {
                   d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
                 />
               </svg>
-              Google ile Devam Et
+              {t('continueWithGoogle')}
             </button>
 
             {/* Sign In Link */}
             <p className="text-center text-sm text-muted-foreground mt-6">
-              Zaten hesabın var mı?{' '}
+              {t('alreadyHaveAccount')}{' '}
               <Link href="/auth/signin" className="text-primary font-semibold hover:underline">
-                Giriş Yap
+                {t('login')}
               </Link>
             </p>
           </motion.div>
 
           {/* Footer */}
           <p className="text-center text-xs text-muted-foreground mt-6">
-            Hesap oluşturarak{' '}
+            {t('termsText')}{' '}
             <Link href="/terms" className="underline hover:text-foreground">
-              Kullanım Şartlarını
+              {t('termsOfService')}
             </Link>{' '}
-            ve{' '}
+            {t('and')}{' '}
             <Link href="/privacy" className="underline hover:text-foreground">
-              Gizlilik Politikasını
+              {t('privacyPolicy')}
             </Link>{' '}
-            kabul etmiş olursunuz.
+            {t('acceptTerms')}
           </p>
         </motion.div>
       </div>

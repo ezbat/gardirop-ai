@@ -5,13 +5,15 @@ import { signIn } from "next-auth/react"
 import { useRouter, useSearchParams } from "next/navigation"
 import Link from "next/link"
 import { motion } from "framer-motion"
-import { Mail, Lock, Loader2, Sparkles, LogIn } from "lucide-react"
+import { Mail, Lock, Loader2, LogIn } from "lucide-react"
 import FloatingParticles from "@/components/floating-particles"
 import { Suspense } from "react"
+import { useLanguage } from "@/lib/language-context"
 
 function SignInContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
+  const { t } = useLanguage()
   const callbackUrl = searchParams.get('callbackUrl') || '/'
 
   const [formData, setFormData] = useState({
@@ -41,7 +43,7 @@ function SignInContent() {
       })
 
       if (result?.error) {
-        setError('Email veya şifre hatalı')
+        setError(t('error'))
         setLoading(false)
         return
       }
@@ -49,7 +51,7 @@ function SignInContent() {
       router.push(callbackUrl)
       router.refresh()
     } catch (error) {
-      setError('Bir hata oluştu')
+      setError(t('error'))
       setLoading(false)
     }
   }
@@ -80,10 +82,10 @@ function SignInContent() {
               <div className="absolute -top-2 -right-2 w-6 h-6 bg-yellow-400 rounded-full animate-pulse" />
             </motion.div>
             <h1 className="font-serif text-4xl font-bold mb-2 bg-gradient-to-r from-primary to-purple-500 bg-clip-text text-transparent">
-              Tekrar Hoş Geldin
+              {t('signinTitle')}
             </h1>
             <p className="text-muted-foreground">
-              Gardırobuna ve stil önerilerine devam et
+              {t('signinSubtitle')}
             </p>
           </div>
 
@@ -107,7 +109,7 @@ function SignInContent() {
             <form onSubmit={handleSubmit} className="space-y-5">
               {/* Email Input */}
               <div>
-                <label className="block text-sm font-medium mb-2">Email</label>
+                <label className="block text-sm font-medium mb-2">{t('email')}</label>
                 <div className="relative">
                   <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
                   <input
@@ -115,7 +117,7 @@ function SignInContent() {
                     name="email"
                     value={formData.email}
                     onChange={handleChange}
-                    placeholder="ornek@email.com"
+                    placeholder="example@email.com"
                     required
                     className="w-full pl-12 pr-4 py-3 glass border border-border rounded-xl outline-none focus:border-primary transition-colors"
                   />
@@ -125,9 +127,9 @@ function SignInContent() {
               {/* Password Input */}
               <div>
                 <div className="flex items-center justify-between mb-2">
-                  <label className="block text-sm font-medium">Şifre</label>
+                  <label className="block text-sm font-medium">{t('password')}</label>
                   <Link href="/auth/forgot-password" className="text-xs text-primary hover:underline">
-                    Şifremi Unuttum
+                    {t('forgotPassword')}
                   </Link>
                 </div>
                 <div className="relative">
@@ -137,7 +139,7 @@ function SignInContent() {
                     name="password"
                     value={formData.password}
                     onChange={handleChange}
-                    placeholder="Şifrenizi girin"
+                    placeholder={t('password')}
                     required
                     className="w-full pl-12 pr-4 py-3 glass border border-border rounded-xl outline-none focus:border-primary transition-colors"
                   />
@@ -153,10 +155,10 @@ function SignInContent() {
                 {loading ? (
                   <>
                     <Loader2 className="w-5 h-5 animate-spin" />
-                    Giriş Yapılıyor...
+                    {t('signingIn')}
                   </>
                 ) : (
-                  'Giriş Yap'
+                  t('login')
                 )}
               </button>
             </form>
@@ -164,7 +166,7 @@ function SignInContent() {
             {/* Divider */}
             <div className="flex items-center gap-4 my-6">
               <div className="flex-1 h-px bg-border" />
-              <span className="text-sm text-muted-foreground">veya</span>
+              <span className="text-sm text-muted-foreground">{t('orContinueWith')}</span>
               <div className="flex-1 h-px bg-border" />
             </div>
 
@@ -191,21 +193,21 @@ function SignInContent() {
                   d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
                 />
               </svg>
-              Google ile Devam Et
+              {t('continueWithGoogle')}
             </button>
 
             {/* Sign Up Link */}
             <p className="text-center text-sm text-muted-foreground mt-6">
-              Hesabın yok mu?{' '}
+              {t('noAccount')}{' '}
               <Link href="/auth/signup" className="text-primary font-semibold hover:underline">
-                Hesap Oluştur
+                {t('signup')}
               </Link>
             </p>
           </motion.div>
 
           {/* Footer */}
           <p className="text-center text-xs text-muted-foreground mt-6">
-            Gizliliğin ve güvenliğin bizim için önemli 🔒
+            {t('privacyNote')}
           </p>
         </motion.div>
       </div>

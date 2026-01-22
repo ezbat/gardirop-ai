@@ -8,6 +8,7 @@ import { ShoppingCart, Heart, Search, ShoppingBag, Loader2 } from "lucide-react"
 import Link from "next/link"
 import FloatingParticles from "@/components/floating-particles"
 import { supabase } from "@/lib/supabase"
+import { useLanguage } from "@/lib/language-context"
 
 interface Product {
   id: string
@@ -27,6 +28,7 @@ interface Product {
 
 export default function StorePage() {
   const { data: session } = useSession()
+  const { t } = useLanguage()
   const router = useRouter()
   const userId = session?.user?.id
 
@@ -90,7 +92,7 @@ export default function StorePage() {
     }
     
     localStorage.setItem('cart', JSON.stringify(cart))
-    alert('✅ Ürün sepete eklendi!')
+    alert(t('addedToCart'))
   }
 
   const filteredProducts = products.filter(p => {
@@ -117,15 +119,15 @@ export default function StorePage() {
           {/* Header */}
           <div className="flex items-center justify-between mb-8">
             <div>
-              <h1 className="font-serif text-5xl font-bold mb-2">Mağaza</h1>
-              <p className="text-xl text-muted-foreground">Tüm ürünleri keşfet</p>
+              <h1 className="font-serif text-5xl font-bold mb-2">{t('storeTitle')}</h1>
+              <p className="text-xl text-muted-foreground">{t('discoverAllProducts')}</p>
             </div>
-            <Link 
-              href="/cart" 
+            <Link
+              href="/cart"
               className="px-6 py-3 bg-primary text-primary-foreground rounded-xl font-semibold hover:opacity-90 flex items-center gap-2"
             >
               <ShoppingBag className="w-5 h-5" />
-              Sepetim
+              {t('myCart')}
             </Link>
           </div>
 
@@ -138,7 +140,7 @@ export default function StorePage() {
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Ürün, marka veya kategori ara..."
+                placeholder={t('searchProductBrandCategory')}
                 className="w-full pl-12 pr-4 py-3 glass border border-border rounded-xl outline-none focus:border-primary"
               />
             </div>
@@ -164,7 +166,7 @@ export default function StorePage() {
           {/* Products Count */}
           <div className="mb-6">
             <p className="text-sm text-muted-foreground">
-              {filteredProducts.length} ürün bulundu
+              {filteredProducts.length} {t('productsFound')}
             </p>
           </div>
 
@@ -172,8 +174,8 @@ export default function StorePage() {
           {filteredProducts.length === 0 ? (
             <div className="text-center py-20 glass border border-border rounded-2xl">
               <div className="text-9xl mb-6">🛍️</div>
-              <h3 className="text-2xl font-bold mb-3">Ürün bulunamadı</h3>
-              <p className="text-muted-foreground">Farklı filtreler deneyin</p>
+              <h3 className="text-2xl font-bold mb-3">{t('noProductsFound')}</h3>
+              <p className="text-muted-foreground">{t('tryDifferentFilters')}</p>
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
@@ -201,10 +203,10 @@ export default function StorePage() {
                     )}
 
                     {/* Favorite Button */}
-                    <button 
+                    <button
                       onClick={(e) => {
                         e.stopPropagation()
-                        alert('Favorilere eklendi!')
+                        alert(t('addedToFavorites'))
                       }}
                       className="absolute top-3 left-3 p-2 glass rounded-full hover:bg-primary/20 transition-colors"
                     >
@@ -242,7 +244,7 @@ export default function StorePage() {
                     {/* Color */}
                     {product.color && (
                       <p className="text-sm text-muted-foreground mb-2">
-                        Renk: {product.color}
+                        {t('colorLabel')}: {product.color}
                       </p>
                     )}
 
@@ -275,7 +277,7 @@ export default function StorePage() {
                     {/* Stock & Actions */}
                     <div className="flex items-center justify-between mb-3">
                       <span className="text-xs text-muted-foreground">
-                        Stok: {product.stock_quantity}
+                        {t('stock')}: {product.stock_quantity}
                       </span>
                     </div>
 
@@ -286,7 +288,7 @@ export default function StorePage() {
                       className="w-full px-4 py-2 bg-primary text-primary-foreground rounded-xl font-semibold hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                     >
                       <ShoppingCart className="w-5 h-5" />
-                      {product.stock_quantity > 0 ? 'Sepete Ekle' : 'Stokta Yok'}
+                      {product.stock_quantity > 0 ? t('addToCart') : t('outOfStock')}
                     </button>
                   </div>
                 </div>

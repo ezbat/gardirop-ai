@@ -7,6 +7,7 @@ import { Plus, Search, Heart, Trash2 } from "lucide-react"
 import FloatingParticles from "@/components/floating-particles"
 import AddClothModal from "@/components/add-cloth-modal"
 import { supabase } from "@/lib/supabase"
+import { useLanguage } from "@/lib/language-context"
 
 interface Clothing {
   id: string
@@ -22,6 +23,7 @@ interface Clothing {
 
 export default function WardrobePage() {
   const { data: session } = useSession()
+  const { t } = useLanguage()
   const userId = session?.user?.id
 
   const [clothes, setClothes] = useState<Clothing[]>([])
@@ -58,7 +60,7 @@ export default function WardrobePage() {
   }
 
   const deleteCloth = async (id: string) => {
-    if (!confirm('Bu kıyafeti silmek istediğinize emin misiniz?')) return
+    if (!confirm(t('deleteConfirm'))) return
     try {
       const { error } = await supabase.from('clothes').delete().eq('id', id)
       if (error) throw error
@@ -93,8 +95,8 @@ export default function WardrobePage() {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
-          <h2 className="text-2xl font-bold mb-4">Giriş Yapmalısınız</h2>
-          <a href="/api/auth/signin" className="px-6 py-3 bg-primary text-primary-foreground rounded-xl font-semibold inline-block">Giriş Yap</a>
+          <h2 className="text-2xl font-bold mb-4">{t('mustLogin')}</h2>
+          <a href="/api/auth/signin" className="px-6 py-3 bg-primary text-primary-foreground rounded-xl font-semibold inline-block">{t('login')}</a>
         </div>
       </div>
     )
@@ -114,16 +116,16 @@ export default function WardrobePage() {
       <section className="relative py-8 px-4">
         <div className="container mx-auto max-w-7xl">
           <div className="flex items-center justify-between mb-8">
-            <h1 className="font-serif text-4xl font-bold">Gardırobum</h1>
+            <h1 className="font-serif text-4xl font-bold">{t('myWardrobeTitle')}</h1>
             <button onClick={() => setShowAddModal(true)} className="px-6 py-3 bg-primary text-primary-foreground rounded-xl font-semibold hover:opacity-90 flex items-center gap-2">
-              <Plus className="w-5 h-5" />Kıyafet Ekle
+              <Plus className="w-5 h-5" />{t('addCloth')}
             </button>
           </div>
 
           <div className="mb-6 space-y-4">
             <div className="relative">
               <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
-              <input type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="Ara..." className="w-full pl-12 pr-4 py-3 glass border border-border rounded-xl outline-none focus:border-primary" />
+              <input type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder={t('searchPlaceholder')} className="w-full pl-12 pr-4 py-3 glass border border-border rounded-xl outline-none focus:border-primary" />
             </div>
             <div className="flex gap-2 overflow-x-auto pb-2">
               {categories.map(cat => (
@@ -135,9 +137,9 @@ export default function WardrobePage() {
           {filteredClothes.length === 0 ? (
             <div className="text-center py-20 glass border border-border rounded-2xl">
               <div className="text-9xl mb-6">👕</div>
-              <h3 className="text-2xl font-bold mb-3">Henüz kıyafet yok</h3>
-              <p className="text-muted-foreground mb-6">İlk kıyafetini ekle!</p>
-              <button onClick={() => setShowAddModal(true)} className="px-6 py-3 bg-primary text-primary-foreground rounded-xl font-semibold inline-block">Kıyafet Ekle</button>
+              <h3 className="text-2xl font-bold mb-3">{t('noClothesInWardrobe')}</h3>
+              <p className="text-muted-foreground mb-6">{t('addFirstCloth')}</p>
+              <button onClick={() => setShowAddModal(true)} className="px-6 py-3 bg-primary text-primary-foreground rounded-xl font-semibold inline-block">{t('addCloth')}</button>
             </div>
           ) : (
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">

@@ -12,6 +12,7 @@ import PollCard from "@/components/poll-card"
 import PollCreateModal from "@/components/poll-create-modal"
 import { supabase } from "@/lib/supabase"
 import { createNotification } from "@/lib/notifications"
+import { useLanguage } from "@/lib/language-context"
 
 interface Post {
   id: string
@@ -33,6 +34,7 @@ interface Post {
 
 export default function ExplorePage() {
   const { data: session } = useSession()
+  const { t } = useLanguage()
   const router = useRouter()
   const userId = session?.user?.id
   const [activeTab, setActiveTab] = useState<'posts' | 'polls'>('posts')
@@ -104,7 +106,7 @@ export default function ExplorePage() {
   }
 
   const toggleLike = async (postId: string, postUserId: string, currentlyLiked: boolean) => {
-    if (!userId) { alert('Beğenmek için giriş yapın!'); return }
+    if (!userId) { alert(t('loginToLike')); return }
     try {
       if (currentlyLiked) {
         await supabase.from('likes').delete().eq('post_id', postId).eq('user_id', userId)
@@ -120,14 +122,14 @@ export default function ExplorePage() {
   }
 
   const toggleBookmark = async (postId: string, currentlyBookmarked: boolean) => {
-    if (!userId) { alert('Kaydetmek için giriş yapın!'); return }
+    if (!userId) { alert(t('loginToBookmark')); return }
     try {
       const response = await fetch('/api/bookmark', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ userId, postId, action: currentlyBookmarked ? 'remove' : 'add' }) })
       if (!response.ok) throw new Error('Bookmark failed')
       setPosts(prev => prev.map(post => post.id === postId ? { ...post, bookmarked_by_user: !currentlyBookmarked } : post))
     } catch (error) {
       console.error('Toggle bookmark error:', error)
-      alert('Kaydetme başarısız!')
+      alert(t('bookmarkFailed'))
     }
   }
 
@@ -142,7 +144,7 @@ export default function ExplorePage() {
       loadPolls()
     } catch (error) {
       console.error('Vote error:', error)
-      alert('Oy verilemedi!')
+      alert(t('voteFailed'))
     }
   }
 
@@ -157,7 +159,7 @@ export default function ExplorePage() {
       loadPolls()
     } catch (error) {
       console.error('Comment error:', error)
-      alert('Yorum eklenemedi!')
+      alert(t('commentFailed'))
     }
   }
 
@@ -175,13 +177,13 @@ export default function ExplorePage() {
       <section className="relative py-8 px-4">
         <div className="container mx-auto max-w-2xl">
           <div className="mb-8">
-            <h1 className="font-serif text-4xl font-bold mb-6 text-center">Keşfet</h1>
+            <h1 className="font-serif text-4xl font-bold mb-6 text-center">{t('exploreTitle')}</h1>
             <div className="flex border-b border-border">
               <button onClick={() => setActiveTab('posts')} className={`flex-1 py-3 font-semibold border-b-2 transition-colors ${activeTab === 'posts' ? 'border-primary text-primary' : 'border-transparent'}`}>
-                Gönderiler
+                {t('postsTab')}
               </button>
               <button onClick={() => setActiveTab('polls')} className={`flex-1 py-3 font-semibold border-b-2 transition-colors ${activeTab === 'polls' ? 'border-primary text-primary' : 'border-transparent'}`}>
-                Anketler
+                {t('pollsTab')}
               </button>
             </div>
           </div>
@@ -191,8 +193,8 @@ export default function ExplorePage() {
               {posts.length === 0 ? (
                 <div className="text-center py-20 glass border border-border rounded-2xl">
                   <div className="text-9xl mb-6">🌟</div>
-                  <h3 className="text-2xl font-bold mb-3">Henüz gönderi yok</h3>
-                  <p className="text-muted-foreground">İlk gönderiyi sen paylaş!</p>
+                  <h3 className="text-2xl font-bold mb-3">{t('noPostsYet')}</h3>
+                  <p className="text-muted-foreground">{t('shareFirstPost')}</p>
                 </div>
               ) : (
                 <div className="space-y-6">
@@ -243,16 +245,16 @@ export default function ExplorePage() {
             <>
               <button onClick={() => setShowCreateModal(true)} className="w-full mb-6 py-4 glass border-2 border-dashed border-border rounded-2xl hover:border-primary transition-colors flex items-center justify-center gap-2 font-semibold text-primary">
                 <Plus className="w-5 h-5" />
-                Anket Oluştur
+                {t('createPoll')}
               </button>
 
               {polls.length === 0 ? (
                 <div className="text-center py-20 glass border border-border rounded-2xl">
                   <div className="text-9xl mb-6">🗳️</div>
-                  <h3 className="text-2xl font-bold mb-3">Henüz anket yok</h3>
-                  <p className="text-muted-foreground mb-6">İlk anketi sen oluştur!</p>
+                  <h3 className="text-2xl font-bold mb-3">{t('noPollsYet')}</h3>
+                  <p className="text-muted-foreground mb-6">{t('createFirstPoll')}</p>
                   <button onClick={() => setShowCreateModal(true)} className="px-6 py-3 bg-primary text-primary-foreground rounded-xl font-semibold hover:opacity-90 transition-opacity">
-                    Anket Oluştur
+                    {t('createPoll')}
                   </button>
                 </div>
               ) : (

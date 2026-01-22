@@ -10,6 +10,7 @@ import OutfitVisualizer from "@/components/outfit-visualizer"
 import { generateOutfit, type OutfitResult } from "@/lib/outfit-generator"
 import { getCurrentWeather, getWeatherIcon } from "@/lib/weather"
 import { supabase } from "@/lib/supabase"
+import { useLanguage } from "@/lib/language-context"
 
 interface WeatherData {
   temperature: number
@@ -20,6 +21,7 @@ interface WeatherData {
 
 export default function HomePage() {
   const { data: session } = useSession()
+  const { t } = useLanguage()
   const userId = session?.user?.id
   const [outfit, setOutfit] = useState<OutfitResult | null>(null)
   const [loading, setLoading] = useState(false)
@@ -113,16 +115,16 @@ export default function HomePage() {
             👔
           </motion.div>
           <h1 className="font-serif text-6xl font-bold mb-4 bg-gradient-to-r from-primary via-purple-500 to-pink-500 bg-clip-text text-transparent">
-            Gardırop AI
+            {t('appName')}
           </h1>
           <p className="text-xl text-muted-foreground mb-8">
-            AI destekli gardırop yönetimi ve stil önerileri
+            {t('aiWardrobeManagement')}
           </p>
           <Link
             href="/api/auth/signin"
             className="px-8 py-4 bg-primary text-primary-foreground rounded-xl font-semibold hover:opacity-90 transition-opacity inline-block"
           >
-            Başla
+            {t('start')}
           </Link>
         </div>
       </div>
@@ -137,16 +139,16 @@ export default function HomePage() {
         <div className="container mx-auto max-w-6xl">
           <div className="text-center mb-8">
             <h1 className="font-serif text-4xl md:text-5xl font-bold mb-2">
-              Bugün Ne Giymeli?
+              {t('whatToWearToday')}
             </h1>
-            <p className="text-muted-foreground">AI destekli günlük kombin önerisi</p>
+            <p className="text-muted-foreground">{t('aiDailyOutfitSuggestion')}</p>
           </div>
 
           {/* Weather Widget */}
           {loadingWeather ? (
             <div className="glass border border-border rounded-2xl p-6 mb-6 flex items-center justify-center gap-2">
               <Loader2 className="w-5 h-5 animate-spin text-primary" />
-              <span className="text-sm text-muted-foreground">Konum alınıyor...</span>
+              <span className="text-sm text-muted-foreground">{t('gettingLocation')}</span>
             </div>
           ) : weather ? (
             <motion.div
@@ -178,7 +180,7 @@ export default function HomePage() {
                 transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
                 className="w-16 h-16 mx-auto mb-4 rounded-full border-2 border-primary border-t-transparent"
               />
-              <p className="text-muted-foreground">AI kombin oluşturuyor...</p>
+              <p className="text-muted-foreground">{t('aiCreatingOutfit')}</p>
             </div>
           ) : outfit ? (
             <motion.div
@@ -193,7 +195,7 @@ export default function HomePage() {
                       <Sparkles className="w-6 h-6 text-primary" />
                     </div>
                     <div>
-                      <p className="text-sm text-muted-foreground">Uyum Skoru</p>
+                      <p className="text-sm text-muted-foreground">{t('matchScore')}</p>
                       <p className="text-2xl font-bold">{outfit.score}/100</p>
                     </div>
                   </div>
@@ -201,7 +203,7 @@ export default function HomePage() {
                     onClick={generateDailyOutfit}
                     disabled={loading}
                     className="p-3 glass border border-border rounded-xl hover:border-primary transition-colors"
-                    title="Yeni kombin"
+                    title={t('newOutfitButton')}
                   >
                     <RefreshCw className="w-5 h-5" />
                   </button>
@@ -221,15 +223,15 @@ export default function HomePage() {
           ) : (
             <div className="glass border border-border rounded-2xl p-20 text-center">
               <div className="text-9xl mb-6">🎨</div>
-              <h3 className="text-2xl font-bold mb-3">Henüz kıyafet yok</h3>
+              <h3 className="text-2xl font-bold mb-3">{t('noClothesYet')}</h3>
               <p className="text-muted-foreground mb-6">
-                Kombin önerisi almak için gardırobuna kıyafet ekle
+                {t('addClothesForOutfitSuggestion')}
               </p>
               <Link
                 href="/wardrobe"
                 className="px-6 py-3 bg-primary text-primary-foreground rounded-xl font-semibold hover:opacity-90 transition-opacity inline-block"
               >
-                Gardıroba Git
+                {t('goToWardrobe')}
               </Link>
             </div>
           )}

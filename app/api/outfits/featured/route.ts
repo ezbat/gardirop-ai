@@ -58,7 +58,16 @@ export async function GET(req: NextRequest) {
 
     if (error) {
       console.error('Featured outfits error:', error)
+      // Return empty array if table doesn't exist yet (migration not run)
+      if (error.message?.includes('relation') || error.code === '42P01') {
+        console.log('Migration not run yet - outfit_collections table does not exist')
+        return NextResponse.json({ outfits: [] })
+      }
       return NextResponse.json({ error: 'Failed to fetch outfits' }, { status: 500 })
+    }
+
+    if (!outfits || outfits.length === 0) {
+      return NextResponse.json({ outfits: [] })
     }
 
     // Format response

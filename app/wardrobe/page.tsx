@@ -43,18 +43,29 @@ export default function WardrobePage() {
     if (!userId) return
     setLoading(true)
     try {
-      // Only show purchased items (from store orders)
+      // Try new system first (purchased items only)
       const { data, error } = await supabase
         .from('clothes')
         .select('*')
         .eq('user_id', userId)
-        .eq('is_purchased', true) // Only purchased items
+        .eq('is_purchased', true)
         .order('purchase_date', { ascending: false })
 
-      if (error) throw error
-      setClothes(data || [])
+      if (error) {
+        // Fallback to old system if migration not run yet
+        console.log('Migration not run yet, using fallback query')
+        const { data: fallbackData } = await supabase
+          .from('clothes')
+          .select('*')
+          .eq('user_id', userId)
+          .order('created_at', { ascending: false })
+        setClothes(fallbackData || [])
+      } else {
+        setClothes(data || [])
+      }
     } catch (error) {
       console.error('Load error:', error)
+      setClothes([])
     } finally {
       setLoading(false)
     }

@@ -4,8 +4,8 @@ import { useState, useEffect } from "react"
 import { useSession } from "next-auth/react"
 import { motion } from "framer-motion"
 import { Plus, Search, Heart, Trash2 } from "lucide-react"
+import Link from "next/link"
 import FloatingParticles from "@/components/floating-particles"
-import AddClothModal from "@/components/add-cloth-modal"
 import { supabase } from "@/lib/supabase"
 import { useLanguage } from "@/lib/language-context"
 
@@ -28,7 +28,6 @@ export default function WardrobePage() {
 
   const [clothes, setClothes] = useState<Clothing[]>([])
   const [loading, setLoading] = useState(true)
-  const [showAddModal, setShowAddModal] = useState(false)
   const [searchQuery, setSearchQuery] = useState("")
   const [selectedCategory, setSelectedCategory] = useState("All")
 
@@ -44,11 +43,13 @@ export default function WardrobePage() {
     if (!userId) return
     setLoading(true)
     try {
+      // Only show purchased items (from store orders)
       const { data, error } = await supabase
         .from('clothes')
         .select('*')
         .eq('user_id', userId)
-        .order('created_at', { ascending: false })
+        .eq('is_purchased', true) // Only purchased items
+        .order('purchase_date', { ascending: false })
 
       if (error) throw error
       setClothes(data || [])
@@ -116,10 +117,13 @@ export default function WardrobePage() {
       <section className="relative py-8 px-4">
         <div className="container mx-auto max-w-7xl">
           <div className="flex items-center justify-between mb-8">
-            <h1 className="font-serif text-4xl font-bold">{t('myWardrobeTitle')}</h1>
-            <button onClick={() => setShowAddModal(true)} className="px-6 py-3 bg-primary text-primary-foreground rounded-xl font-semibold hover:opacity-90 flex items-center gap-2">
-              <Plus className="w-5 h-5" />{t('addCloth')}
-            </button>
+            <div>
+              <h1 className="font-serif text-4xl font-bold">{t('myWardrobeTitle')}</h1>
+              <p className="text-muted-foreground mt-2">Satın aldığınız ürünler</p>
+            </div>
+            <Link href="/store" className="px-6 py-3 bg-primary text-primary-foreground rounded-xl font-semibold hover:opacity-90 flex items-center gap-2">
+              <Plus className="w-5 h-5" />Alışverişe Başla
+            </Link>
           </div>
 
           <div className="mb-6 space-y-4">
@@ -136,10 +140,10 @@ export default function WardrobePage() {
 
           {filteredClothes.length === 0 ? (
             <div className="text-center py-20 glass border border-border rounded-2xl">
-              <div className="text-9xl mb-6">👕</div>
-              <h3 className="text-2xl font-bold mb-3">{t('noClothesInWardrobe')}</h3>
-              <p className="text-muted-foreground mb-6">{t('addFirstCloth')}</p>
-              <button onClick={() => setShowAddModal(true)} className="px-6 py-3 bg-primary text-primary-foreground rounded-xl font-semibold inline-block">{t('addCloth')}</button>
+              <div className="text-9xl mb-6">🛍️</div>
+              <h3 className="text-2xl font-bold mb-3">Henüz alışveriş yapmadınız</h3>
+              <p className="text-muted-foreground mb-6">Mağazadan satın aldığınız ürünler burada görünecek</p>
+              <Link href="/store" className="px-6 py-3 bg-primary text-primary-foreground rounded-xl font-semibold inline-block">Mağazayı Keşfet</Link>
             </div>
           ) : (
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
@@ -167,8 +171,6 @@ export default function WardrobePage() {
           )}
         </div>
       </section>
-
-      <AddClothModal isOpen={showAddModal} onClose={() => setShowAddModal(false)} onSuccess={() => { setShowAddModal(false); loadClothes(); }} />
     </div>
   )
 }

@@ -3,13 +3,11 @@
 import { useState, useEffect } from "react"
 import { useSession } from "next-auth/react"
 import { motion } from "framer-motion"
-import { RefreshCw, Sparkles, MapPin, Loader2 } from "lucide-react"
+import { RefreshCw, ShoppingBag, Sparkles, MapPin, Loader2, ArrowRight } from "lucide-react"
 import Link from "next/link"
+import Image from "next/image"
 import FloatingParticles from "@/components/floating-particles"
-import OutfitVisualizer from "@/components/outfit-visualizer"
-import { generateOutfit, type OutfitResult } from "@/lib/outfit-generator"
 import { getCurrentWeather, getWeatherIcon } from "@/lib/weather"
-import { supabase } from "@/lib/supabase"
 import { useLanguage } from "@/lib/language-context"
 
 interface WeatherData {
@@ -19,11 +17,36 @@ interface WeatherData {
   city: string
 }
 
+interface OutfitItem {
+  productId: string
+  title: string
+  price: number
+  imageUrl: string
+  category: string
+  brand: string
+  stockQuantity: number
+}
+
+interface FeaturedOutfit {
+  id: string
+  name: string
+  description: string
+  coverImageUrl: string
+  season: string
+  occasion: string
+  items: OutfitItem[]
+  seller: {
+    id: string
+    shopName: string
+  }
+}
+
 export default function HomePage() {
   const { data: session } = useSession()
   const { t } = useLanguage()
-  const userId = session?.user?.id
-  const [outfit, setOutfit] = useState<OutfitResult | null>(null)
+
+  const [featuredOutfits, setFeaturedOutfits] = useState<FeaturedOutfit[]>([])
+  const [selectedOutfitIndex, setSelectedOutfitIndex] = useState(0)
   const [loading, setLoading] = useState(false)
   const [weather, setWeather] = useState<WeatherData | null>(null)
   const [loadingWeather, setLoadingWeather] = useState(true)
@@ -33,10 +56,10 @@ export default function HomePage() {
   }, [])
 
   useEffect(() => {
-    if (userId && weather) {
-      generateDailyOutfit()
+    if (weather) {
+      loadFeaturedOutfits()
     }
-  }, [userId, weather])
+  }, [weather])
 
   const loadWeather = async () => {
     setLoadingWeather(true)
@@ -62,44 +85,62 @@ export default function HomePage() {
     }
   }
 
-  const generateDailyOutfit = async () => {
-    if (!userId) return
-    
+  const getSeasonFromWeather = (temp: number): string => {
+    if (temp < 10) return 'Winter'
+    if (temp < 15) return 'Fall'
+    if (temp < 25) return 'Spring'
+    return 'Summer'
+  }
+
+  const loadFeaturedOutfits = async () => {
     setLoading(true)
     try {
-      // Kullanıcının tüm kıyafetlerini çek
-      const { data: clothes, error } = await supabase
-        .from('clothes')
-        .select('*')
-        .eq('user_id', userId)
+      const season = weather ? getSeasonFromWeather(weather.temperature) : 'All Season'
 
-      if (error) throw error
+      const response = await fetch(`/api/outfits/featured?season=${season}&limit=5`)
+      const data = await response.json()
 
-      if (!clothes || clothes.length === 0) {
-        setOutfit(null)
-        return
-      }
-
-      // Hava durumuna göre sezon belirle
-      const temp = weather?.temperature || 20
-      let season = 'Summer'
-      if (temp < 10) season = 'Winter'
-      else if (temp < 18) season = 'Fall'
-      else if (temp < 25) season = 'Summer'
-      else season = 'Spring'
-
-      // Kombin oluştur
-      const result = generateOutfit(clothes, { season })
-      
-      if (result) {
-        setOutfit(result)
+      if (response.ok && data.outfits) {
+        setFeaturedOutfits(data.outfits)
+        setSelectedOutfitIndex(0)
+      } else {
+        setFeaturedOutfits([])
       }
     } catch (error) {
-      console.error('Outfit generation error:', error)
+      console.error('Load outfits error:', error)
+      setFeaturedOutfits([])
     } finally {
       setLoading(false)
     }
   }
+
+  const addAllToCart = (outfit: FeaturedOutfit) => {
+    const cart = JSON.parse(localStorage.getItem('cart') || '[]')
+
+    outfit.items.forEach(item => {
+      const existingIndex = cart.findIndex((cartItem: any) => cartItem.id === item.productId)
+      if (existingIndex === -1 && item.stockQuantity > 0) {
+        cart.push({
+          id: item.productId,
+          title: item.title,
+          price: item.price,
+          image: item.imageUrl,
+          quantity: 1
+        })
+      }
+    })
+
+    localStorage.setItem('cart', JSON.stringify(cart))
+    alert(`✅ ${outfit.name} kombinindeki ${outfit.items.length} ürün sepete eklendi!`)
+  }
+
+  const nextOutfit = () => {
+    if (featuredOutfits.length > 0) {
+      setSelectedOutfitIndex((prev) => (prev + 1) % featuredOutfits.length)
+    }
+  }
+
+  const selectedOutfit = featuredOutfits[selectedOutfitIndex]
 
   if (!session) {
     return (
@@ -134,14 +175,13 @@ export default function HomePage() {
   return (
     <div className="min-h-screen relative overflow-hidden">
       <FloatingParticles />
-      
-      <section className="relative py-8 px-4">
+      <section className="relative py-12 px-4">
         <div className="container mx-auto max-w-6xl">
           <div className="text-center mb-8">
             <h1 className="font-serif text-4xl md:text-5xl font-bold mb-2">
               {t('whatToWearToday')}
             </h1>
-            <p className="text-muted-foreground">{t('aiDailyOutfitSuggestion')}</p>
+            <p className="text-muted-foreground">Mağazalarımızdan özenle seçilmiş kombinler</p>
           </div>
 
           {/* Weather Widget */}
@@ -154,19 +194,19 @@ export default function HomePage() {
             <motion.div
               initial={{ opacity: 0, y: -20 }}
               animate={{ opacity: 1, y: 0 }}
-              className="glass border border-border rounded-2xl p-6 mb-6 flex items-center justify-between"
+              className="glass border border-border rounded-2xl p-6 mb-6"
             >
-              <div className="flex items-center gap-4">
-                <div className="w-16 h-16 rounded-full bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center">
-                  <span className="text-4xl">{getWeatherIcon(weather.condition)}</span>
-                </div>
-                <div>
-                  <div className="flex items-center gap-1 text-sm text-muted-foreground">
-                    <MapPin className="w-3 h-3" />
-                    <span>{weather.city}</span>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <div className="text-5xl">{getWeatherIcon(weather.condition)}</div>
+                  <div>
+                    <p className="text-3xl font-bold">{Math.round(weather.temperature)}°C</p>
+                    <p className="text-sm text-muted-foreground">{weather.description}</p>
                   </div>
-                  <p className="text-3xl font-bold">{weather.temperature}°C</p>
-                  <p className="text-sm capitalize">{weather.description}</p>
+                </div>
+                <div className="flex items-center gap-2 text-muted-foreground">
+                  <MapPin className="w-4 h-4" />
+                  <span className="text-sm">{weather.city}</span>
                 </div>
               </div>
             </motion.div>
@@ -180,58 +220,127 @@ export default function HomePage() {
                 transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
                 className="w-16 h-16 mx-auto mb-4 rounded-full border-2 border-primary border-t-transparent"
               />
-              <p className="text-muted-foreground">{t('aiCreatingOutfit')}</p>
+              <p className="text-muted-foreground">Kombinler yükleniyor...</p>
             </div>
-          ) : outfit ? (
-            <motion.div
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              className="glass border border-border rounded-2xl overflow-hidden"
-            >
-              <div className="p-6">
-                <div className="flex items-center justify-between mb-6">
-                  <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
-                      <Sparkles className="w-6 h-6 text-primary" />
-                    </div>
-                    <div>
-                      <p className="text-sm text-muted-foreground">{t('matchScore')}</p>
-                      <p className="text-2xl font-bold">{outfit.score}/100</p>
-                    </div>
+          ) : selectedOutfit ? (
+            <div className="glass border border-border rounded-2xl p-6">
+              <div className="flex items-center justify-between mb-6">
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
+                    <Sparkles className="w-6 h-6 text-primary" />
                   </div>
-                  <button
-                    onClick={generateDailyOutfit}
-                    disabled={loading}
-                    className="p-3 glass border border-border rounded-xl hover:border-primary transition-colors"
-                    title={t('newOutfitButton')}
-                  >
-                    <RefreshCw className="w-5 h-5" />
-                  </button>
+                  <div>
+                    <p className="text-sm text-muted-foreground">Önerilen Kombin</p>
+                    <p className="text-2xl font-bold">{selectedOutfit.name}</p>
+                  </div>
                 </div>
+                <button
+                  onClick={nextOutfit}
+                  disabled={loading || featuredOutfits.length <= 1}
+                  className="p-3 glass border border-border rounded-xl hover:border-primary transition-colors"
+                  title={t('newOutfitButton')}
+                >
+                  <RefreshCw className="w-5 h-5" />
+                </button>
+              </div>
 
-                <OutfitVisualizer
-                  items={outfit.items}
-                  colorPalette={outfit.colorPalette}
-                  score={outfit.score}
-                />
+              {selectedOutfit.description && (
+                <p className="text-muted-foreground mb-6">{selectedOutfit.description}</p>
+              )}
 
-                <div className="mt-6 glass border border-border rounded-xl p-4">
-                  <p className="text-sm text-muted-foreground">{outfit.reason}</p>
+              {/* Outfit Items Grid */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                {selectedOutfit.items.map((item, idx) => (
+                  <motion.div
+                    key={item.productId}
+                    initial={{ opacity: 0, scale: 0.9 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    transition={{ delay: idx * 0.1 }}
+                    className="glass border border-border rounded-xl overflow-hidden hover:border-primary transition-colors"
+                  >
+                    <div className="relative aspect-square bg-muted">
+                      {item.imageUrl ? (
+                        <Image
+                          src={item.imageUrl}
+                          alt={item.title}
+                          fill
+                          className="object-cover"
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center text-4xl">
+                          📦
+                        </div>
+                      )}
+                    </div>
+                    <div className="p-3">
+                      <p className="text-xs text-primary font-semibold">{item.category}</p>
+                      <p className="font-bold text-sm truncate">{item.title}</p>
+                      <p className="text-xs text-muted-foreground truncate">{item.brand}</p>
+                      <p className="text-lg font-bold text-primary mt-2">₺{item.price}</p>
+                    </div>
+                  </motion.div>
+                ))}
+              </div>
+
+              {/* Seller Info */}
+              <div className="flex items-center justify-between p-4 glass rounded-xl mb-6">
+                <div>
+                  <p className="text-xs text-muted-foreground">Kombinleyen Mağaza</p>
+                  <p className="font-semibold">{selectedOutfit.seller.shopName}</p>
+                </div>
+                <div className="flex gap-2">
+                  <span className="text-xs px-3 py-1 bg-primary/10 text-primary rounded-full">
+                    {selectedOutfit.season}
+                  </span>
+                  <span className="text-xs px-3 py-1 bg-primary/10 text-primary rounded-full">
+                    {selectedOutfit.occasion}
+                  </span>
                 </div>
               </div>
-            </motion.div>
+
+              {/* Actions */}
+              <div className="flex gap-4">
+                <Link
+                  href={`/outfits/${selectedOutfit.id}`}
+                  className="flex-1 px-6 py-3 glass border border-border rounded-xl font-semibold hover:border-primary transition-colors text-center"
+                >
+                  Detayları Gör
+                </Link>
+                <button
+                  onClick={() => addAllToCart(selectedOutfit)}
+                  className="flex-1 px-6 py-3 bg-primary text-primary-foreground rounded-xl font-semibold hover:opacity-90 transition-opacity flex items-center justify-center gap-2"
+                >
+                  <ShoppingBag className="w-5 h-5" />
+                  Tümünü Sepete Ekle
+                </button>
+              </div>
+            </div>
           ) : (
             <div className="glass border border-border rounded-2xl p-20 text-center">
               <div className="text-9xl mb-6">🎨</div>
-              <h3 className="text-2xl font-bold mb-3">{t('noClothesYet')}</h3>
+              <h3 className="text-2xl font-bold mb-3">Henüz kombin yok</h3>
               <p className="text-muted-foreground mb-6">
-                {t('addClothesForOutfitSuggestion')}
+                Mağazalarımız çok yakında özel kombinler oluşturacak
               </p>
               <Link
-                href="/wardrobe"
-                className="px-6 py-3 bg-primary text-primary-foreground rounded-xl font-semibold hover:opacity-90 transition-opacity inline-block"
+                href="/store"
+                className="px-6 py-3 bg-primary text-primary-foreground rounded-xl font-semibold hover:opacity-90 transition-opacity inline-flex items-center gap-2"
               >
-                {t('goToWardrobe')}
+                Mağazayı Keşfet
+                <ArrowRight className="w-5 h-5" />
+              </Link>
+            </div>
+          )}
+
+          {/* Browse More Outfits */}
+          {featuredOutfits.length > 0 && (
+            <div className="mt-8 text-center">
+              <Link
+                href="/outfits"
+                className="inline-flex items-center gap-2 px-6 py-3 glass border border-border rounded-xl font-semibold hover:border-primary transition-colors"
+              >
+                Tüm Kombinleri Gör
+                <ArrowRight className="w-5 h-5" />
               </Link>
             </div>
           )}

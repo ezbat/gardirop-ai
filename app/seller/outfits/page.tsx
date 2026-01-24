@@ -8,6 +8,7 @@ import Image from "next/image"
 import { motion } from "framer-motion"
 import { Plus, Loader2, Trash2, Edit, Eye } from "lucide-react"
 import { supabase } from "@/lib/supabase"
+import { useLanguage } from "@/lib/language-context"
 
 interface Outfit {
   id: string
@@ -22,6 +23,7 @@ interface Outfit {
 }
 
 export default function SellerOutfitsPage() {
+  const { t } = useLanguage()
   const { data: session, status } = useSession()
   const router = useRouter()
   const [outfits, setOutfits] = useState<Outfit[]>([])
@@ -71,7 +73,7 @@ export default function SellerOutfitsPage() {
   }
 
   const handleDelete = async (outfitId: string, outfitName: string) => {
-    if (!confirm(`"${outfitName}" kombinini silmek istediğinize emin misiniz?`)) {
+    if (!confirm(`"${outfitName}" ${t('deleteOutfitConfirm')}`)) {
       return
     }
 
@@ -84,14 +86,14 @@ export default function SellerOutfitsPage() {
 
       if (response.ok) {
         setOutfits(prev => prev.filter(o => o.id !== outfitId))
-        alert('✅ Kombin silindi')
+        alert(t('outfitDeleted'))
       } else {
         const data = await response.json()
-        alert(data.error || 'Silme başarısız')
+        alert(data.error || t('deleteFailed'))
       }
     } catch (error) {
       console.error('Delete outfit error:', error)
-      alert('Bir hata oluştu')
+      alert(t('error'))
     }
   }
 
@@ -109,15 +111,15 @@ export default function SellerOutfitsPage() {
         {/* Header */}
         <div className="flex items-center justify-between mb-8">
           <div>
-            <h1 className="font-serif text-4xl font-bold mb-2">Kombin Koleksiyonlarım</h1>
-            <p className="text-muted-foreground">Ürünlerinizden kombin oluşturun</p>
+            <h1 className="font-serif text-4xl font-bold mb-2">{t('myOutfitCollections')}</h1>
+            <p className="text-muted-foreground">{t('createOutfitsFromProducts')}</p>
           </div>
           <Link
             href="/seller/outfits/create"
             className="px-6 py-3 bg-primary text-primary-foreground rounded-xl font-semibold hover:opacity-90 flex items-center gap-2"
           >
             <Plus className="w-5 h-5" />
-            Yeni Kombin
+            {t('newOutfitLabel')}
           </Link>
         </div>
 
@@ -125,15 +127,15 @@ export default function SellerOutfitsPage() {
         {outfits.length === 0 ? (
           <div className="text-center py-20 glass border border-border rounded-2xl">
             <div className="text-9xl mb-6">👗</div>
-            <h3 className="text-2xl font-bold mb-3">Henüz kombin oluşturmadınız</h3>
+            <h3 className="text-2xl font-bold mb-3">{t('noOutfitsCreated')}</h3>
             <p className="text-muted-foreground mb-6">
-              Ürünlerinizi birleştirerek müşterilerinize özel kombinler oluşturun
+              {t('createSpecialOutfits')}
             </p>
             <Link
               href="/seller/outfits/create"
               className="px-6 py-3 bg-primary text-primary-foreground rounded-xl font-semibold hover:opacity-90 inline-block"
             >
-              İlk Kombini Oluştur
+              {t('createFirstOutfit')}
             </Link>
           </div>
         ) : (
@@ -163,12 +165,12 @@ export default function SellerOutfitsPage() {
 
                   {!outfit.isActive && (
                     <div className="absolute top-2 left-2 px-3 py-1 bg-red-500 text-white text-xs font-semibold rounded-full">
-                      Deaktif
+                      {t('inactive')}
                     </div>
                   )}
 
                   <div className="absolute top-2 right-2 px-3 py-1 bg-primary text-primary-foreground text-xs font-semibold rounded-full">
-                    {outfit.productsCount} ürün
+                    {outfit.productsCount} {t('products')}
                   </div>
                 </div>
 
@@ -197,12 +199,12 @@ export default function SellerOutfitsPage() {
                       className="flex-1 px-4 py-2 glass border border-border rounded-xl font-semibold text-sm hover:border-primary flex items-center justify-center gap-2"
                     >
                       <Eye className="w-4 h-4" />
-                      Görüntüle
+                      {t('view')}
                     </Link>
                     <button
                       onClick={() => handleDelete(outfit.id, outfit.name)}
                       className="px-4 py-2 glass border border-border rounded-xl hover:bg-red-500 hover:text-white hover:border-red-500 transition-colors"
-                      title="Sil"
+                      title={t('delete')}
                     >
                       <Trash2 className="w-4 h-4" />
                     </button>

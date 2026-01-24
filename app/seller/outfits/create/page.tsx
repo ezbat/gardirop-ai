@@ -8,6 +8,7 @@ import { ArrowLeft, Upload, Plus, X, Loader2, Check } from "lucide-react"
 import Link from "next/link"
 import Image from "next/image"
 import { supabase } from "@/lib/supabase"
+import { useLanguage } from "@/lib/language-context"
 
 interface Product {
   id: string
@@ -19,6 +20,7 @@ interface Product {
 }
 
 export default function CreateOutfitPage() {
+  const { t } = useLanguage()
   const { data: session, status } = useSession()
   const router = useRouter()
   const [loading, setLoading] = useState(false)
@@ -67,7 +69,7 @@ export default function CreateOutfitPage() {
         .single()
 
       if (error || !seller) {
-        alert('Satıcı hesabı bulunamadı')
+        alert(t('error'))
         router.push('/seller/apply')
         return
       }
@@ -100,13 +102,13 @@ export default function CreateOutfitPage() {
 
     // Validate file type
     if (!file.type.startsWith('image/')) {
-      alert('Lütfen bir resim dosyası seçin')
+      alert(t('error'))
       return
     }
 
     // Validate file size (max 5MB)
     if (file.size > 5 * 1024 * 1024) {
-      alert('Resim boyutu en fazla 5MB olabilir')
+      alert(t('error'))
       return
     }
 
@@ -135,12 +137,12 @@ export default function CreateOutfitPage() {
 
     // Validation
     if (!formData.name.trim()) {
-      alert('Lütfen kombin adı girin')
+      alert(t('allFieldsRequired'))
       return
     }
 
     if (selectedProductIds.length < 2) {
-      alert('Lütfen en az 2 ürün seçin')
+      alert(t('selectAtLeastTwo'))
       return
     }
 
@@ -166,14 +168,14 @@ export default function CreateOutfitPage() {
       const data = await response.json()
 
       if (!response.ok) {
-        throw new Error(data.error || 'Kombin oluşturulamadı')
+        throw new Error(data.error || t('error'))
       }
 
-      alert('✅ Kombin başarıyla oluşturuldu!')
+      alert(t('outfitCreated'))
       router.push('/seller/outfits')
     } catch (error: any) {
       console.error('Create outfit error:', error)
-      alert(error.message || 'Bir hata oluştu')
+      alert(error.message || t('error'))
     } finally {
       setLoading(false)
     }
@@ -197,32 +199,32 @@ export default function CreateOutfitPage() {
           <Link href="/seller/outfits" className="p-2 hover:bg-muted rounded-lg">
             <ArrowLeft className="w-6 h-6" />
           </Link>
-          <h1 className="font-serif text-3xl font-bold">Yeni Kombin Oluştur</h1>
+          <h1 className="font-serif text-3xl font-bold">{t('createOutfit')}</h1>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-8">
           {/* Basic Info */}
           <div className="glass border border-border rounded-2xl p-6 space-y-4">
-            <h2 className="text-xl font-bold mb-4">Temel Bilgiler</h2>
+            <h2 className="text-xl font-bold mb-4">{t('personalInfo')}</h2>
 
             <div>
-              <label className="block text-sm font-semibold mb-2">Kombin Adı *</label>
+              <label className="block text-sm font-semibold mb-2">{t('outfitName')} *</label>
               <input
                 type="text"
                 value={formData.name}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                placeholder="Örn: Yaz Günlük Kombini"
+                placeholder={t('outfitName')}
                 className="w-full px-4 py-3 glass border border-border rounded-xl outline-none focus:border-primary"
                 required
               />
             </div>
 
             <div>
-              <label className="block text-sm font-semibold mb-2">Açıklama</label>
+              <label className="block text-sm font-semibold mb-2">{t('outfitDescription')}</label>
               <textarea
                 value={formData.description}
                 onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                placeholder="Kombin hakkında açıklama..."
+                placeholder={t('outfitDescription')}
                 rows={3}
                 className="w-full px-4 py-3 glass border border-border rounded-xl outline-none focus:border-primary resize-none"
               />
@@ -230,7 +232,7 @@ export default function CreateOutfitPage() {
 
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-semibold mb-2">Sezon</label>
+                <label className="block text-sm font-semibold mb-2">{t('season')}</label>
                 <select
                   value={formData.season}
                   onChange={(e) => setFormData({ ...formData, season: e.target.value })}
@@ -243,7 +245,7 @@ export default function CreateOutfitPage() {
               </div>
 
               <div>
-                <label className="block text-sm font-semibold mb-2">Durum</label>
+                <label className="block text-sm font-semibold mb-2">{t('occasion')}</label>
                 <select
                   value={formData.occasion}
                   onChange={(e) => setFormData({ ...formData, occasion: e.target.value })}
@@ -259,7 +261,7 @@ export default function CreateOutfitPage() {
 
           {/* Cover Image */}
           <div className="glass border border-border rounded-2xl p-6">
-            <h2 className="text-xl font-bold mb-4">Kapak Görseli</h2>
+            <h2 className="text-xl font-bold mb-4">{t('coverImage')}</h2>
             <div className="space-y-4">
               {coverPreview ? (
                 <div className="relative w-full h-64 rounded-xl overflow-hidden">
@@ -275,7 +277,7 @@ export default function CreateOutfitPage() {
               ) : (
                 <label className="block w-full h-64 border-2 border-dashed border-border rounded-xl hover:border-primary cursor-pointer flex flex-col items-center justify-center gap-2">
                   <Upload className="w-12 h-12 text-muted-foreground" />
-                  <span className="text-muted-foreground">Kapak görseli yükle (isteğe bağlı)</span>
+                  <span className="text-muted-foreground">{t('coverImage')}</span>
                   <input type="file" accept="image/*" onChange={handleImageUpload} className="hidden" />
                 </label>
               )}
@@ -284,11 +286,11 @@ export default function CreateOutfitPage() {
 
           {/* Product Selection */}
           <div className="glass border border-border rounded-2xl p-6">
-            <h2 className="text-xl font-bold mb-4">Ürün Seçimi (En az 2 ürün) *</h2>
+            <h2 className="text-xl font-bold mb-4">{t('selectProducts')} ({t('selectAtLeast2Products')}) *</h2>
 
             {selectedProducts.length > 0 && (
               <div className="mb-4 p-4 bg-primary/10 rounded-xl">
-                <p className="text-sm font-semibold text-primary">{selectedProducts.length} ürün seçildi</p>
+                <p className="text-sm font-semibold text-primary">{selectedProducts.length} {t('products')}</p>
               </div>
             )}
 
@@ -321,7 +323,7 @@ export default function CreateOutfitPage() {
                     <div className="p-3">
                       <p className="font-semibold text-sm truncate">{product.title}</p>
                       <p className="text-xs text-muted-foreground">{product.category}</p>
-                      <p className="text-sm font-bold text-primary mt-1">₺{product.price}</p>
+                      <p className="text-sm font-bold text-primary mt-1">€{product.price}</p>
                     </div>
                   </motion.div>
                 )
@@ -330,9 +332,9 @@ export default function CreateOutfitPage() {
 
             {availableProducts.length === 0 && (
               <div className="text-center py-12">
-                <p className="text-muted-foreground mb-4">Henüz ürününüz yok</p>
+                <p className="text-muted-foreground mb-4">{t('noProductsYet')}</p>
                 <Link href="/seller/products/create" className="px-6 py-3 bg-primary text-primary-foreground rounded-xl font-semibold inline-block">
-                  Ürün Ekle
+                  {t('addProduct')}
                 </Link>
               </div>
             )}
@@ -344,7 +346,7 @@ export default function CreateOutfitPage() {
               href="/seller/outfits"
               className="px-6 py-3 glass border border-border rounded-xl font-semibold hover:border-primary flex-1 text-center"
             >
-              İptal
+              {t('cancel')}
             </Link>
             <button
               type="submit"
@@ -354,12 +356,12 @@ export default function CreateOutfitPage() {
               {loading ? (
                 <>
                   <Loader2 className="w-5 h-5 animate-spin" />
-                  Oluşturuluyor...
+                  {t('creatingOutfit')}
                 </>
               ) : (
                 <>
                   <Plus className="w-5 h-5" />
-                  Kombin Oluştur
+                  {t('createOutfitButton')}
                 </>
               )}
             </button>

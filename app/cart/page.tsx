@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { ArrowLeft, Trash2, Plus, Minus, ShoppingBag, Loader2 } from 'lucide-react'
 import FloatingParticles from '@/components/floating-particles'
+import { useLanguage } from '@/lib/language-context'
 
 interface CartItem {
   id: string
@@ -19,6 +20,7 @@ interface CartItem {
 }
 
 export default function CartPage() {
+  const { t } = useLanguage()
   const router = useRouter()
   const [cartItems, setCartItems] = useState<CartItem[]>([])
   const [loading, setLoading] = useState(true)
@@ -60,7 +62,7 @@ export default function CartPage() {
   }
 
   const clearCart = () => {
-    if (confirm('Sepeti tamamen boşaltmak istediğinizden emin misiniz?')) {
+    if (confirm(t('confirmClearCart'))) {
       setCartItems([])
       localStorage.removeItem('cart')
     }
@@ -99,33 +101,33 @@ export default function CartPage() {
               className="flex items-center gap-2 hover:text-primary transition-colors"
             >
               <ArrowLeft className="w-5 h-5" />
-              Geri
+              {t('back')}
             </button>
             {cartItems.length > 0 && (
               <button
                 onClick={clearCart}
                 className="text-sm text-red-500 hover:text-red-600 transition-colors"
               >
-                Sepeti Temizle
+                {t('clearCart')}
               </button>
             )}
           </div>
 
-          <h1 className="font-serif text-4xl font-bold mb-8">Sepetim</h1>
+          <h1 className="font-serif text-4xl font-bold mb-8">{t('cart')}</h1>
 
           {/* Empty Cart */}
           {cartItems.length === 0 ? (
             <div className="glass border border-border rounded-2xl p-20 text-center">
               <ShoppingBag className="w-20 h-20 mx-auto mb-6 text-muted-foreground" />
-              <h2 className="text-2xl font-bold mb-2">Sepetiniz Boş</h2>
+              <h2 className="text-2xl font-bold mb-2">{t('emptyCart')}</h2>
               <p className="text-muted-foreground mb-6">
-                Hemen alışverişe başlayın ve favori ürünlerinizi sepete ekleyin!
+                {t('emptyCartMessage')}
               </p>
               <button
                 onClick={() => router.push('/store')}
                 className="px-6 py-3 bg-primary text-primary-foreground rounded-xl font-semibold hover:opacity-90 transition-opacity"
               >
-                Alışverişe Başla
+                {t('startShopping')}
               </button>
             </div>
           ) : (
@@ -158,12 +160,12 @@ export default function CartPage() {
 
                         {item.selectedSize && (
                           <p className="text-sm text-muted-foreground mb-2">
-                            Beden: {item.selectedSize}
+                            {t('size')}: {item.selectedSize}
                           </p>
                         )}
 
                         <p className="text-2xl font-bold text-primary mb-4">
-                          ₺{item.product.price.toFixed(2)}
+                          €{item.product.price.toFixed(2)}
                         </p>
 
                         <div className="flex items-center gap-4">
@@ -198,16 +200,16 @@ export default function CartPage() {
                         {/* Stock Warning */}
                         {item.quantity >= item.product.stock_quantity && (
                           <p className="text-sm text-orange-500 mt-2">
-                            ⚠️ Maksimum stok adedine ulaştınız
+                            ⚠️ {t('maxStockReached')}
                           </p>
                         )}
                       </div>
 
                       {/* Item Total */}
                       <div className="text-right">
-                        <p className="text-sm text-muted-foreground mb-1">Toplam</p>
+                        <p className="text-sm text-muted-foreground mb-1">{t('total')}</p>
                         <p className="text-2xl font-bold">
-                          ₺{(item.product.price * item.quantity).toFixed(2)}
+                          €{(item.product.price * item.quantity).toFixed(2)}
                         </p>
                       </div>
                     </div>
@@ -218,33 +220,33 @@ export default function CartPage() {
               {/* Right: Order Summary */}
               <div className="lg:col-span-1">
                 <div className="glass border border-border rounded-2xl p-6 sticky top-8">
-                  <h2 className="text-2xl font-bold mb-6">Sipariş Özeti</h2>
+                  <h2 className="text-2xl font-bold mb-6">{t('orderSummary')}</h2>
 
                   <div className="space-y-4 mb-6">
                     <div className="flex justify-between text-sm">
-                      <span className="text-muted-foreground">Ara Toplam</span>
-                      <span className="font-semibold">₺{calculateSubtotal().toFixed(2)}</span>
+                      <span className="text-muted-foreground">{t('subtotal')}</span>
+                      <span className="font-semibold">€{calculateSubtotal().toFixed(2)}</span>
                     </div>
 
                     <div className="flex justify-between text-sm">
-                      <span className="text-muted-foreground">Kargo</span>
+                      <span className="text-muted-foreground">{t('shipping')}</span>
                       <span className={`font-semibold ${calculateShipping() === 0 ? 'text-green-500' : ''}`}>
-                        {calculateShipping() === 0 ? 'ÜCRETSİZ' : `₺${calculateShipping().toFixed(2)}`}
+                        {calculateShipping() === 0 ? t('freeShipping') : `€${calculateShipping().toFixed(2)}`}
                       </span>
                     </div>
 
                     {calculateSubtotal() < 500 && calculateSubtotal() > 0 && (
                       <div className="p-3 bg-primary/10 border border-primary/20 rounded-lg">
                         <p className="text-xs text-primary font-semibold">
-                          🎉 ₺{(500 - calculateSubtotal()).toFixed(2)} daha alışveriş yapın, kargo ücretsiz!
+                          🎉 {t('freeShippingPromo').replace('${amount}', (500 - calculateSubtotal()).toFixed(2))}
                         </p>
                       </div>
                     )}
 
                     <div className="border-t border-border pt-4">
                       <div className="flex justify-between text-lg font-bold">
-                        <span>Toplam</span>
-                        <span className="text-primary">₺{calculateTotal().toFixed(2)}</span>
+                        <span>{t('total')}</span>
+                        <span className="text-primary">€{calculateTotal().toFixed(2)}</span>
                       </div>
                     </div>
                   </div>
@@ -253,14 +255,14 @@ export default function CartPage() {
                     onClick={() => router.push('/checkout')}
                     className="w-full px-6 py-4 bg-primary text-primary-foreground rounded-xl font-semibold hover:opacity-90 transition-opacity"
                   >
-                    Ödemeye Geç
+                    {t('proceedToCheckout')}
                   </button>
 
                   <button
                     onClick={() => router.push('/store')}
                     className="w-full px-6 py-3 mt-3 glass border border-border rounded-xl font-semibold hover:border-primary transition-colors"
                   >
-                    Alışverişe Devam Et
+                    {t('continueShopping')}
                   </button>
                 </div>
               </div>

@@ -6,6 +6,7 @@ import { useSession } from 'next-auth/react' // ← YENİ EKLEME
 import { ArrowLeft, Upload, X, Loader2 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import FloatingParticles from '@/components/floating-particles'
+import { useLanguage } from '@/lib/language-context'
 
 const categories = [
   'Üst Giyim',
@@ -22,6 +23,7 @@ const categories = [
 const sizeOptions = ['XS', 'S', 'M', 'L', 'XL', 'XXL']
 
 export default function SellerProductCreatePage() {
+  const { t } = useLanguage()
   const router = useRouter()
   const { data: session } = useSession() // ← YENİ EKLEME
   const userId = session?.user?.id // ← YENİ EKLEME
@@ -79,7 +81,7 @@ export default function SellerProductCreatePage() {
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || [])
     if (images.length + files.length > 5) {
-      alert('Maksimum 5 resim yükleyebilirsiniz!')
+      alert(t('error'))
       return
     }
 
@@ -109,9 +111,9 @@ export default function SellerProductCreatePage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    
+
     if (!seller || images.length === 0) {
-      alert('En az 1 resim yüklemelisiniz!')
+      alert(t('allFieldsRequired'))
       return
     }
 
@@ -163,15 +165,15 @@ export default function SellerProductCreatePage() {
       console.log('📦 API Response:', result)
 
       if (!response.ok) {
-        throw new Error(result.error || result.details || 'Failed to create product')
+        throw new Error(result.error || result.details || t('error'))
       }
 
-      alert('✅ Ürün başarıyla eklendi!')
+      alert(t('productCreated'))
       router.push('/seller/dashboard')
-      
+
     } catch (error: any) {
       console.error('❌ Create product error:', error)
-      alert('Ürün eklenemedi: ' + (error.message || 'Bilinmeyen hata'))
+      alert(error.message || t('error'))
     } finally {
       setSubmitting(false)
     }
@@ -192,15 +194,15 @@ export default function SellerProductCreatePage() {
         <div className="container mx-auto max-w-3xl">
           <button onClick={() => router.back()} className="flex items-center gap-2 mb-6 hover:text-primary transition-colors">
             <ArrowLeft className="w-5 h-5" />
-            Geri
+            {t('back')}
           </button>
 
-          <h1 className="font-serif text-4xl font-bold mb-8">Yeni Ürün Ekle</h1>
+          <h1 className="font-serif text-4xl font-bold mb-8">{t('createProduct')}</h1>
 
           <form onSubmit={handleSubmit} className="glass border border-border rounded-2xl p-6 space-y-6">
             {/* Images */}
             <div>
-              <label className="block text-sm font-semibold mb-2">Ürün Resimleri * (Max 5)</label>
+              <label className="block text-sm font-semibold mb-2">{t('productImages')} * (Max 5)</label>
               <div className="grid grid-cols-5 gap-3">
                 {imagePreviews.map((preview, index) => (
                   <div key={index} className="relative aspect-square">
@@ -221,66 +223,66 @@ export default function SellerProductCreatePage() {
 
             {/* Title */}
             <div>
-              <label className="block text-sm font-semibold mb-2">Ürün Başlığı *</label>
-              <input 
-                type="text" 
-                value={formData.title} 
-                onChange={(e) => setFormData({ ...formData, title: e.target.value })} 
-                placeholder="Örn: Siyah Deri Ceket" 
-                required 
-                maxLength={100} 
-                className="w-full px-4 py-2 glass border border-border rounded-xl outline-none focus:border-primary" 
+              <label className="block text-sm font-semibold mb-2">{t('productTitle')} *</label>
+              <input
+                type="text"
+                value={formData.title}
+                onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                placeholder={t('productTitle')}
+                required
+                maxLength={100}
+                className="w-full px-4 py-2 glass border border-border rounded-xl outline-none focus:border-primary"
               />
             </div>
 
             {/* Description */}
             <div>
-              <label className="block text-sm font-semibold mb-2">Açıklama</label>
-              <textarea 
-                value={formData.description} 
-                onChange={(e) => setFormData({ ...formData, description: e.target.value })} 
-                placeholder="Ürün detayları..." 
-                rows={4} 
-                maxLength={1000} 
-                className="w-full px-4 py-2 glass border border-border rounded-xl outline-none focus:border-primary resize-none" 
+              <label className="block text-sm font-semibold mb-2">{t('productDescription')}</label>
+              <textarea
+                value={formData.description}
+                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                placeholder={t('productDescription')}
+                rows={4}
+                maxLength={1000}
+                className="w-full px-4 py-2 glass border border-border rounded-xl outline-none focus:border-primary resize-none"
               />
             </div>
 
             {/* Price */}
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-semibold mb-2">Fiyat * (₺)</label>
-                <input 
-                  type="number" 
-                  value={formData.price} 
-                  onChange={(e) => setFormData({ ...formData, price: e.target.value })} 
-                  placeholder="299.99" 
-                  required 
-                  min="0" 
-                  step="0.01" 
-                  className="w-full px-4 py-2 glass border border-border rounded-xl outline-none focus:border-primary" 
+                <label className="block text-sm font-semibold mb-2">{t('price')} * (€)</label>
+                <input
+                  type="number"
+                  value={formData.price}
+                  onChange={(e) => setFormData({ ...formData, price: e.target.value })}
+                  placeholder="299.99"
+                  required
+                  min="0"
+                  step="0.01"
+                  className="w-full px-4 py-2 glass border border-border rounded-xl outline-none focus:border-primary"
                 />
               </div>
               <div>
-                <label className="block text-sm font-semibold mb-2">Eski Fiyat (₺)</label>
-                <input 
-                  type="number" 
-                  value={formData.originalPrice} 
-                  onChange={(e) => setFormData({ ...formData, originalPrice: e.target.value })} 
-                  placeholder="399.99" 
-                  min="0" 
-                  step="0.01" 
-                  className="w-full px-4 py-2 glass border border-border rounded-xl outline-none focus:border-primary" 
+                <label className="block text-sm font-semibold mb-2">{t('price')} (€)</label>
+                <input
+                  type="number"
+                  value={formData.originalPrice}
+                  onChange={(e) => setFormData({ ...formData, originalPrice: e.target.value })}
+                  placeholder="399.99"
+                  min="0"
+                  step="0.01"
+                  className="w-full px-4 py-2 glass border border-border rounded-xl outline-none focus:border-primary"
                 />
               </div>
             </div>
 
             {/* Category */}
             <div>
-              <label className="block text-sm font-semibold mb-2">Kategori *</label>
-              <select 
-                value={formData.category} 
-                onChange={(e) => setFormData({ ...formData, category: e.target.value })} 
+              <label className="block text-sm font-semibold mb-2">{t('category')} *</label>
+              <select
+                value={formData.category}
+                onChange={(e) => setFormData({ ...formData, category: e.target.value })}
                 className="w-full px-4 py-2 glass border border-border rounded-xl outline-none focus:border-primary"
               >
                 {categories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
@@ -290,39 +292,39 @@ export default function SellerProductCreatePage() {
             {/* Brand & Color */}
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-semibold mb-2">Marka</label>
-                <input 
-                  type="text" 
-                  value={formData.brand} 
-                  onChange={(e) => setFormData({ ...formData, brand: e.target.value })} 
-                  placeholder="Örn: Zara" 
-                  className="w-full px-4 py-2 glass border border-border rounded-xl outline-none focus:border-primary" 
+                <label className="block text-sm font-semibold mb-2">{t('brand')}</label>
+                <input
+                  type="text"
+                  value={formData.brand}
+                  onChange={(e) => setFormData({ ...formData, brand: e.target.value })}
+                  placeholder={t('brand')}
+                  className="w-full px-4 py-2 glass border border-border rounded-xl outline-none focus:border-primary"
                 />
               </div>
               <div>
-                <label className="block text-sm font-semibold mb-2">Renk</label>
-                <input 
-                  type="text" 
-                  value={formData.color} 
-                  onChange={(e) => setFormData({ ...formData, color: e.target.value })} 
-                  placeholder="Örn: Siyah" 
-                  className="w-full px-4 py-2 glass border border-border rounded-xl outline-none focus:border-primary" 
+                <label className="block text-sm font-semibold mb-2">{t('color')}</label>
+                <input
+                  type="text"
+                  value={formData.color}
+                  onChange={(e) => setFormData({ ...formData, color: e.target.value })}
+                  placeholder={t('color')}
+                  className="w-full px-4 py-2 glass border border-border rounded-xl outline-none focus:border-primary"
                 />
               </div>
             </div>
 
             {/* Sizes */}
             <div>
-              <label className="block text-sm font-semibold mb-2">Bedenler</label>
+              <label className="block text-sm font-semibold mb-2">{t('category')}</label>
               <div className="flex gap-2 flex-wrap">
                 {sizeOptions.map(size => (
-                  <button 
-                    key={size} 
-                    type="button" 
-                    onClick={() => toggleSize(size)} 
+                  <button
+                    key={size}
+                    type="button"
+                    onClick={() => toggleSize(size)}
                     className={`px-4 py-2 rounded-xl font-semibold text-sm transition-colors ${
-                      formData.sizes.includes(size) 
-                        ? 'bg-primary text-primary-foreground' 
+                      formData.sizes.includes(size)
+                        ? 'bg-primary text-primary-foreground'
                         : 'glass border border-border'
                     }`}
                   >
@@ -334,26 +336,26 @@ export default function SellerProductCreatePage() {
 
             {/* Stock */}
             <div>
-              <label className="block text-sm font-semibold mb-2">Stok Adedi *</label>
-              <input 
-                type="number" 
-                value={formData.stockQuantity} 
-                onChange={(e) => setFormData({ ...formData, stockQuantity: e.target.value })} 
-                placeholder="10" 
-                required 
-                min="0" 
-                className="w-full px-4 py-2 glass border border-border rounded-xl outline-none focus:border-primary" 
+              <label className="block text-sm font-semibold mb-2">{t('stockQuantity')} *</label>
+              <input
+                type="number"
+                value={formData.stockQuantity}
+                onChange={(e) => setFormData({ ...formData, stockQuantity: e.target.value })}
+                placeholder="10"
+                required
+                min="0"
+                className="w-full px-4 py-2 glass border border-border rounded-xl outline-none focus:border-primary"
               />
             </div>
 
             {/* Submit */}
-            <button 
-              type="submit" 
-              disabled={submitting} 
+            <button
+              type="submit"
+              disabled={submitting}
               className="w-full px-6 py-3 bg-primary text-primary-foreground rounded-xl font-semibold hover:opacity-90 transition-opacity disabled:opacity-50 flex items-center justify-center gap-2"
             >
               {submitting ? <Loader2 className="w-5 h-5 animate-spin" /> : null}
-              {submitting ? 'Ekleniyor...' : 'Ürünü Ekle'}
+              {submitting ? t('creatingProduct') : t('createProduct')}
             </button>
           </form>
         </div>

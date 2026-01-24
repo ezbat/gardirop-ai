@@ -19,7 +19,6 @@ export default function Navbar() {
     { href: "/wardrobe", label: t('wardrobe') },
     { href: "/explore", label: t('explore') },
     { href: "/store", label: t('store') },
-    { href: "/admin/sellers", label: "Admin" },
   ]
 
   return (

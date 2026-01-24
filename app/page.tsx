@@ -276,7 +276,7 @@ export default function HomePage() {
                       <p className="text-xs text-primary font-semibold">{item.category}</p>
                       <p className="font-bold text-sm truncate">{item.title}</p>
                       <p className="text-xs text-muted-foreground truncate">{item.brand}</p>
-                      <p className="text-lg font-bold text-primary mt-2">₺{item.price}</p>
+                      <p className="text-lg font-bold text-primary mt-2">€{item.price}</p>
                     </div>
                   </motion.div>
                 ))}

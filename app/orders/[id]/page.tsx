@@ -218,7 +218,7 @@ export default function OrderDetailPage() {
                     <p className="text-sm text-muted-foreground mb-2">
                       Beden: {item.selected_size || 'Yok'} | Adet: {item.quantity}
                     </p>
-                    <p className="font-bold text-primary">₺{(item.price * item.quantity).toFixed(2)}</p>
+                    <p className="font-bold text-primary">€{(item.price * item.quantity).toFixed(2)}</p>
                   </div>
                 </div>
               ))}
@@ -227,17 +227,17 @@ export default function OrderDetailPage() {
             <div className="border-t border-border pt-4 space-y-2">
               <div className="flex justify-between text-sm">
                 <span>Ara Toplam</span>
-                <span>₺{(order.total_amount - order.shipping_cost).toFixed(2)}</span>
+                <span>€{(order.total_amount - order.shipping_cost).toFixed(2)}</span>
               </div>
               <div className="flex justify-between text-sm">
                 <span>Kargo</span>
                 <span className={order.shipping_cost === 0 ? 'text-green-500 font-semibold' : ''}>
-                  {order.shipping_cost === 0 ? 'ÜCRETSİZ' : `₺${order.shipping_cost.toFixed(2)}`}
+                  {order.shipping_cost === 0 ? 'ÜCRETSİZ' : `€${order.shipping_cost.toFixed(2)}`}
                 </span>
               </div>
               <div className="flex justify-between text-lg font-bold pt-2 border-t border-border">
                 <span>Toplam</span>
-                <span className="text-primary">₺{order.total_amount.toFixed(2)}</span>
+                <span className="text-primary">€{order.total_amount.toFixed(2)}</span>
               </div>
             </div>
           </div>

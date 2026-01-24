@@ -215,7 +215,7 @@ export default function OrdersPage() {
                         <p className="text-sm text-muted-foreground">
                           {order.order_items.length} ürün
                         </p>
-                        <p className="text-lg font-bold text-primary">₺{order.total_amount.toFixed(2)}</p>
+                        <p className="text-lg font-bold text-primary">€{order.total_amount.toFixed(2)}</p>
                       </div>
                     </>
                   )}

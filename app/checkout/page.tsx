@@ -6,6 +6,7 @@ import { useSession } from 'next-auth/react'
 import { ArrowLeft, MapPin, CreditCard, Truck, Loader2, Package } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import FloatingParticles from '@/components/floating-particles'
+import { useLanguage } from '@/lib/language-context'
 
 interface CartItem {
   id: string
@@ -15,6 +16,7 @@ interface CartItem {
 }
 
 export default function CheckoutPage() {
+  const { t } = useLanguage()
   const router = useRouter()
   const { data: session } = useSession()
   const userId = session?.user?.id
@@ -41,7 +43,7 @@ export default function CheckoutPage() {
 
   const checkAuth = async () => {
     if (!userId) {
-      alert('Lütfen önce giriş yapın!')
+      alert(t('pleaseLogin'))
       router.push('/login')
       return
     }
@@ -53,12 +55,12 @@ export default function CheckoutPage() {
     if (saved) {
       const items = JSON.parse(saved)
       if (items.length === 0) {
-        alert('Sepetiniz boş!')
+        alert(t('emptyCart'))
         router.push('/cart')
       }
       setCartItems(items)
     } else {
-      alert('Sepetiniz boş!')
+      alert(t('emptyCart'))
       router.push('/cart')
     }
   }
@@ -68,7 +70,7 @@ export default function CheckoutPage() {
   }
 
   const calculateShipping = () => {
-    return calculateSubtotal() > 500 ? 0 : 29.99
+    return calculateSubtotal() >= 100 ? 0 : 10
   }
 
   const calculateTotal = () => {
@@ -81,43 +83,49 @@ export default function CheckoutPage() {
 
     setSubmitting(true)
     try {
-      console.log('🚀 Creating order...')
+      console.log('🚀 Creating Stripe checkout session...')
 
-      // Create order
-      const response = await fetch('/api/orders/create', {
+      // Prepare cart items for Stripe
+      const cartItemsForStripe = cartItems.map(item => ({
+        product_id: item.product.id,
+        title: item.product.title,
+        price: item.product.price,
+        quantity: item.quantity,
+        images: item.product.images,
+        brand: item.product.brand,
+        seller_id: item.product.seller_id,
+      }))
+
+      // Create Stripe checkout session
+      const response = await fetch('/api/stripe/create-checkout-session', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          cartItems: cartItemsForStripe,
           userId: userId,
-          items: cartItems.map(item => ({
-            productId: item.product.id,
-            quantity: item.quantity,
-            selectedSize: item.selectedSize,
-            price: item.product.price
-          })),
-          shippingInfo,
-          paymentMethod,
-          totalAmount: calculateTotal(),
-          shippingCost: calculateShipping()
+          shippingAddress: {
+            ...shippingInfo,
+            email: session?.user?.email || '',
+          },
         })
       })
 
       const result = await response.json()
-      console.log('📦 Order result:', result)
+      console.log('📦 Stripe session result:', result)
 
       if (!response.ok) {
-        throw new Error(result.error || 'Failed to create order')
+        throw new Error(result.error || 'Failed to create checkout session')
       }
 
-      // Clear cart
-      localStorage.removeItem('cart')
-      
-      alert('🎉 Siparişiniz başarıyla oluşturuldu!')
-      router.push(`/orders/${result.order.id}`)
+      // Redirect to Stripe Checkout
+      if (result.url) {
+        window.location.href = result.url
+      } else {
+        throw new Error('No checkout URL received')
+      }
     } catch (error: any) {
       console.error('Checkout error:', error)
-      alert('❌ Sipariş oluşturulamadı: ' + (error.message || 'Bilinmeyen hata'))
-    } finally {
+      alert(t('orderError') + ': ' + (error.message || t('unknownError')))
       setSubmitting(false)
     }
   }
@@ -134,9 +142,9 @@ export default function CheckoutPage() {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center">
         <Package className="w-20 h-20 text-muted-foreground mb-4" />
-        <h2 className="text-2xl font-bold mb-4">Sepetiniz Boş</h2>
+        <h2 className="text-2xl font-bold mb-4">{t('emptyCart')}</h2>
         <button onClick={() => router.push('/store')} className="px-6 py-3 bg-primary text-primary-foreground rounded-xl">
-          Alışverişe Devam Et
+          {t('continueShopping')}
         </button>
       </div>
     )
@@ -149,10 +157,10 @@ export default function CheckoutPage() {
         <div className="container mx-auto max-w-6xl">
           <button onClick={() => router.back()} className="flex items-center gap-2 mb-6 hover:text-primary transition-colors">
             <ArrowLeft className="w-5 h-5" />
-            Geri
+            {t('back')}
           </button>
 
-          <h1 className="font-serif text-4xl font-bold mb-8">Ödeme</h1>
+          <h1 className="font-serif text-4xl font-bold mb-8">{t('checkout')}</h1>
 
           <div className="grid lg:grid-cols-3 gap-8">
             {/* Left: Form */}
@@ -162,12 +170,12 @@ export default function CheckoutPage() {
                 <div className="glass border border-border rounded-2xl p-6">
                   <div className="flex items-center gap-3 mb-4">
                     <MapPin className="w-5 h-5 text-primary" />
-                    <h2 className="text-xl font-bold">Teslimat Bilgileri</h2>
+                    <h2 className="text-xl font-bold">{t('shippingInfo')}</h2>
                   </div>
                   <div className="space-y-4">
                     <input
                       type="text"
-                      placeholder="Ad Soyad *"
+                      placeholder={t('fullName') + ' *'}
                       value={shippingInfo.fullName}
                       onChange={(e) => setShippingInfo({...shippingInfo, fullName: e.target.value})}
                       required
@@ -175,14 +183,14 @@ export default function CheckoutPage() {
                     />
                     <input
                       type="tel"
-                      placeholder="Telefon *"
+                      placeholder={t('phone') + ' *'}
                       value={shippingInfo.phone}
                       onChange={(e) => setShippingInfo({...shippingInfo, phone: e.target.value})}
                       required
                       className="w-full px-4 py-3 glass border border-border rounded-xl outline-none focus:border-primary"
                     />
                     <textarea
-                      placeholder="Adres *"
+                      placeholder={t('address') + ' *'}
                       value={shippingInfo.address}
                       onChange={(e) => setShippingInfo({...shippingInfo, address: e.target.value})}
                       required
@@ -192,7 +200,7 @@ export default function CheckoutPage() {
                     <div className="grid grid-cols-2 gap-4">
                       <input
                         type="text"
-                        placeholder="İl *"
+                        placeholder={t('city') + ' *'}
                         value={shippingInfo.city}
                         onChange={(e) => setShippingInfo({...shippingInfo, city: e.target.value})}
                         required
@@ -200,7 +208,7 @@ export default function CheckoutPage() {
                       />
                       <input
                         type="text"
-                        placeholder="İlçe *"
+                        placeholder={t('district') + ' *'}
                         value={shippingInfo.district}
                         onChange={(e) => setShippingInfo({...shippingInfo, district: e.target.value})}
                         required
@@ -209,7 +217,7 @@ export default function CheckoutPage() {
                     </div>
                     <input
                       type="text"
-                      placeholder="Posta Kodu"
+                      placeholder={t('postalCode')}
                       value={shippingInfo.postalCode}
                       onChange={(e) => setShippingInfo({...shippingInfo, postalCode: e.target.value})}
                       className="w-full px-4 py-3 glass border border-border rounded-xl outline-none focus:border-primary"
@@ -222,14 +230,14 @@ export default function CheckoutPage() {
 <div className="glass border border-border rounded-2xl p-6">
   <div className="flex items-center gap-3 mb-4">
     <CreditCard className="w-5 h-5 text-primary" />
-    <h2 className="text-xl font-bold">Ödeme Yöntemi</h2>
+    <h2 className="text-xl font-bold">{t('paymentMethod')}</h2>
   </div>
   <div className="p-4 glass border border-primary rounded-xl">
     <div className="flex items-center gap-3">
       <CreditCard className="w-6 h-6 text-primary" />
       <div>
-        <p className="font-semibold">Kredi/Banka Kartı</p>
-        <p className="text-sm text-muted-foreground">Güvenli ödeme ile alışverişinizi tamamlayın</p>
+        <p className="font-semibold">{t('creditCard')}</p>
+        <p className="text-sm text-muted-foreground">{t('securePayment')}</p>
       </div>
     </div>
   </div>
@@ -241,14 +249,14 @@ export default function CheckoutPage() {
                   className="w-full px-6 py-4 bg-primary text-primary-foreground rounded-xl font-semibold hover:opacity-90 transition-opacity disabled:opacity-50 flex items-center justify-center gap-2"
                 >
                   {submitting ? <Loader2 className="w-5 h-5 animate-spin" /> : null}
-                  {submitting ? 'İşleniyor...' : 'Siparişi Tamamla'}
+                  {submitting ? t('placingOrder') : t('placeOrder')}
                 </button>
               </form>
             </div>
 
             {/* Right: Order Summary */}
             <div className="glass border border-border rounded-2xl p-6 h-fit sticky top-8">
-              <h2 className="text-xl font-bold mb-4">Sipariş Özeti</h2>
+              <h2 className="text-xl font-bold mb-4">{t('orderSummary')}</h2>
               <div className="space-y-3 mb-4">
                 {cartItems.map(item => (
                   <div key={item.id} className="flex gap-3 pb-3 border-b border-border last:border-0">
@@ -258,25 +266,25 @@ export default function CheckoutPage() {
                       <p className="text-xs text-muted-foreground">
                         {item.selectedSize} × {item.quantity}
                       </p>
-                      <p className="text-sm font-bold text-primary">₺{(item.product.price * item.quantity).toFixed(2)}</p>
+                      <p className="text-sm font-bold text-primary">€{(item.product.price * item.quantity).toFixed(2)}</p>
                     </div>
                   </div>
                 ))}
               </div>
               <div className="border-t border-border pt-4 space-y-2">
                 <div className="flex justify-between text-sm">
-                  <span>Ara Toplam</span>
-                  <span>₺{calculateSubtotal().toFixed(2)}</span>
+                  <span>{t('subtotal')}</span>
+                  <span>€{calculateSubtotal().toFixed(2)}</span>
                 </div>
                 <div className="flex justify-between text-sm">
-                  <span>Kargo</span>
+                  <span>{t('shipping')}</span>
                   <span className={calculateShipping() === 0 ? 'text-green-500 font-semibold' : ''}>
-                    {calculateShipping() === 0 ? 'ÜCRETSİZ' : `₺${calculateShipping().toFixed(2)}`}
+                    {calculateShipping() === 0 ? t('freeShipping') : `€${calculateShipping().toFixed(2)}`}
                   </span>
                 </div>
                 <div className="flex justify-between text-lg font-bold pt-2 border-t border-border">
-                  <span>Toplam</span>
-                  <span className="text-primary">₺{calculateTotal().toFixed(2)}</span>
+                  <span>{t('total')}</span>
+                  <span className="text-primary">€{calculateTotal().toFixed(2)}</span>
                 </div>
               </div>
             </div>

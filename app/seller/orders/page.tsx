@@ -273,7 +273,7 @@ export default function SellerOrdersPage() {
                             <p className="text-xs text-muted-foreground">
                               Beden: {item.selected_size} | Adet: {item.quantity}
                             </p>
-                            <p className="text-sm font-bold text-primary">₺{(item.price * item.quantity).toFixed(2)}</p>
+                            <p className="text-sm font-bold text-primary">€{(item.price * item.quantity).toFixed(2)}</p>
                           </div>
                         </div>
                       ))}
@@ -300,7 +300,7 @@ export default function SellerOrdersPage() {
                     {/* Total */}
                     <div className="flex justify-between items-center mb-4 pb-4 border-b border-border">
                       <span className="font-semibold">Toplam Tutar</span>
-                      <span className="text-2xl font-bold text-primary">₺{order.total_amount.toFixed(2)}</span>
+                      <span className="text-2xl font-bold text-primary">€{order.total_amount.toFixed(2)}</span>
                     </div>
 
                     {/* Actions */}

@@ -3,7 +3,18 @@
     "allow": [
       "Bash(git add:*)",
       "Bash(git commit:*)",
-      "Bash(ls:*)"
+      "Bash(ls:*)",
+      "Bash(find:*)",
+      "Bash(npm install:*)",
+      "Bash(npm run dev:*)",
+      "Bash(Get-Process -Name node)",
+      "Bash(Where-Object {$_MainWindowTitle -eq \"\"})",
+      "Bash(Select-Object Id,ProcessName,StartTime)",
+      "Bash(Format-Table)",
+      "Bash(tasklist:*)",
+      "Bash(findstr:*)",
+      "Bash(taskkill:*)",
+      "Bash(node -e:*)"
     ]
   }
 }

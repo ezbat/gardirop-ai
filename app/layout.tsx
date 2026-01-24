@@ -3,7 +3,8 @@ import { Inter } from "next/font/google"
 import "./globals.css"
 import { ThemeProvider } from "@/components/theme-provider"
 import Navbar from "@/components/navbar"
-// import { Providers } from "@/components/providers"  ← BU SATIRI SİL
+import Footer from "@/components/footer"
+import CookieConsent from "@/components/cookie-consent"
 import { LanguageProvider } from '@/lib/language-context'
 import SessionWrapper from "@/components/session-wrapper"
 
@@ -25,9 +26,11 @@ export default function RootLayout({
         <SessionWrapper>
           <ThemeProvider attribute="class" defaultTheme="dark">
             <LanguageProvider>
-              <div className="relative min-h-screen bg-background">
+              <div className="relative min-h-screen bg-background flex flex-col">
                 <Navbar />
-                <main>{children}</main>
+                <main className="flex-1">{children}</main>
+                <Footer />
+                <CookieConsent />
               </div>
             </LanguageProvider>
           </ThemeProvider>

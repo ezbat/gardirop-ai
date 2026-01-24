@@ -4,7 +4,7 @@ import { useState, useEffect } from "react"
 import { useSession } from "next-auth/react"
 import { useRouter } from "next/navigation"
 import { motion } from "framer-motion"
-import { ShoppingCart, Heart, Search, ShoppingBag, Loader2 } from "lucide-react"
+import { ShoppingCart, Heart, Search, ShoppingBag, Loader2, ChevronLeft, ChevronRight } from "lucide-react"
 import Link from "next/link"
 import FloatingParticles from "@/components/floating-particles"
 import { supabase } from "@/lib/supabase"
@@ -36,6 +36,9 @@ export default function StorePage() {
   const [loading, setLoading] = useState(true)
   const [selectedCategory, setSelectedCategory] = useState("All")
   const [searchQuery, setSearchQuery] = useState("")
+  const [currentPage, setCurrentPage] = useState(1)
+  const [favorites, setFavorites] = useState<Record<string, boolean>>({})
+  const ITEMS_PER_PAGE = 12
 
   const categories = [
     "All",
@@ -54,22 +57,94 @@ export default function StorePage() {
     loadProducts()
   }, [])
 
+  useEffect(() => {
+    if (userId && products.length > 0) {
+      checkFavorites()
+    }
+  }, [userId, products])
+
   const loadProducts = async () => {
     setLoading(true)
     try {
       const { data, error } = await supabase
         .from('products')
         .select('*')
+        .eq('moderation_status', 'approved')
         .order('created_at', { ascending: false })
 
       if (error) throw error
-      
+
       console.log('📦 Loaded products:', data?.length)
       setProducts(data || [])
     } catch (error) {
       console.error('Error loading products:', error)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const checkFavorites = async () => {
+    try {
+      const productIds = products.map(p => p.id).join(',')
+      const response = await fetch(`/api/favorites/check?productIds=${productIds}`, {
+        headers: {
+          'x-user-id': userId!
+        }
+      })
+      const data = await response.json()
+      setFavorites(data.favorites || {})
+    } catch (error) {
+      console.error('Error checking favorites:', error)
+    }
+  }
+
+  const toggleFavorite = async (productId: string) => {
+    if (!userId) {
+      alert(t('pleaseLogin'))
+      return
+    }
+
+    const isFavorited = favorites[productId]
+
+    try {
+      if (isFavorited) {
+        // Remove from favorites
+        const response = await fetch(`/api/favorites/products?productId=${productId}`, {
+          method: 'DELETE',
+          headers: {
+            'x-user-id': userId
+          }
+        })
+
+        if (response.ok) {
+          setFavorites(prev => {
+            const newFavs = { ...prev }
+            delete newFavs[productId]
+            return newFavs
+          })
+          alert('❌ Favorilerden kaldırıldı')
+        }
+      } else {
+        // Add to favorites
+        const response = await fetch('/api/favorites/products', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-user-id': userId
+          },
+          body: JSON.stringify({ productId })
+        })
+
+        if (response.ok) {
+          setFavorites(prev => ({
+            ...prev,
+            [productId]: true
+          }))
+          alert(t('addedToFavorites'))
+        }
+      }
+    } catch (error) {
+      console.error('Error toggling favorite:', error)
     }
   }
 
@@ -102,6 +177,17 @@ export default function StorePage() {
                        p.brand?.toLowerCase().includes(searchQuery.toLowerCase())
     return catMatch && searchMatch
   })
+
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [selectedCategory, searchQuery])
+
+  // Pagination calculations
+  const totalPages = Math.ceil(filteredProducts.length / ITEMS_PER_PAGE)
+  const startIndex = (currentPage - 1) * ITEMS_PER_PAGE
+  const endIndex = startIndex + ITEMS_PER_PAGE
+  const paginatedProducts = filteredProducts.slice(startIndex, endIndex)
 
   if (loading) {
     return (
@@ -163,11 +249,16 @@ export default function StorePage() {
             </div>
           </div>
 
-          {/* Products Count */}
-          <div className="mb-6">
+          {/* Products Count & Pagination Info */}
+          <div className="mb-6 flex items-center justify-between">
             <p className="text-sm text-muted-foreground">
               {filteredProducts.length} {t('productsFound')}
             </p>
+            {totalPages > 1 && (
+              <p className="text-sm text-muted-foreground">
+                {t('page')} {currentPage} / {totalPages}
+              </p>
+            )}
           </div>
 
           {/* Products Grid */}
@@ -179,7 +270,7 @@ export default function StorePage() {
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-              {filteredProducts.map((product) => (
+              {paginatedProducts.map((product) => (
                 <div
                   key={product.id}
                   className="glass border border-border rounded-2xl overflow-hidden hover:border-primary transition-all hover:shadow-lg group"
@@ -206,11 +297,15 @@ export default function StorePage() {
                     <button
                       onClick={(e) => {
                         e.stopPropagation()
-                        alert(t('addedToFavorites'))
+                        toggleFavorite(product.id)
                       }}
-                      className="absolute top-3 left-3 p-2 glass rounded-full hover:bg-primary/20 transition-colors"
+                      className={`absolute top-3 left-3 p-2 glass rounded-full hover:bg-primary/20 transition-colors ${
+                        favorites[product.id] ? 'bg-red-500/20' : ''
+                      }`}
                     >
-                      <Heart className="w-5 h-5" />
+                      <Heart
+                        className={`w-5 h-5 ${favorites[product.id] ? 'fill-red-500 text-red-500' : ''}`}
+                      />
                     </button>
                   </div>
 
@@ -266,10 +361,10 @@ export default function StorePage() {
 
                     {/* Price */}
                     <div className="flex items-center gap-2 mb-3">
-                      <p className="text-2xl font-bold text-primary">₺{product.price.toFixed(2)}</p>
+                      <p className="text-2xl font-bold text-primary">€{product.price.toFixed(2)}</p>
                       {product.original_price && product.original_price > product.price && (
                         <p className="text-sm text-muted-foreground line-through">
-                          ₺{product.original_price.toFixed(2)}
+                          €{product.original_price.toFixed(2)}
                         </p>
                       )}
                     </div>
@@ -293,6 +388,57 @@ export default function StorePage() {
                   </div>
                 </div>
               ))}
+            </div>
+          )}
+
+          {/* Pagination Controls */}
+          {totalPages > 1 && (
+            <div className="mt-8 flex items-center justify-center gap-2">
+              <button
+                onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                disabled={currentPage === 1}
+                className="px-4 py-2 glass border border-border rounded-xl hover:border-primary transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+              >
+                <ChevronLeft className="w-5 h-5" />
+                {t('previous')}
+              </button>
+
+              <div className="flex gap-2">
+                {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => {
+                  // Show first page, last page, current page, and pages around current
+                  if (
+                    page === 1 ||
+                    page === totalPages ||
+                    (page >= currentPage - 1 && page <= currentPage + 1)
+                  ) {
+                    return (
+                      <button
+                        key={page}
+                        onClick={() => setCurrentPage(page)}
+                        className={`w-10 h-10 rounded-xl font-semibold transition-colors ${
+                          currentPage === page
+                            ? "bg-primary text-primary-foreground"
+                            : "glass border border-border hover:border-primary"
+                        }`}
+                      >
+                        {page}
+                      </button>
+                    )
+                  } else if (page === currentPage - 2 || page === currentPage + 2) {
+                    return <span key={page} className="w-10 h-10 flex items-center justify-center">...</span>
+                  }
+                  return null
+                })}
+              </div>
+
+              <button
+                onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                disabled={currentPage === totalPages}
+                className="px-4 py-2 glass border border-border rounded-xl hover:border-primary transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+              >
+                {t('next')}
+                <ChevronRight className="w-5 h-5" />
+              </button>
             </div>
           )}
         </div>

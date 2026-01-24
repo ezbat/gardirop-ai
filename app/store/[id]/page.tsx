@@ -200,11 +200,11 @@ export default function ProductDetailPage() {
 
               {/* Price */}
               <div className="flex items-center gap-3">
-                <p className="text-4xl font-bold text-primary">₺{product.price.toFixed(2)}</p>
+                <p className="text-4xl font-bold text-primary">€{product.price.toFixed(2)}</p>
                 {product.original_price && product.original_price > product.price && (
                   <>
                     <p className="text-2xl text-muted-foreground line-through">
-                      ₺{product.original_price.toFixed(2)}
+                      €{product.original_price.toFixed(2)}
                     </p>
                     <span className="px-3 py-1 bg-red-500 text-white text-sm font-bold rounded-full">
                       -{discountPercent}%
@@ -315,7 +315,7 @@ export default function ProductDetailPage() {
                   <Truck className="w-6 h-6 text-primary" />
                   <div>
                     <p className="font-semibold">Ücretsiz Kargo</p>
-                    <p className="text-sm text-muted-foreground">500₺ ve üzeri alışverişlerde</p>
+                    <p className="text-sm text-muted-foreground">500€ ve üzeri alışverişlerde</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-3">
@@ -349,7 +349,7 @@ export default function ProductDetailPage() {
                     </div>
                     <div className="p-4">
                       <h3 className="font-bold mb-2 line-clamp-2">{relatedProduct.title}</h3>
-                      <p className="text-2xl font-bold text-primary">₺{relatedProduct.price.toFixed(2)}</p>
+                      <p className="text-2xl font-bold text-primary">€{relatedProduct.price.toFixed(2)}</p>
                     </div>
                   </div>
                 ))}

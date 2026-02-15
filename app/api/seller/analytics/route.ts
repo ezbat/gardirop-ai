@@ -39,27 +39,25 @@ export async function GET(request: NextRequest) {
       supabase.from('outfits').select('*', { count: 'exact', head: true }).eq('seller_id', sellerId),
       supabase
         .from('order_items')
-        .select('quantity, price, product:products!inner(seller_id), order:orders!inner(payment_status, created_at, total_amount)')
+        .select('product_id, quantity, price, product:products!inner(seller_id), order:orders!inner(payment_status, created_at, total_amount)')
         .eq('product.seller_id', sellerId),
       supabase
         .from('order_items')
         .select(`
           *,
           product:products!inner(id, title, images, seller_id),
-          order:orders!inner(id, created_at, payment_status, total_amount, user:users(email, full_name))
+          order:orders!inner(id, created_at, payment_status, total_amount, user:users(email, name))
         `)
         .eq('product.seller_id', sellerId)
         .order('created_at', { ascending: false })
         .limit(10),
     ])
 
-    // Calculate revenue from paid orders
+    // Calculate revenue from ALL orders (paid and pending)
     const totalRevenue = (orderItems || [])
-      .filter((item: any) => item.order?.payment_status === 'paid')
       .reduce((sum: number, item: any) => sum + (item.price * item.quantity), 0)
 
     const totalSales = (orderItems || [])
-      .filter((item: any) => item.order?.payment_status === 'paid')
       .reduce((sum: number, item: any) => sum + item.quantity, 0)
 
     // Calculate daily revenue for last 7 days
@@ -71,7 +69,7 @@ export async function GET(request: NextRequest) {
 
     const dailyStats = last7Days.map(date => {
       const dayItems = (orderItems || []).filter((item: any) =>
-        item.order?.created_at?.startsWith(date) && item.order?.payment_status === 'paid'
+        item.order?.created_at?.startsWith(date)
       )
       const dayRevenue = dayItems.reduce((sum: number, item: any) => sum + (item.price * item.quantity), 0)
       const daySales = dayItems.reduce((sum: number, item: any) => sum + item.quantity, 0)
@@ -83,11 +81,10 @@ export async function GET(request: NextRequest) {
       }
     })
 
-    // Top selling products
+    // Top selling products (from ALL orders)
     const productSales = new Map<string, { id: string; title: string; quantity: number; revenue: number }>()
 
     ;(orderItems || [])
-      .filter((item: any) => item.order?.payment_status === 'paid')
       .forEach((item: any) => {
         const productId = item.product_id
         const product = products?.find((p: any) => p.id === productId)

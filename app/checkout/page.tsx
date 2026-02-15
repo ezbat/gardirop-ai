@@ -18,13 +18,13 @@ interface CartItem {
 export default function CheckoutPage() {
   const { t } = useLanguage()
   const router = useRouter()
-  const { data: session } = useSession()
+  const { data: session, status } = useSession()
   const userId = session?.user?.id
-  
+
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
   const [cartItems, setCartItems] = useState<CartItem[]>([])
-  
+
   const [shippingInfo, setShippingInfo] = useState({
     fullName: '',
     phone: '',
@@ -37,17 +37,55 @@ export default function CheckoutPage() {
  const paymentMethod = 'credit_card'
 
   useEffect(() => {
-    checkAuth()
-    loadCart()
-  }, [])
+    // Wait for session to load
+    if (status === 'loading') return
 
-  const checkAuth = async () => {
+    // Check authentication
     if (!userId) {
       alert(t('pleaseLogin'))
-      router.push('/login')
+      router.push('/auth/signin')
       return
     }
-    setLoading(false)
+
+    // Check if express checkout (URL params)
+    const params = new URLSearchParams(window.location.search)
+    const productId = params.get('product')
+    const quantity = parseInt(params.get('quantity') || '1')
+
+    if (productId) {
+      // Express checkout - load single product
+      loadExpressProduct(productId, quantity)
+    } else {
+      // Normal checkout - load cart
+      loadCart()
+    }
+  }, [userId, status])
+
+  const loadExpressProduct = async (productId: string, quantity: number) => {
+    try {
+      const { data: product, error } = await supabase
+        .from('products')
+        .select('*')
+        .eq('id', productId)
+        .single()
+
+      if (error) throw error
+
+      // Create cart item from product
+      const cartItem = {
+        id: productId,
+        product: product,
+        quantity: quantity,
+        selectedSize: undefined
+      }
+
+      setCartItems([cartItem])
+      setLoading(false)
+    } catch (error) {
+      console.error('Error loading product:', error)
+      alert('Product not found')
+      router.push('/explore')
+    }
   }
 
   const loadCart = () => {
@@ -57,12 +95,15 @@ export default function CheckoutPage() {
       if (items.length === 0) {
         alert(t('emptyCart'))
         router.push('/cart')
+        return
       }
       setCartItems(items)
     } else {
       alert(t('emptyCart'))
       router.push('/cart')
+      return
     }
+    setLoading(false)
   }
 
   const calculateSubtotal = () => {

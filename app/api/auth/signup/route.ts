@@ -1,9 +1,10 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 import bcrypt from 'bcryptjs'
 import { v4 as uuidv4 } from 'uuid'
+import { withRateLimit, RateLimitPresets } from '@/lib/rate-limit'
 
-export async function POST(request: Request) {
+async function signupHandler(request: NextRequest) {
   try {
     const { email, password, name, username } = await request.json()
 
@@ -68,3 +69,6 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Bir hata oluştu' }, { status: 500 })
   }
 }
+
+// Apply rate limiting: 5 attempts per 15 minutes
+export const POST = withRateLimit(signupHandler, RateLimitPresets.auth)

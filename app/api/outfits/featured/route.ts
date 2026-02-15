@@ -71,7 +71,7 @@ export async function GET(req: NextRequest) {
     }
 
     // Format response
-    const formattedOutfits = outfits.map(outfit => ({
+    const formattedOutfits = outfits.map((outfit: any) => ({
       id: outfit.id,
       name: outfit.name,
       description: outfit.description,
@@ -79,19 +79,22 @@ export async function GET(req: NextRequest) {
       season: outfit.season,
       occasion: outfit.occasion,
       items: outfit.outfit_items
-        .sort((a, b) => a.display_order - b.display_order)
-        .map(item => ({
-          productId: item.products.id,
-          title: item.products.title,
-          price: item.products.price,
-          imageUrl: item.products.images?.[0] || '',
-          category: item.products.category,
-          brand: item.products.brand,
-          stockQuantity: item.products.stock_quantity
-        })),
+        .sort((a: any, b: any) => a.display_order - b.display_order)
+        .map((item: any) => {
+          const product = Array.isArray(item.products) ? item.products[0] : item.products
+          return {
+            productId: product?.id,
+            title: product?.title,
+            price: product?.price,
+            imageUrl: product?.images?.[0] || '',
+            category: product?.category,
+            brand: product?.brand,
+            stockQuantity: product?.stock_quantity
+          }
+        }),
       seller: {
-        id: outfit.sellers?.id,
-        shopName: outfit.sellers?.shop_name
+        id: (Array.isArray(outfit.sellers) ? outfit.sellers[0] : outfit.sellers)?.id,
+        shopName: (Array.isArray(outfit.sellers) ? outfit.sellers[0] : outfit.sellers)?.shop_name
       }
     }))
 

@@ -137,7 +137,7 @@ export default function TermsOfServicePage() {
 
               {/* 12. Uyuşmazlık Çözümü */}
               <section>
-                <h2 className="text-2xl font-bold mb-4">{t('disputeResolution')}</h2>
+                <h2 className="text-2xl font-bold mb-4">{t('disputeResolutionLegal')}</h2>
                 <div className="space-y-3 text-muted-foreground">
                   <p><strong>{t('governingLaw')}:</strong> {t('governingLawDesc')}</p>
                   <p><strong>{t('jurisdiction')}:</strong> {t('jurisdictionDesc')}</p>
@@ -178,8 +178,8 @@ export default function TermsOfServicePage() {
                 <p className="text-muted-foreground mb-3">{t('contactTermsDesc')}</p>
                 <div className="bg-primary/5 p-4 rounded-xl">
                   <p className="font-semibold">Wearo - {t('legalDepartment')}</p>
-                  <p className="text-sm text-muted-foreground">Email: legal@wearo.com</p>
-                  <p className="text-sm text-muted-foreground">Email: support@wearo.com</p>
+                  <p className="text-sm text-muted-foreground">Email: wearo.product@gmail.com</p>
+                  <p className="text-sm text-muted-foreground">Email: wearo.product@gmail.com</p>
                 </div>
               </section>
             </div>

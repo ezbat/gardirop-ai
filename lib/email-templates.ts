@@ -115,7 +115,7 @@ export function getOrderConfirmationEmail(order: {
         <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; text-align: center; margin: 20px 0;">
           <p style="margin: 0 0 10px 0; color: #666;">Sorularınız mı var?</p>
           <p style="margin: 0;">
-            <a href="mailto:support@wearo.com" style="color: #6366f1; text-decoration: none;">support@wearo.com</a>
+            <a href="mailto:wearo.product@gmail.com" style="color: #6366f1; text-decoration: none;">wearo.product@gmail.com</a>
           </p>
         </div>
 

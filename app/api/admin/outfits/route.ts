@@ -10,9 +10,17 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Admin check
+    // Admin check (simplified for m3000)
     if (userId !== 'm3000') {
-      return NextResponse.json({ error: 'Forbidden: Admin access required' }, { status: 403 })
+      const { data: user } = await supabase
+        .from('users')
+        .select('role')
+        .eq('id', userId)
+        .single()
+
+      if (user?.role !== 'admin') {
+        return NextResponse.json({ error: 'Forbidden: Admin access required' }, { status: 403 })
+      }
     }
 
     const { searchParams } = new URL(request.url)
@@ -22,7 +30,7 @@ export async function GET(request: NextRequest) {
       .from('outfits')
       .select(`
         *,
-        seller:sellers(id, shop_name, email)
+        seller:sellers(id, shop_name, phone)
       `)
       .order('created_at', { ascending: false })
 
@@ -53,9 +61,17 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Admin check
+    // Admin check (simplified for m3000)
     if (userId !== 'm3000') {
-      return NextResponse.json({ error: 'Forbidden: Admin access required' }, { status: 403 })
+      const { data: user } = await supabase
+        .from('users')
+        .select('role')
+        .eq('id', userId)
+        .single()
+
+      if (user?.role !== 'admin') {
+        return NextResponse.json({ error: 'Forbidden: Admin access required' }, { status: 403 })
+      }
     }
 
     const { outfitId, action, notes } = await request.json()

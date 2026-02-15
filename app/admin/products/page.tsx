@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { useSession } from "next-auth/react"
 import { motion } from "framer-motion"
 import { Package, Check, X, Eye, Filter, Search, Image as ImageIcon, ChevronLeft, ChevronRight } from "lucide-react"
 import { Input } from "@/components/ui/input"
@@ -21,11 +22,14 @@ interface Product {
   seller: {
     id: string
     shop_name: string
-    email: string
+    phone: string
   }
 }
 
 export default function AdminProductsPage() {
+  const { data: session } = useSession()
+  const userId = session?.user?.id
+
   const [products, setProducts] = useState<Product[]>([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState<'all' | 'pending' | 'approved' | 'rejected'>('all')
@@ -36,10 +40,14 @@ export default function AdminProductsPage() {
   const ITEMS_PER_PAGE = 12
 
   useEffect(() => {
-    fetchProducts()
-  }, [filter])
+    if (userId) {
+      fetchProducts()
+    }
+  }, [filter, userId])
 
   const fetchProducts = async () => {
+    if (!userId) return
+
     try {
       setLoading(true)
       const url = filter === 'all'
@@ -48,7 +56,7 @@ export default function AdminProductsPage() {
 
       const response = await fetch(url, {
         headers: {
-          'x-user-id': 'm3000'
+          'x-user-id': userId
         }
       })
 
@@ -64,13 +72,15 @@ export default function AdminProductsPage() {
   }
 
   const handleAction = async (productId: string, action: 'approve' | 'reject', notes?: string) => {
+    if (!userId) return
+
     try {
       setActionLoading(true)
       const response = await fetch('/api/admin/products', {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
-          'x-user-id': 'm3000'
+          'x-user-id': userId
         },
         body: JSON.stringify({
           productId,
@@ -347,6 +357,7 @@ export default function AdminProductsPage() {
               </button>
             </div>
           )}
+          </>
         )}
 
         {/* Product Detail Modal */}
@@ -413,7 +424,7 @@ export default function AdminProductsPage() {
                 <div>
                   <label className="text-sm text-muted-foreground">Satici</label>
                   <p className="font-semibold">{selectedProduct.seller.shop_name}</p>
-                  <p className="text-sm text-muted-foreground">{selectedProduct.seller.email}</p>
+                  <p className="text-sm text-muted-foreground">{selectedProduct.seller.phone}</p>
                 </div>
 
                 <div>

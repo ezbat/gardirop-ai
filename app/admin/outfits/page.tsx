@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { useSession } from "next-auth/react"
 import { motion } from "framer-motion"
 import { Shirt, Check, X, Eye, Search, Image as ImageIcon } from "lucide-react"
 import { Input } from "@/components/ui/input"
@@ -19,11 +20,14 @@ interface Outfit {
   seller: {
     id: string
     shop_name: string
-    email: string
+    phone: string
   }
 }
 
 export default function AdminOutfitsPage() {
+  const { data: session } = useSession()
+  const userId = session?.user?.id
+
   const [outfits, setOutfits] = useState<Outfit[]>([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState<'all' | 'pending' | 'approved' | 'rejected'>('all')
@@ -32,10 +36,14 @@ export default function AdminOutfitsPage() {
   const [actionLoading, setActionLoading] = useState(false)
 
   useEffect(() => {
-    fetchOutfits()
-  }, [filter])
+    if (userId) {
+      fetchOutfits()
+    }
+  }, [filter, userId])
 
   const fetchOutfits = async () => {
+    if (!userId) return
+
     try {
       setLoading(true)
       const url = filter === 'all'
@@ -44,7 +52,7 @@ export default function AdminOutfitsPage() {
 
       const response = await fetch(url, {
         headers: {
-          'x-user-id': 'm3000'
+          'x-user-id': userId
         }
       })
 
@@ -60,13 +68,15 @@ export default function AdminOutfitsPage() {
   }
 
   const handleAction = async (outfitId: string, action: 'approve' | 'reject', notes?: string) => {
+    if (!userId) return
+
     try {
       setActionLoading(true)
       const response = await fetch('/api/admin/outfits', {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
-          'x-user-id': 'm3000'
+          'x-user-id': userId
         },
         body: JSON.stringify({
           outfitId,
@@ -348,7 +358,7 @@ export default function AdminOutfitsPage() {
                 <div>
                   <label className="text-sm text-muted-foreground">Satici</label>
                   <p className="font-semibold">{selectedOutfit.seller.shop_name}</p>
-                  <p className="text-sm text-muted-foreground">{selectedOutfit.seller.email}</p>
+                  <p className="text-sm text-muted-foreground">{selectedOutfit.seller.phone}</p>
                 </div>
 
                 <div>

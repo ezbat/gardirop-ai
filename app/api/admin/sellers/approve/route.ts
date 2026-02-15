@@ -40,11 +40,23 @@ export async function POST(request: NextRequest) {
           phone: application.phone,
           address: application.address,
           city: application.city,
-          country: application.country
+          postal_code: application.postal_code,
+          country: application.country,
+          business_address: application.address,
+          iban: application.iban,
+          bank_name: application.bank_name,
+          account_holder_name: application.account_holder_name,
+          id_card_front_url: application.id_card_front_url,
+          id_card_back_url: application.id_card_back_url,
+          address_document_url: application.address_document_url,
+          business_certificate_url: application.business_certificate_url,
+          logo_url: application.logo_url,
+          is_verified: true,
+          verified_at: new Date().toISOString()
         })
         .select()
         .single()
-      
+
       if (sellerError) throw sellerError
 
       // Update application status

@@ -52,7 +52,7 @@ export default function SellerOutfitsPage() {
         .single()
 
       if (error || !seller) {
-        router.push('/seller/apply')
+        router.push('/seller-application')
         return
       }
 

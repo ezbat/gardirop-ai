@@ -22,6 +22,7 @@ export async function POST(request: Request) {
     }
 
     // Get orders for this seller
+    // Only show paid orders (exclude pending/unpaid orders)
     const { data: orders, error } = await supabase
       .from('orders')
       .select(`
@@ -39,6 +40,7 @@ export async function POST(request: Request) {
         )
       `)
       .eq('seller_id', seller.id)
+      .eq('payment_status', 'paid')
       .order('created_at', { ascending: false })
 
     if (error) throw error

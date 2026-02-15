@@ -1,0 +1,16 @@
+# https://www.robotstxt.org/robotstxt.html
+User-agent: *
+Allow: /
+Disallow: /admin/
+Disallow: /seller/
+Disallow: /api/
+Disallow: /auth/
+Disallow: /cart
+Disallow: /checkout
+Disallow: /messages
+Disallow: /orders
+Disallow: /profile/edit
+Disallow: /settings/
+
+# Sitemaps
+Sitemap: https://wearo.com/sitemap.xml

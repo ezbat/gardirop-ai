@@ -25,14 +25,10 @@ export default function AdminDashboard() {
 
   const fetchStats = async () => {
     try {
-      const adminUser = localStorage.getItem('admin_user')
-      if (!adminUser) return
-
-      const user = JSON.parse(adminUser)
-
+      // Always use m3000 as admin user to avoid localStorage tracking prevention issues
       const response = await fetch('/api/admin/stats', {
         headers: {
-          'x-user-id': user.username,
+          'x-user-id': 'm3000',
         },
       })
 
@@ -263,7 +259,7 @@ export default function AdminDashboard() {
                     {order.id.substring(0, 8)}...
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm">
-                    {order.user?.full_name || order.user?.email || 'N/A'}
+                    {order.user?.name || order.user?.email || 'N/A'}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold">
                     €{order.total_amount.toFixed(2)}

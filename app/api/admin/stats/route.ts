@@ -48,7 +48,7 @@ export async function GET(request: NextRequest) {
       supabase.from('outfits').select('*', { count: 'exact', head: true }).eq('moderation_status', 'approved'),
       supabase.from('outfits').select('*', { count: 'exact', head: true }).eq('moderation_status', 'rejected'),
       supabase.from('orders').select('*', { count: 'exact', head: true }),
-      supabase.from('orders').select('*, user:users(email, full_name)').order('created_at', { ascending: false }).limit(10),
+      supabase.from('orders').select('*, user:users(email, name)').order('created_at', { ascending: false }).limit(10),
       supabase.from('orders').select('total_amount, created_at, payment_status').order('created_at', { ascending: false }).limit(100),
     ])
 

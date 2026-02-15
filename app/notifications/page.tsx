@@ -2,107 +2,78 @@
 
 import { useState, useEffect } from "react"
 import { useSession } from "next-auth/react"
-import { motion } from "framer-motion"
-import { Heart, MessageCircle, UserPlus, Sparkles, CheckCheck } from "lucide-react"
+import { useRouter } from "next/navigation"
+import { motion, AnimatePresence } from "framer-motion"
+import { Heart, MessageCircle, UserPlus, Sparkles, CheckCheck, Package, Truck, ShoppingBag, Star, RefreshCw, Trash2, Bell, AlertCircle, Loader2 } from "lucide-react"
 import FloatingParticles from "@/components/floating-particles"
-import { supabase } from "@/lib/supabase"
 
 interface Notification {
   id: string
   user_id: string
-  from_user_id: string
-  type: 'like' | 'comment' | 'follow' | 'outfit_saved'
-  content: string
+  type: 'order' | 'message' | 'follow' | 'like' | 'comment' | 'review' | 'shipping' | 'refund' | 'system'
+  title: string
+  message: string
+  link: string | null
+  image_url: string | null
   is_read: boolean
+  metadata: any
   created_at: string
-  from_user?: {
-    id: string
-    name: string
-    avatar_url: string | null
-  }
+  read_at: string | null
 }
 
 export default function NotificationsPage() {
   const { data: session } = useSession()
+  const router = useRouter()
   const userId = session?.user?.id
 
   const [notifications, setNotifications] = useState<Notification[]>([])
   const [loading, setLoading] = useState(true)
+  const [unreadCount, setUnreadCount] = useState(0)
+  const [showUnreadOnly, setShowUnreadOnly] = useState(false)
 
   useEffect(() => {
     if (userId) {
       loadNotifications()
     }
-  }, [userId])
+  }, [userId, showUnreadOnly])
 
- const loadNotifications = async () => {
-  if (!userId) return
+  const loadNotifications = async () => {
+    if (!userId) return
 
-  setLoading(true)
-  try {
-    console.log('📥 Loading notifications for:', userId)
+    try {
+      setLoading(true)
+      const response = await fetch(`/api/notifications?userId=${userId}&unreadOnly=${showUnreadOnly}`)
+      const data = await response.json()
 
-    const { data: notificationsData, error } = await supabase
-      .from('notifications')
-      .select('*')
-      .eq('user_id', userId)
-      .order('created_at', { ascending: false })
-      .limit(50)
-
-    console.log('📊 Notifications data:', notificationsData)
-    console.log('📊 Error:', error)
-
-    if (error) throw error
-
-    if (!notificationsData || notificationsData.length === 0) {
-      setNotifications([])
-      return
+      if (response.ok) {
+        setNotifications(data.notifications || [])
+        setUnreadCount(data.unreadCount || 0)
+      }
+    } catch (error) {
+      console.error('Load notifications error:', error)
+    } finally {
+      setLoading(false)
     }
-
-    // Her notification için from_user bilgisini çek
-    const notificationsWithUsers = await Promise.all(
-      notificationsData.map(async (notif) => {
-        if (!notif.from_user_id) {
-          return {
-            ...notif,
-            from_user: { id: 'unknown', name: 'Sistem', avatar_url: null }
-          }
-        }
-
-        const { data: userData } = await supabase
-          .from('users')
-          .select('id, name, avatar_url')
-          .eq('id', notif.from_user_id)
-          .single()
-
-        return {
-          ...notif,
-          from_user: userData || { id: notif.from_user_id, name: 'Bilinmeyen', avatar_url: null }
-        }
-      })
-    )
-
-    setNotifications(notificationsWithUsers)
-    console.log('✅ Notifications loaded:', notificationsWithUsers.length)
-  } catch (error) {
-    console.error('💥 Load notifications error:', error)
-  } finally {
-    setLoading(false)
   }
-}
 
   const markAsRead = async (notificationId: string) => {
-    try {
-      await supabase
-        .from('notifications')
-        .update({ is_read: true })
-        .eq('id', notificationId)
+    if (!userId) return
 
-      setNotifications(prev =>
-        prev.map(notif =>
-          notif.id === notificationId ? { ...notif, is_read: true } : notif
+    try {
+      const response = await fetch('/api/notifications/mark-read', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId, notificationId })
+      })
+
+      if (response.ok) {
+        setNotifications(prev =>
+          prev.map(notif =>
+            notif.id === notificationId ? { ...notif, is_read: true } : notif
+          )
         )
-      )
+        setUnreadCount(prev => Math.max(0, prev - 1))
+      }
     } catch (error) {
       console.error('Mark as read error:', error)
     }
@@ -112,42 +83,105 @@ export default function NotificationsPage() {
     if (!userId) return
 
     try {
-      await supabase
-        .from('notifications')
-        .update({ is_read: true })
-        .eq('user_id', userId)
-        .eq('is_read', false)
+      const response = await fetch('/api/notifications/mark-read', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId, markAll: true })
+      })
 
-      setNotifications(prev => prev.map(notif => ({ ...notif, is_read: true })))
-      alert('Tüm bildirimler okundu olarak işaretlendi ✓')
+      if (response.ok) {
+        setNotifications(prev => prev.map(notif => ({ ...notif, is_read: true })))
+        setUnreadCount(0)
+      }
     } catch (error) {
       console.error('Mark all as read error:', error)
     }
   }
 
+  const deleteNotification = async (notificationId: string) => {
+    if (!userId) return
+
+    try {
+      const response = await fetch(`/api/notifications/delete?userId=${userId}&notificationId=${notificationId}`, {
+        method: 'DELETE'
+      })
+
+      if (response.ok) {
+        setNotifications(prev => prev.filter(n => n.id !== notificationId))
+      }
+    } catch (error) {
+      console.error('Delete notification error:', error)
+    }
+  }
+
+  const deleteAllNotifications = async () => {
+    if (!userId || !confirm('Tüm bildirimleri silmek istediğinizden emin misiniz?')) return
+
+    try {
+      const response = await fetch(`/api/notifications/delete?userId=${userId}&deleteAll=true`, {
+        method: 'DELETE'
+      })
+
+      if (response.ok) {
+        setNotifications([])
+        setUnreadCount(0)
+      }
+    } catch (error) {
+      console.error('Delete all notifications error:', error)
+    }
+  }
+
+  const handleNotificationClick = (notif: Notification) => {
+    if (!notif.is_read) {
+      markAsRead(notif.id)
+    }
+
+    if (notif.link) {
+      router.push(notif.link)
+    }
+  }
+
   const getNotificationIcon = (type: string) => {
     switch (type) {
+      case 'order':
+        return <ShoppingBag className="w-5 h-5 text-blue-500" />
+      case 'shipping':
+        return <Truck className="w-5 h-5 text-green-500" />
+      case 'message':
+        return <MessageCircle className="w-5 h-5 text-purple-500" />
+      case 'follow':
+        return <UserPlus className="w-5 h-5 text-pink-500" />
       case 'like':
         return <Heart className="w-5 h-5 text-red-500" fill="currentColor" />
       case 'comment':
         return <MessageCircle className="w-5 h-5 text-blue-500" />
-      case 'follow':
-        return <UserPlus className="w-5 h-5 text-green-500" />
-      case 'outfit_saved':
-        return <Sparkles className="w-5 h-5 text-yellow-500" />
+      case 'review':
+        return <Star className="w-5 h-5 text-yellow-500" />
+      case 'refund':
+        return <RefreshCw className="w-5 h-5 text-orange-500" />
+      case 'system':
+        return <AlertCircle className="w-5 h-5 text-gray-500" />
       default:
-        return <Sparkles className="w-5 h-5" />
+        return <Bell className="w-5 h-5 text-primary" />
     }
+  }
+
+  if (!userId) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <Bell className="w-16 h-16 mx-auto mb-4 text-muted-foreground" />
+          <h2 className="text-2xl font-bold mb-2">Bildirimler</h2>
+          <p className="text-muted-foreground">Bildirimleri görmek için giriş yapın</p>
+        </div>
+      </div>
+    )
   }
 
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <motion.div
-          animate={{ rotate: 360 }}
-          transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
-          className="w-16 h-16 rounded-full border-2 border-primary border-t-transparent"
-        />
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
       </div>
     )
   }
@@ -158,90 +192,135 @@ export default function NotificationsPage() {
 
       <section className="relative py-8 px-4">
         <div className="container mx-auto max-w-2xl">
-          
+
           {/* HEADER */}
           <div className="flex items-center justify-between mb-8">
-            <h1 className="font-serif text-4xl font-bold">Bildirimler</h1>
-            
-            {notifications.some(n => !n.is_read) && (
+            <div>
+              <h1 className="font-serif text-4xl font-bold">Bildirimler</h1>
+              {unreadCount > 0 && (
+                <p className="text-sm text-muted-foreground mt-1">
+                  {unreadCount} okunmamış bildirim
+                </p>
+              )}
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setShowUnreadOnly(!showUnreadOnly)}
+                className={`px-4 py-2 rounded-xl text-sm font-semibold transition-colors ${
+                  showUnreadOnly
+                    ? 'bg-primary text-primary-foreground'
+                    : 'glass border border-border hover:border-primary'
+                }`}
+              >
+                {showUnreadOnly ? 'Tümünü Göster' : 'Okunmamışlar'}
+              </button>
+
+              {notifications.length > 0 && (
+                <button
+                  onClick={deleteAllNotifications}
+                  className="p-2 glass border border-border rounded-xl hover:border-red-500 hover:text-red-500 transition-colors"
+                  title="Tümünü Sil"
+                >
+                  <Trash2 className="w-5 h-5" />
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* ACTIONS */}
+          {notifications.some(n => !n.is_read) && (
+            <div className="mb-6">
               <button
                 onClick={markAllAsRead}
-                className="px-4 py-2 glass border border-border rounded-xl hover:border-primary transition-colors flex items-center gap-2 text-sm font-semibold"
+                className="w-full px-4 py-3 glass border border-border rounded-xl hover:border-primary transition-colors flex items-center justify-center gap-2 text-sm font-semibold"
               >
                 <CheckCheck className="w-4 h-4" />
                 Tümünü Okundu İşaretle
               </button>
-            )}
-          </div>
+            </div>
+          )}
 
           {/* NOTIFICATIONS LIST */}
           {notifications.length === 0 ? (
             <div className="text-center py-20 glass border border-border rounded-2xl">
               <div className="text-9xl mb-6">🔔</div>
-              <h3 className="text-2xl font-bold mb-3">Henüz bildirim yok</h3>
+              <h3 className="text-2xl font-bold mb-3">
+                {showUnreadOnly ? 'Okunmamış bildirim yok' : 'Henüz bildirim yok'}
+              </h3>
               <p className="text-muted-foreground">
                 Yeni aktiviteler burada görünecek
               </p>
             </div>
           ) : (
             <div className="space-y-3">
-              {notifications.map((notif, idx) => (
-                <motion.div
-                  key={notif.id}
-                  initial={{ opacity: 0, x: -20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: idx * 0.05 }}
-                  onClick={() => !notif.is_read && markAsRead(notif.id)}
-                  className={`glass border rounded-2xl p-4 hover:border-primary transition-colors cursor-pointer ${
-                    !notif.is_read ? 'border-primary/50 bg-primary/5' : 'border-border'
-                  }`}
-                >
-                  <div className="flex items-start gap-3">
-                    
-                    {/* AVATAR */}
-                    <div className="w-12 h-12 rounded-full overflow-hidden bg-primary flex-shrink-0">
-                      {notif.from_user?.avatar_url ? (
-                        <img
-                          src={notif.from_user.avatar_url}
-                          alt={notif.from_user.name}
-                          className="w-full h-full object-cover"
-                        />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center text-white font-bold text-lg">
-                          {notif.from_user?.name?.[0]?.toUpperCase() || 'U'}
-                        </div>
-                      )}
-                    </div>
+              <AnimatePresence>
+                {notifications.map((notif, idx) => (
+                  <motion.div
+                    key={notif.id}
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: 20 }}
+                    transition={{ delay: idx * 0.05 }}
+                    className={`glass border rounded-2xl p-4 transition-all group ${
+                      !notif.is_read ? 'border-primary/50 bg-primary/5' : 'border-border'
+                    } ${notif.link ? 'cursor-pointer hover:border-primary' : ''}`}
+                  >
+                    <div className="flex items-start gap-3">
 
-                    {/* CONTENT */}
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-start gap-2 mb-1">
-                        <div className="flex-shrink-0 mt-1">
-                          {getNotificationIcon(notif.type)}
-                        </div>
-                        <p className="text-sm">
-                          <span className="font-bold">{notif.from_user?.name}</span>
-                          {' '}
-                          {notif.content}
+                      {/* ICON */}
+                      <div className="w-10 h-10 rounded-full bg-background border border-border flex items-center justify-center flex-shrink-0">
+                        {getNotificationIcon(notif.type)}
+                      </div>
+
+                      {/* CONTENT */}
+                      <div
+                        className="flex-1 min-w-0"
+                        onClick={() => handleNotificationClick(notif)}
+                      >
+                        <h3 className="font-bold mb-1">{notif.title}</h3>
+                        <p className="text-sm text-muted-foreground mb-2">{notif.message}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {new Date(notif.created_at).toLocaleDateString('tr-TR', {
+                            day: 'numeric',
+                            month: 'long',
+                            hour: '2-digit',
+                            minute: '2-digit'
+                          })}
                         </p>
                       </div>
-                      <p className="text-xs text-muted-foreground">
-                        {new Date(notif.created_at).toLocaleDateString('tr-TR', {
-                          day: 'numeric',
-                          month: 'long',
-                          hour: '2-digit',
-                          minute: '2-digit'
-                        })}
-                      </p>
+
+                      {/* ACTIONS */}
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        {!notif.is_read && (
+                          <div className="w-2 h-2 rounded-full bg-primary" />
+                        )}
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            deleteNotification(notif.id)
+                          }}
+                          className="opacity-0 group-hover:opacity-100 p-2 hover:bg-red-500/10 rounded-lg transition-all"
+                          title="Sil"
+                        >
+                          <Trash2 className="w-4 h-4 text-red-500" />
+                        </button>
+                      </div>
                     </div>
 
-                    {/* UNREAD DOT */}
-                    {!notif.is_read && (
-                      <div className="w-2 h-2 rounded-full bg-primary flex-shrink-0 mt-2" />
+                    {/* IMAGE (if exists) */}
+                    {notif.image_url && (
+                      <div className="mt-3 ml-13">
+                        <img
+                          src={notif.image_url}
+                          alt={notif.title}
+                          className="w-full max-w-xs rounded-lg border border-border"
+                        />
+                      </div>
                     )}
-                  </div>
-                </motion.div>
-              ))}
+                  </motion.div>
+                ))}
+              </AnimatePresence>
             </div>
           )}
         </div>

@@ -4,12 +4,13 @@ import { useState, useEffect } from "react"
 import { useSession, signOut } from "next-auth/react"
 import { useRouter } from "next/navigation"
 import { motion, AnimatePresence } from "framer-motion"
-import { Heart, MessageCircle, Grid3x3, Bookmark, Menu, Settings, Bell, LogOut, Share2, Instagram, Shirt, X, ChevronRight, BarChart3, Lock, Users, Ban, MessageSquare, Activity, Clock, Archive, Star, Image, UserPlus, TrendingUp, Store, Package, Languages, Check } from "lucide-react"
+import { Heart, MessageCircle, Grid3x3, Bookmark, Menu, Settings, Bell, LogOut, Share2, Instagram, Shirt, X, ChevronRight, BarChart3, Lock, Users, Ban, MessageSquare, Activity, Clock, Archive, Star, Image, UserPlus, TrendingUp, Store, Package, Languages, Check, Globe } from "lucide-react"
 import Link from "next/link"
 import FloatingParticles from "@/components/floating-particles"
 import PostDetailModal from "@/components/post-detail-modal"
 import { supabase } from "@/lib/supabase"
 import { useLanguage } from "@/lib/language-context"
+import CurrencySelector from "@/components/currency-selector"
 
 interface UserProfile {
   id: string
@@ -69,6 +70,7 @@ export default function ProfilePage() {
   const [showMenu, setShowMenu] = useState(false)
   const [stats, setStats] = useState<Stats>({ posts: 0, followers: 0, following: 0, totalLikes: 0 })
   const [pendingRequestsCount, setPendingRequestsCount] = useState(0)
+  const [isSeller, setIsSeller] = useState(false)
 
   useEffect(() => {
     if (userId) {
@@ -77,8 +79,24 @@ export default function ProfilePage() {
       loadSavedOutfits()
       loadStats()
       loadPendingRequests()
+      checkSellerStatus()
     }
   }, [userId])
+
+  const checkSellerStatus = async () => {
+    if (!userId) return
+    try {
+      const response = await fetch('/api/seller/status', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId })
+      })
+      const data = await response.json()
+      setIsSeller(data.isSeller)
+    } catch (error) {
+      setIsSeller(false)
+    }
+  }
 
   const loadUserProfile = async () => {
     if (!userId) return
@@ -204,7 +222,9 @@ export default function ProfilePage() {
         <div className="container mx-auto max-w-4xl">
           <div className="flex items-center justify-between mb-6">
             <h1 className="font-bold text-xl">{userProfile?.username || userProfile?.name || 'Profil'}</h1>
-            <button onClick={() => setShowMenu(!showMenu)} className="p-2 hover:bg-secondary rounded-lg transition-colors"><Menu className="w-6 h-6" /></button>
+            <button onClick={() => setShowMenu(!showMenu)} className="p-2 hover:bg-secondary rounded-lg transition-colors">
+              <Menu className="w-6 h-6" />
+            </button>
           </div>
           <div className="mb-6">
             <div className="flex items-center gap-6 mb-4">
@@ -227,6 +247,19 @@ export default function ProfilePage() {
               <Link href="/profile/edit" className="flex-1 px-4 py-2 glass border border-border rounded-lg font-semibold text-center text-sm hover:bg-secondary transition-colors">Profili düzenle</Link>
               <button onClick={handleShare} className="flex-1 px-4 py-2 glass border border-border rounded-lg font-semibold text-center text-sm hover:bg-secondary transition-colors">Profili paylaş</button>
             </div>
+            {/* Siparişlerim butonu - sadece kullanıcı kendi profilinde görür */}
+            <button
+              onClick={() => router.push('/orders')}
+              className="w-full mt-3 px-4 py-2.5 flex items-center justify-center gap-2 rounded-xl text-sm font-semibold transition-all hover:scale-[1.02]"
+              style={{
+                background: 'linear-gradient(135deg, oklch(0.78 0.14 85 / 0.12), oklch(0.65 0.18 50 / 0.08))',
+                border: '1px solid oklch(0.78 0.14 85 / 0.2)',
+                color: 'oklch(0.78 0.14 85)',
+              }}
+            >
+              <Package className="w-4 h-4" />
+              Siparişlerim
+            </button>
           </div>
           <div className="border-t border-border">
             <div className="flex">
@@ -243,26 +276,30 @@ export default function ProfilePage() {
         </div>
       </section>
 
-      {/* MENÜ */}
+      {/* MENÜ - Mobile App Style */}
       <AnimatePresence>
         {showMenu && (
-          <motion.div initial={{ x: "100%" }} animate={{ x: 0 }} exit={{ x: "100%" }} className="fixed inset-0 bg-background z-50 overflow-y-auto">
+          <motion.div
+            initial={{ x: "100%" }}
+            animate={{ x: 0 }}
+            exit={{ x: "100%" }}
+            transition={{ type: "spring", damping: 25, stiffness: 200 }}
+            className="fixed inset-0 bg-background z-50 overflow-y-auto"
+          >
             <div className="min-h-screen">
-              <div className="sticky top-0 bg-background border-b border-border p-4 flex items-center gap-4">
-                <button onClick={() => setShowMenu(false)} className="p-2 hover:bg-secondary rounded-lg"><X className="w-6 h-6" /></button>
-                <h2 className="text-xl font-bold">Ayarlar ve hareketler</h2>
+              <div className="sticky top-0 bg-background/95 backdrop-blur-xl border-b border-border/50 p-4 flex items-center gap-4">
+                <button onClick={() => setShowMenu(false)} className="p-2 hover:bg-secondary/50 rounded-xl transition-all active:scale-95">
+                  <X className="w-6 h-6" />
+                </button>
+                <h2 className="text-xl font-bold">Ayarlar</h2>
               </div>
-              <div className="p-4 space-y-6">
+              <div className="p-4 space-y-6 pb-24">
                 {/* Gardırop AI'ı nasıl kullanıyorsun? */}
                 <div>
                   <p className="text-xs text-muted-foreground font-semibold mb-3 px-4">Gardırop AI'ı nasıl kullanıyorsun?</p>
                   <div className="space-y-1">
-                    <button onClick={() => { router.push('/saved'); setShowMenu(false) }} className="w-full px-4 py-3 flex items-center justify-between hover:bg-secondary/50 rounded-lg transition-colors">
+                    <button onClick={() => { router.push('/saved'); setShowMenu(false) }} className="w-full px-4 py-3 flex items-center justify-between hover:bg-secondary/50 rounded-xl transition-all active:scale-[0.98]">
                       <div className="flex items-center gap-3"><Bookmark className="w-5 h-5" /><span>Kaydedilenler</span></div>
-                      <ChevronRight className="w-5 h-5 text-muted-foreground" />
-                    </button>
-                    <button onClick={() => { router.push('/orders'); setShowMenu(false) }} className="w-full px-4 py-3 flex items-center justify-between hover:bg-secondary/50 rounded-lg transition-colors">
-                      <div className="flex items-center gap-3"><Package className="w-5 h-5" /><span>Siparişlerim</span></div>
                       <ChevronRight className="w-5 h-5 text-muted-foreground" />
                     </button>
                     <button onClick={() => { router.push('/settings/archive'); setShowMenu(false) }} className="w-full px-4 py-3 flex items-center justify-between hover:bg-secondary/50 rounded-lg transition-colors">
@@ -303,8 +340,19 @@ export default function ProfilePage() {
                       <div className="flex items-center gap-3"><TrendingUp className="w-5 h-5" /><span>Kullanım İstatistikleri</span></div>
                       <ChevronRight className="w-5 h-5 text-muted-foreground" />
                     </button>
-                    <button onClick={() => { router.push('/seller/apply'); setShowMenu(false) }} className="w-full px-4 py-3 flex items-center justify-between hover:bg-secondary/50 rounded-lg transition-colors">
-                      <div className="flex items-center gap-3"><Store className="w-5 h-5" /><span>Satıcı Ol</span></div>
+                    <button
+                      onClick={() => {
+                        const targetPath = isSeller ? '/seller/dashboard' : '/seller-application'
+                        console.log('🔘 [PROFILE] Button clicked, isSeller:', isSeller, 'navigating to:', targetPath)
+                        router.push(targetPath)
+                        setShowMenu(false)
+                      }}
+                      className="w-full px-4 py-3 flex items-center justify-between hover:bg-secondary/50 rounded-lg transition-colors"
+                    >
+                      <div className="flex items-center gap-3">
+                        <Store className="w-5 h-5" />
+                        <span>{isSeller ? 'Mağazam' : 'Satıcı Ol'}</span>
+                      </div>
                       <ChevronRight className="w-5 h-5 text-muted-foreground" />
                     </button>
                     <button onClick={() => { router.push('/profile/edit'); setShowMenu(false) }} className="w-full px-4 py-3 flex items-center justify-between hover:bg-secondary/50 rounded-lg transition-colors">
@@ -370,6 +418,14 @@ export default function ProfilePage() {
                   </div>
                 </div>
 
+                {/* Para Birimi Seçimi */}
+                <div>
+                  <p className="text-xs text-muted-foreground font-semibold mb-3 px-4">Currency / Währung / Para Birimi</p>
+                  <div className="px-4 py-3">
+                    <CurrencySelector />
+                  </div>
+                </div>
+
                 {/* Başkalarının seninle etkileşimleri */}
                 <div>
                   <p className="text-xs text-muted-foreground font-semibold mb-3 px-4">Başkalarının seninle etkileşimleri</p>
@@ -398,6 +454,29 @@ export default function ProfilePage() {
                     </button>
                     <button onClick={() => { router.push('/settings/content-preferences'); setShowMenu(false) }} className="w-full px-4 py-3 flex items-center justify-between hover:bg-secondary/50 rounded-lg transition-colors">
                       <div className="flex items-center gap-3"><Image className="w-5 h-5" /><span>İçerik tercihleri</span></div>
+                      <ChevronRight className="w-5 h-5 text-muted-foreground" />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Gizlilik & Yasal */}
+                <div>
+                  <p className="text-xs text-muted-foreground font-semibold mb-3 px-4">Gizlilik & Yasal</p>
+                  <div className="space-y-1">
+                    <button onClick={() => { router.push('/legal/privacy'); setShowMenu(false) }} className="w-full px-4 py-3 flex items-center justify-between hover:bg-secondary/50 rounded-lg transition-colors">
+                      <div className="flex items-center gap-3"><Lock className="w-5 h-5" /><span>Datenschutz (DSGVO)</span></div>
+                      <ChevronRight className="w-5 h-5 text-muted-foreground" />
+                    </button>
+                    <button onClick={() => { router.push('/legal/agb'); setShowMenu(false) }} className="w-full px-4 py-3 flex items-center justify-between hover:bg-secondary/50 rounded-lg transition-colors">
+                      <div className="flex items-center gap-3"><MessageCircle className="w-5 h-5" /><span>AGB (Şartlar)</span></div>
+                      <ChevronRight className="w-5 h-5 text-muted-foreground" />
+                    </button>
+                    <button onClick={() => { router.push('/legal/impressum'); setShowMenu(false) }} className="w-full px-4 py-3 flex items-center justify-between hover:bg-secondary/50 rounded-lg transition-colors">
+                      <div className="flex items-center gap-3"><Settings className="w-5 h-5" /><span>Impressum</span></div>
+                      <ChevronRight className="w-5 h-5 text-muted-foreground" />
+                    </button>
+                    <button onClick={() => { router.push('/legal/widerrufsrecht'); setShowMenu(false) }} className="w-full px-4 py-3 flex items-center justify-between hover:bg-secondary/50 rounded-lg transition-colors">
+                      <div className="flex items-center gap-3"><Archive className="w-5 h-5" /><span>Widerrufsrecht (İade Hakkı)</span></div>
                       <ChevronRight className="w-5 h-5 text-muted-foreground" />
                     </button>
                   </div>

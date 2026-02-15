@@ -1,15 +1,19 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef, useCallback, useMemo } from "react"
 import { useSession } from "next-auth/react"
-import { useRouter } from "next/navigation"
 import Link from "next/link"
-import { motion } from "framer-motion"
-import { Heart, MessageCircle, Share2, Bookmark, Plus } from "lucide-react"
+import { useRouter } from "next/navigation"
+import { motion, AnimatePresence } from "framer-motion"
+import {
+  Heart, MessageCircle, Share2, Bookmark, Search, Film,
+  Image as ImageIcon, TrendingUp, Flame, Sparkles, Eye,
+  ShoppingBag, SlidersHorizontal, X, Play, ChevronRight,
+  Clock, Zap, Crown, Star, Users, ArrowRight
+} from "lucide-react"
 import FloatingParticles from "@/components/floating-particles"
 import PostDetailModal from "@/components/post-detail-modal"
-import PollCard from "@/components/poll-card"
-import PollCreateModal from "@/components/poll-create-modal"
+import ReelsFeed from "@/components/reels/reels-feed"
 import { supabase } from "@/lib/supabase"
 import { createNotification } from "@/lib/notifications"
 import { useLanguage } from "@/lib/language-context"
@@ -20,46 +24,254 @@ interface Post {
   outfit_id: string | null
   caption: string
   image_url: string
+  video_url?: string
+  is_video?: boolean
   likes_count: number
   comments_count: number
+  view_count?: number
   created_at: string
   user?: {
     id: string
     name: string
     avatar_url: string | null
+    username?: string
   }
   liked_by_user?: boolean
   bookmarked_by_user?: boolean
+  product_tags?: Array<{
+    id: string
+    product_id: string
+    product?: {
+      id: string
+      title: string
+      price: number
+      images: string[]
+    }
+  }>
 }
 
+interface TrendingTag {
+  tag: string
+  count: number
+  icon: string
+}
+
+// ─── Animated Grid Item ──────────────────────────────────────
+function GridItem({ post, index, onClick, onLike, onBookmark, userId }: {
+  post: Post
+  index: number
+  onClick: () => void
+  onLike: (postId: string, postUserId: string, liked: boolean) => void
+  onBookmark: (postId: string, bookmarked: boolean) => void
+  userId?: string
+}) {
+  const [isHovered, setIsHovered] = useState(false)
+  const isLarge = index % 7 === 0 // Every 7th item is large (2x2)
+  const isVideo = post.is_video || !!post.video_url
+  const hasProducts = post.product_tags && post.product_tags.length > 0
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, scale: 0.9 }}
+      animate={{ opacity: 1, scale: 1 }}
+      transition={{ delay: index * 0.03, duration: 0.3 }}
+      className={`relative overflow-hidden rounded-lg cursor-pointer group ${
+        isLarge ? 'col-span-2 row-span-2' : ''
+      }`}
+      style={{ aspectRatio: isLarge ? '1' : '3/4' }}
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
+      onClick={onClick}
+    >
+      {/* Image */}
+      <img
+        src={post.image_url || post.video_url}
+        alt={post.caption}
+        className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+        loading="lazy"
+      />
+
+      {/* Video indicator */}
+      {isVideo && (
+        <div className="absolute top-2 right-2 flex items-center gap-1 px-1.5 py-0.5 rounded-md"
+          style={{ background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }}>
+          <Play className="w-3 h-3 text-white fill-white" />
+          {post.view_count && post.view_count > 0 && (
+            <span className="text-white text-[10px] font-medium">
+              {post.view_count >= 1000 ? `${(post.view_count / 1000).toFixed(1)}K` : post.view_count}
+            </span>
+          )}
+        </div>
+      )}
+
+      {/* Product tag badge */}
+      {hasProducts && (
+        <div className="absolute top-2 left-2 flex items-center gap-1 px-1.5 py-0.5 rounded-md"
+          style={{ background: 'linear-gradient(135deg, rgba(147,51,234,0.8), rgba(236,72,153,0.8))', backdropFilter: 'blur(4px)' }}>
+          <ShoppingBag className="w-3 h-3 text-white" />
+          <span className="text-white text-[10px] font-bold">SHOP</span>
+        </div>
+      )}
+
+      {/* Hover overlay */}
+      <AnimatePresence>
+        {isHovered && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="absolute inset-0 flex items-center justify-center gap-6"
+            style={{ background: 'rgba(0,0,0,0.4)' }}
+          >
+            <div className="flex items-center gap-1.5 text-white">
+              <Heart className="w-5 h-5 fill-white" />
+              <span className="font-bold text-sm">{post.likes_count}</span>
+            </div>
+            <div className="flex items-center gap-1.5 text-white">
+              <MessageCircle className="w-5 h-5 fill-white" />
+              <span className="font-bold text-sm">{post.comments_count}</span>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Bottom gradient with price (for product posts) */}
+      {hasProducts && post.product_tags![0]?.product && (
+        <div className="absolute bottom-0 left-0 right-0 p-2"
+          style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.7), transparent)' }}>
+          <div className="flex items-center justify-between">
+            <span className="text-white text-xs font-medium truncate mr-2">
+              {post.product_tags![0].product!.title}
+            </span>
+            <span className="text-white text-xs font-bold px-1.5 py-0.5 rounded"
+              style={{ background: 'oklch(0.78 0.14 85)' }}>
+              €{post.product_tags![0].product!.price}
+            </span>
+          </div>
+        </div>
+      )}
+    </motion.div>
+  )
+}
+
+// ─── Mini Reel Preview ───────────────────────────────────────
+function MiniReelCard({ post, onClick }: { post: Post; onClick: () => void }) {
+  return (
+    <motion.div
+      whileTap={{ scale: 0.95 }}
+      onClick={onClick}
+      className="relative flex-shrink-0 w-32 rounded-xl overflow-hidden cursor-pointer"
+      style={{ aspectRatio: '9/16' }}
+    >
+      <img
+        src={post.image_url || post.video_url}
+        alt={post.caption}
+        className="w-full h-full object-cover"
+        loading="lazy"
+      />
+      <div className="absolute inset-0" style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.6) 20%, transparent 50%)' }} />
+      <div className="absolute top-2 right-2">
+        <Play className="w-4 h-4 text-white fill-white drop-shadow-lg" />
+      </div>
+      <div className="absolute bottom-2 left-2 right-2">
+        <div className="flex items-center gap-1 text-white">
+          <Eye className="w-3 h-3" />
+          <span className="text-[10px] font-medium">
+            {(post.view_count || 0) >= 1000 ? `${((post.view_count || 0) / 1000).toFixed(1)}K` : post.view_count || 0}
+          </span>
+        </div>
+      </div>
+    </motion.div>
+  )
+}
+
+// ─── Main Page ───────────────────────────────────────────────
 export default function ExplorePage() {
   const { data: session } = useSession()
   const { t } = useLanguage()
   const router = useRouter()
   const userId = session?.user?.id
-  const [activeTab, setActiveTab] = useState<'posts' | 'polls'>('posts')
+  const [activeTab, setActiveTab] = useState<'posts' | 'reels'>('posts')
   const [posts, setPosts] = useState<Post[]>([])
-  const [polls, setPolls] = useState<any[]>([])
+  const [reelPosts, setReelPosts] = useState<Post[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedPost, setSelectedPost] = useState<Post | null>(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
-  const [showCreateModal, setShowCreateModal] = useState(false)
+  const [showSearch, setShowSearch] = useState(false)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [searchResults, setSearchResults] = useState<Post[]>([])
+  const [isSearching, setIsSearching] = useState(false)
+  const [activeFilter, setActiveFilter] = useState<string>('all')
+  const [showFilters, setShowFilters] = useState(false)
+  const [page, setPage] = useState(0)
+  const [hasMore, setHasMore] = useState(true)
+  const observerRef = useRef<IntersectionObserver | null>(null)
+  const loadMoreRef = useRef<HTMLDivElement | null>(null)
+  const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
+  // Trending hashtags (simulated - in production these come from analytics)
+  const trendingTags: TrendingTag[] = useMemo(() => [
+    { tag: 'StreetStyle', count: 2400, icon: '🔥' },
+    { tag: 'SummerVibes', count: 1800, icon: '☀️' },
+    { tag: 'MinimalFashion', count: 1500, icon: '✨' },
+    { tag: 'VintageMode', count: 1200, icon: '🌿' },
+    { tag: 'LuxuryFinds', count: 980, icon: '💎' },
+    { tag: 'OOTD', count: 3200, icon: '👗' },
+    { tag: 'Sneakers', count: 2100, icon: '👟' },
+    { tag: 'Accessories', count: 1600, icon: '💍' },
+  ], [])
+
+  const filterCategories = useMemo(() => [
+    { id: 'all', label: t('all') || 'Alle', icon: Sparkles },
+    { id: 'trending', label: t('trending') || 'Trending', icon: TrendingUp },
+    { id: 'forYou', label: t('forYou') || 'Für dich', icon: Crown },
+    { id: 'new', label: t('newLabel') || 'Neu', icon: Zap },
+    { id: 'shop', label: 'Shop', icon: ShoppingBag },
+    { id: 'popular', label: t('popular') || 'Beliebt', icon: Flame },
+  ], [t])
+
+  // Load posts
   useEffect(() => {
     if (activeTab === 'posts') {
       loadPosts()
-    } else {
-      if (userId) loadPolls()
+      loadReelPreviews()
     }
-  }, [userId, activeTab])
+  }, [userId, activeTab, activeFilter])
 
   const loadPosts = async () => {
     setLoading(true)
     try {
-      const { data: postsData, error: postsError } = await supabase.from('posts').select('*').order('created_at', { ascending: false }).limit(50)
+      let query = supabase
+        .from('posts')
+        .select('*, product_tags:post_product_tags(id, product_id, product:products!product_id(id, title, price, images))')
+
+      // Apply filter logic
+      if (activeFilter === 'trending') {
+        query = query.order('likes_count', { ascending: false })
+      } else if (activeFilter === 'new') {
+        query = query.order('created_at', { ascending: false })
+      } else if (activeFilter === 'shop') {
+        // Posts that have product tags
+        query = query.order('created_at', { ascending: false })
+      } else if (activeFilter === 'popular') {
+        query = query.order('view_count', { ascending: false })
+      } else {
+        query = query.order('created_at', { ascending: false })
+      }
+
+      const { data: postsData, error: postsError } = await query.limit(30)
       if (postsError) throw postsError
-      const postsWithUsers = await Promise.all((postsData || []).map(async (post) => {
-        const { data: userData } = await supabase.from('users').select('id, name, avatar_url').eq('id', post.user_id).single()
+
+      // Filter video vs image posts
+      let filtered = (postsData || []).filter(p => !p.is_video)
+
+      // For shop filter, only show posts with product tags
+      if (activeFilter === 'shop') {
+        filtered = filtered.filter(p => p.product_tags && p.product_tags.length > 0)
+      }
+
+      const postsWithUsers = await Promise.all(filtered.map(async (post) => {
+        const { data: userData } = await supabase.from('users').select('id, name, username, avatar_url').eq('id', post.user_id).single()
         let liked_by_user = false
         let bookmarked_by_user = false
         if (userId) {
@@ -71,6 +283,7 @@ export default function ExplorePage() {
         return { ...post, user: userData || { id: post.user_id, name: 'Unknown', avatar_url: null }, liked_by_user, bookmarked_by_user }
       }))
       setPosts(postsWithUsers)
+      setHasMore(filtered.length >= 30)
     } catch (error) {
       console.error('Load posts error:', error)
     } finally {
@@ -78,23 +291,59 @@ export default function ExplorePage() {
     }
   }
 
-  const loadPolls = async () => {
-    if (!userId) return
-    setLoading(true)
+  // Load reel preview thumbnails for horizontal scroll
+  const loadReelPreviews = async () => {
     try {
-      const response = await fetch('/api/polls/list', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId })
-      })
-      const data = await response.json()
-      setPolls(data.polls || [])
-    } catch (error) {
-      console.error('Load polls error:', error)
-    } finally {
-      setLoading(false)
+      const { data, error } = await supabase
+        .from('posts')
+        .select('id, video_url, thumbnail_url, image_url, caption, user_id, likes_count, comments_count, view_count, created_at, is_video')
+        .eq('is_video', true)
+        .order('view_count', { ascending: false })
+        .limit(10)
+
+      if (!error && data) {
+        setReelPosts(data as any)
+      }
+    } catch (err) {
+      console.error('Load reel previews error:', err)
     }
   }
+
+  // Smart search with debounce
+  const handleSearch = useCallback((query: string) => {
+    setSearchQuery(query)
+    if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current)
+
+    if (query.trim().length < 2) {
+      setSearchResults([])
+      setIsSearching(false)
+      return
+    }
+
+    setIsSearching(true)
+    searchTimeoutRef.current = setTimeout(async () => {
+      try {
+        const { data, error } = await supabase
+          .from('posts')
+          .select('*')
+          .or(`caption.ilike.%${query}%`)
+          .order('likes_count', { ascending: false })
+          .limit(20)
+
+        if (!error && data) {
+          const withUsers = await Promise.all(data.map(async (post) => {
+            const { data: userData } = await supabase.from('users').select('id, name, username, avatar_url').eq('id', post.user_id).single()
+            return { ...post, user: userData || { id: post.user_id, name: 'Unknown', avatar_url: null } }
+          }))
+          setSearchResults(withUsers)
+        }
+      } catch (err) {
+        console.error('Search error:', err)
+      } finally {
+        setIsSearching(false)
+      }
+    }, 400)
+  }, [])
 
   const handlePostClick = (post: Post) => {
     setSelectedPost(post)
@@ -106,7 +355,7 @@ export default function ExplorePage() {
   }
 
   const toggleLike = async (postId: string, postUserId: string, currentlyLiked: boolean) => {
-    if (!userId) { alert(t('loginToLike')); return }
+    if (!userId) return
     try {
       if (currentlyLiked) {
         await supabase.from('likes').delete().eq('post_id', postId).eq('user_id', userId)
@@ -114,7 +363,7 @@ export default function ExplorePage() {
       } else {
         await supabase.from('likes').insert({ post_id: postId, user_id: userId })
         setPosts(prev => prev.map(post => post.id === postId ? { ...post, likes_count: post.likes_count + 1, liked_by_user: true } : post))
-        if (postUserId !== userId) await createNotification(postUserId, userId, 'like', 'gönderini beğendi')
+        if (postUserId !== userId) await createNotification(postUserId, userId, 'like', 'liked your post')
       }
     } catch (error) {
       console.error('Toggle like error:', error)
@@ -122,158 +371,344 @@ export default function ExplorePage() {
   }
 
   const toggleBookmark = async (postId: string, currentlyBookmarked: boolean) => {
-    if (!userId) { alert(t('loginToBookmark')); return }
+    if (!userId) return
     try {
       const response = await fetch('/api/bookmark', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ userId, postId, action: currentlyBookmarked ? 'remove' : 'add' }) })
       if (!response.ok) throw new Error('Bookmark failed')
       setPosts(prev => prev.map(post => post.id === postId ? { ...post, bookmarked_by_user: !currentlyBookmarked } : post))
     } catch (error) {
       console.error('Toggle bookmark error:', error)
-      alert(t('bookmarkFailed'))
     }
   }
 
-  const handleVote = async (pollId: string, optionId: string) => {
-    try {
-      const response = await fetch('/api/polls/vote', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ pollId, optionId, userId })
-      })
-      if (!response.ok) throw new Error('Vote failed')
-      loadPolls()
-    } catch (error) {
-      console.error('Vote error:', error)
-      alert(t('voteFailed'))
-    }
-  }
+  // Infinite scroll
+  useEffect(() => {
+    if (!loadMoreRef.current) return
+    observerRef.current = new IntersectionObserver((entries) => {
+      if (entries[0].isIntersecting && hasMore && !loading) {
+        // Load more posts
+        setPage(prev => prev + 1)
+      }
+    }, { threshold: 0.5 })
+    observerRef.current.observe(loadMoreRef.current)
+    return () => observerRef.current?.disconnect()
+  }, [hasMore, loading])
 
-  const handleComment = async (pollId: string, comment: string) => {
-    try {
-      const response = await fetch('/api/polls/comment', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ pollId, userId, comment })
-      })
-      if (!response.ok) throw new Error('Comment failed')
-      loadPolls()
-    } catch (error) {
-      console.error('Comment error:', error)
-      alert(t('commentFailed'))
-    }
-  }
+  // Display posts for grid (either search results or normal posts)
+  const displayPosts = searchQuery.trim().length >= 2 ? searchResults : posts
 
-  if (loading) {
+  // ─── REELS TAB ─────────────────────────────────────────────
+  if (activeTab === 'reels') {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <motion.div animate={{ rotate: 360 }} transition={{ duration: 2, repeat: Infinity, ease: "linear" }} className="w-16 h-16 rounded-full border-2 border-primary border-t-transparent" />
+      <div className="min-h-screen relative">
+        {/* Compact tab bar */}
+        <div className="sticky top-0 z-50" style={{ background: 'rgba(var(--background-rgb, 10,10,15), 0.85)', backdropFilter: 'blur(20px)', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+          <div className="max-w-2xl mx-auto px-4">
+            <div className="flex items-center justify-between py-2.5">
+              <h1 className="font-bold text-lg" style={{ color: 'oklch(0.95 0 0)' }}>{t('exploreTitle')}</h1>
+              <button
+                onClick={() => { setShowSearch(!showSearch); setActiveTab('posts') }}
+                className="p-2 rounded-xl transition-colors"
+                style={{ background: 'rgba(255,255,255,0.06)' }}
+              >
+                <Search className="w-4 h-4" style={{ color: 'rgba(255,255,255,0.6)' }} />
+              </button>
+            </div>
+            <div className="flex -mb-px">
+              <button onClick={() => setActiveTab('posts')} className="flex-1 py-2.5 text-sm font-semibold border-b-2 transition-all flex items-center justify-center gap-1.5 border-transparent" style={{ color: 'rgba(255,255,255,0.4)' }}>
+                <ImageIcon className="w-3.5 h-3.5" />
+                {t('postsTab')}
+              </button>
+              <button onClick={() => setActiveTab('reels')} className="flex-1 py-2.5 text-sm font-semibold border-b-2 transition-all flex items-center justify-center gap-1.5" style={{ borderColor: 'oklch(0.78 0.14 85)', color: 'oklch(0.78 0.14 85)' }}>
+                <Film className="w-3.5 h-3.5" />
+                {t('reelsTab')}
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Full Reels Feed */}
+        <div className="h-[calc(100vh-6rem)]">
+          <ReelsFeed />
+        </div>
       </div>
     )
   }
 
+  // ─── POSTS (DISCOVER) TAB ──────────────────────────────────
   return (
-    <div className="min-h-screen relative overflow-hidden">
-      <FloatingParticles />
-      <section className="relative py-8 px-4">
-        <div className="container mx-auto max-w-2xl">
-          <div className="mb-8">
-            <h1 className="font-serif text-4xl font-bold mb-6 text-center">{t('exploreTitle')}</h1>
-            <div className="flex border-b border-border">
-              <button onClick={() => setActiveTab('posts')} className={`flex-1 py-3 font-semibold border-b-2 transition-colors ${activeTab === 'posts' ? 'border-primary text-primary' : 'border-transparent'}`}>
-                {t('postsTab')}
-              </button>
-              <button onClick={() => setActiveTab('polls')} className={`flex-1 py-3 font-semibold border-b-2 transition-colors ${activeTab === 'polls' ? 'border-primary text-primary' : 'border-transparent'}`}>
-                {t('pollsTab')}
-              </button>
-            </div>
+    <div className="min-h-screen relative" style={{ background: 'var(--background)' }}>
+
+      {/* ── Sticky Header ─────────────────────────────────── */}
+      <div className="sticky top-0 z-50" style={{ background: 'rgba(var(--background-rgb, 10,10,15), 0.88)', backdropFilter: 'blur(24px) saturate(1.4)', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+        <div className="max-w-3xl mx-auto px-4">
+
+          {/* Top row: title + search */}
+          <div className="flex items-center justify-between py-3">
+            <h1 className="font-bold text-xl" style={{ color: 'oklch(0.95 0 0)' }}>{t('exploreTitle')}</h1>
+            <button
+              onClick={() => setShowSearch(!showSearch)}
+              className="p-2.5 rounded-xl transition-all"
+              style={{
+                background: showSearch ? 'oklch(0.78 0.14 85 / 0.15)' : 'rgba(255,255,255,0.06)',
+                border: showSearch ? '1px solid oklch(0.78 0.14 85 / 0.3)' : '1px solid transparent',
+              }}
+            >
+              {showSearch ? <X className="w-4 h-4" style={{ color: 'oklch(0.78 0.14 85)' }} /> : <Search className="w-4 h-4" style={{ color: 'rgba(255,255,255,0.6)' }} />}
+            </button>
           </div>
 
-          {activeTab === 'posts' && (
-            <>
-              {posts.length === 0 ? (
-                <div className="text-center py-20 glass border border-border rounded-2xl">
-                  <div className="text-9xl mb-6">🌟</div>
-                  <h3 className="text-2xl font-bold mb-3">{t('noPostsYet')}</h3>
-                  <p className="text-muted-foreground">{t('shareFirstPost')}</p>
-                </div>
-              ) : (
-                <div className="space-y-6">
-                  {posts.map((post, idx) => (
-                    <motion.div key={post.id} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: idx * 0.1 }} className="glass border border-border rounded-2xl overflow-hidden">
-                      <div className="p-4 flex items-center gap-3">
-                        <Link href={post.user_id === userId ? '/profile' : `/profile/${post.user_id}`} className="w-10 h-10 rounded-full overflow-hidden bg-primary hover:opacity-80 transition-opacity">
-                          {post.user?.avatar_url ? (<img src={post.user.avatar_url} alt={post.user.name} className="w-full h-full object-cover" />) : (<div className="w-full h-full flex items-center justify-center text-white font-bold">{post.user?.name?.[0]?.toUpperCase() || 'U'}</div>)}
-                        </Link>
-                        <div className="flex-1">
-                          <Link href={post.user_id === userId ? '/profile' : `/profile/${post.user_id}`} className="font-bold hover:underline">{post.user?.name || 'Unknown'}</Link>
-                          <p className="text-xs text-muted-foreground">{new Date(post.created_at).toLocaleDateString('tr-TR', { day: 'numeric', month: 'long' })}</p>
-                        </div>
-                      </div>
-                      <div onClick={() => handlePostClick(post)} className="aspect-square bg-gradient-to-br from-primary/5 to-primary/10 cursor-pointer hover:opacity-90 transition-opacity">
-                        <img src={post.image_url} alt={post.caption} className="w-full h-full object-cover" />
-                      </div>
-                      <div className="p-4">
-                        <div className="flex items-center gap-4 mb-3">
-                          <button onClick={() => toggleLike(post.id, post.user_id, post.liked_by_user || false)} className="flex items-center gap-2 hover:text-red-500 transition-colors">
-                            <Heart className="w-6 h-6" fill={post.liked_by_user ? "currentColor" : "none"} color={post.liked_by_user ? "#ef4444" : "currentColor"} />
-                            <span className="font-semibold">{post.likes_count}</span>
-                          </button>
-                          <button onClick={() => handlePostClick(post)} className="flex items-center gap-2 hover:text-primary transition-colors">
-                            <MessageCircle className="w-6 h-6" />
-                            <span className="font-semibold">{post.comments_count}</span>
-                          </button>
-                          <button className="hover:text-primary transition-colors ml-auto"><Share2 className="w-6 h-6" /></button>
-                          <button onClick={() => toggleBookmark(post.id, post.bookmarked_by_user || false)} className="hover:text-primary transition-colors">
-                            <Bookmark className="w-6 h-6" fill={post.bookmarked_by_user ? "currentColor" : "none"} />
-                          </button>
-                        </div>
-                        {post.caption && (
-                          <p className="text-sm">
-                            <Link href={post.user_id === userId ? '/profile' : `/profile/${post.user_id}`} className="font-bold mr-2 hover:underline">{post.user?.name}</Link>
-                            {post.caption}
-                          </p>
-                        )}
-                      </div>
-                    </motion.div>
-                  ))}
-                </div>
-              )}
-            </>
-          )}
+          {/* Search bar (expandable) */}
+          <AnimatePresence>
+            {showSearch && (
+              <motion.div
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: 'auto', opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                transition={{ duration: 0.25 }}
+                className="overflow-hidden"
+              >
+                <div className="pb-3">
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: 'rgba(255,255,255,0.3)' }} />
+                    <input
+                      type="text"
+                      placeholder={t('discoverSearchPlaceholder') || "Suche nach Posts, Styles, Marken..."}
+                      value={searchQuery}
+                      onChange={(e) => handleSearch(e.target.value)}
+                      className="w-full pl-10 pr-4 py-2.5 rounded-xl text-sm focus:outline-none transition-all"
+                      style={{
+                        background: 'rgba(255,255,255,0.06)',
+                        border: '1px solid rgba(255,255,255,0.1)',
+                        color: 'oklch(0.95 0 0)',
+                      }}
+                      autoFocus
+                    />
+                    {isSearching && (
+                      <div className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 border-2 rounded-full animate-spin" style={{ borderColor: 'rgba(255,255,255,0.1)', borderTopColor: 'oklch(0.78 0.14 85)' }} />
+                    )}
+                  </div>
 
-          {activeTab === 'polls' && (
-            <>
-              <button onClick={() => setShowCreateModal(true)} className="w-full mb-6 py-4 glass border-2 border-dashed border-border rounded-2xl hover:border-primary transition-colors flex items-center justify-center gap-2 font-semibold text-primary">
-                <Plus className="w-5 h-5" />
-                {t('createPoll')}
-              </button>
+                  {/* Smart search suggestions */}
+                  {searchQuery.length > 0 && searchQuery.length < 2 && (
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                      {['Streetwear', 'Vintage', 'Minimal', 'Boho', 'Luxury'].map(suggestion => (
+                        <button
+                          key={suggestion}
+                          onClick={() => handleSearch(suggestion)}
+                          className="px-3 py-1 rounded-full text-xs transition-colors"
+                          style={{ background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.6)' }}
+                        >
+                          {suggestion}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
 
-              {polls.length === 0 ? (
-                <div className="text-center py-20 glass border border-border rounded-2xl">
-                  <div className="text-9xl mb-6">🗳️</div>
-                  <h3 className="text-2xl font-bold mb-3">{t('noPollsYet')}</h3>
-                  <p className="text-muted-foreground mb-6">{t('createFirstPoll')}</p>
-                  <button onClick={() => setShowCreateModal(true)} className="px-6 py-3 bg-primary text-primary-foreground rounded-xl font-semibold hover:opacity-90 transition-opacity">
-                    {t('createPoll')}
-                  </button>
-                </div>
-              ) : (
-                <div className="space-y-6">
-                  {polls.map((poll) => (
-                    <PollCard key={poll.id} poll={poll} currentUserId={userId || ''} onVote={handleVote} onComment={handleComment} />
-                  ))}
-                </div>
-              )}
-            </>
-          )}
+          {/* Tabs */}
+          <div className="flex -mb-px">
+            <button onClick={() => setActiveTab('posts')} className="flex-1 py-2.5 text-sm font-semibold border-b-2 transition-all flex items-center justify-center gap-1.5" style={{ borderColor: 'oklch(0.78 0.14 85)', color: 'oklch(0.78 0.14 85)' }}>
+              <ImageIcon className="w-3.5 h-3.5" />
+              {t('postsTab')}
+            </button>
+            <button onClick={() => setActiveTab('reels')} className="flex-1 py-2.5 text-sm font-semibold border-b-2 transition-all flex items-center justify-center gap-1.5 border-transparent" style={{ color: 'rgba(255,255,255,0.4)' }}>
+              <Film className="w-3.5 h-3.5" />
+              {t('reelsTab')}
+            </button>
+          </div>
         </div>
-      </section>
+      </div>
 
-      <PostDetailModal post={selectedPost} isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} onLikeToggle={handleLikeToggle} />
-      
-      {userId && (
-        <PollCreateModal isOpen={showCreateModal} onClose={() => setShowCreateModal(false)} userId={userId} onSuccess={loadPolls} />
-      )}
+      {/* ── Content ───────────────────────────────────────── */}
+      <div className="max-w-3xl mx-auto">
+
+        {/* ── Trending Hashtags ──────────────────────────── */}
+        {!searchQuery && (
+          <div className="px-4 pt-4 pb-2">
+            <div className="flex items-center justify-between mb-2.5">
+              <div className="flex items-center gap-1.5">
+                <Flame className="w-4 h-4" style={{ color: 'oklch(0.78 0.14 85)' }} />
+                <span className="text-sm font-semibold" style={{ color: 'oklch(0.9 0 0)' }}>
+                  {t('discoverTrending') || "Trending"}
+                </span>
+              </div>
+            </div>
+            <div className="flex gap-2 overflow-x-auto hide-scrollbar pb-1">
+              {trendingTags.map((tag, i) => (
+                <motion.button
+                  key={tag.tag}
+                  initial={{ opacity: 0, x: 20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: i * 0.05 }}
+                  onClick={() => handleSearch(tag.tag)}
+                  className="flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all"
+                  style={{
+                    background: 'rgba(255,255,255,0.05)',
+                    border: '1px solid rgba(255,255,255,0.08)',
+                    color: 'rgba(255,255,255,0.7)',
+                  }}
+                >
+                  <span>{tag.icon}</span>
+                  <span>#{tag.tag}</span>
+                </motion.button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* ── Filter Pills ──────────────────────────────── */}
+        {!searchQuery && (
+          <div className="px-4 pb-3">
+            <div className="flex gap-2 overflow-x-auto hide-scrollbar">
+              {filterCategories.map((filter) => {
+                const Icon = filter.icon
+                const isActive = activeFilter === filter.id
+                return (
+                  <button
+                    key={filter.id}
+                    onClick={() => setActiveFilter(filter.id)}
+                    className="flex-shrink-0 flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all"
+                    style={{
+                      background: isActive ? 'oklch(0.78 0.14 85)' : 'rgba(255,255,255,0.05)',
+                      color: isActive ? 'oklch(0.15 0 0)' : 'rgba(255,255,255,0.5)',
+                      border: isActive ? 'none' : '1px solid rgba(255,255,255,0.08)',
+                    }}
+                  >
+                    <Icon className="w-3 h-3" />
+                    {filter.label}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* ── Reels Preview Strip ────────────────────────── */}
+        {!searchQuery && reelPosts.length > 0 && (
+          <div className="px-4 pb-4">
+            <div className="flex items-center justify-between mb-2.5">
+              <div className="flex items-center gap-1.5">
+                <Play className="w-4 h-4" style={{ color: 'oklch(0.78 0.14 85)' }} />
+                <span className="text-sm font-semibold" style={{ color: 'oklch(0.9 0 0)' }}>
+                  Reels
+                </span>
+              </div>
+              <button
+                onClick={() => setActiveTab('reels')}
+                className="flex items-center gap-1 text-xs font-medium"
+                style={{ color: 'oklch(0.78 0.14 85)' }}
+              >
+                {t('viewAll') || 'Alle ansehen'}
+                <ChevronRight className="w-3 h-3" />
+              </button>
+            </div>
+            <div className="flex gap-2.5 overflow-x-auto hide-scrollbar pb-1">
+              {reelPosts.map((reel) => (
+                <MiniReelCard
+                  key={reel.id}
+                  post={reel}
+                  onClick={() => setActiveTab('reels')}
+                />
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* ── "For You" Section Label ────────────────────── */}
+        {!searchQuery && activeFilter === 'forYou' && (
+          <div className="px-4 pb-3">
+            <div className="flex items-center gap-2 px-3 py-2 rounded-xl" style={{ background: 'linear-gradient(135deg, oklch(0.78 0.14 85 / 0.1), oklch(0.65 0.18 50 / 0.05))', border: '1px solid oklch(0.78 0.14 85 / 0.15)' }}>
+              <Crown className="w-4 h-4" style={{ color: 'oklch(0.78 0.14 85)' }} />
+              <span className="text-xs font-medium" style={{ color: 'oklch(0.78 0.14 85)' }}>
+                {t('discoverForYouDesc') || "Basierend auf deinem Geschmack ausgewählt"}
+              </span>
+            </div>
+          </div>
+        )}
+
+        {/* ── Social Proof Bar ───────────────────────────── */}
+        {!searchQuery && (
+          <div className="px-4 pb-3">
+            <div className="flex items-center gap-3 text-[10px]" style={{ color: 'rgba(255,255,255,0.35)' }}>
+              <div className="flex items-center gap-1">
+                <Users className="w-3 h-3" />
+                <span>{t('discoverActiveNow') || "847 aktive Nutzer"}</span>
+              </div>
+              <div className="w-1 h-1 rounded-full" style={{ background: 'rgba(255,255,255,0.2)' }} />
+              <div className="flex items-center gap-1">
+                <TrendingUp className="w-3 h-3" />
+                <span>{t('discoverNewToday') || "124 neue Posts heute"}</span>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── Main Grid ──────────────────────────────────── */}
+        {loading && posts.length === 0 ? (
+          <div className="px-4">
+            <div className="grid grid-cols-3 gap-1">
+              {Array.from({ length: 12 }).map((_, i) => (
+                <div
+                  key={i}
+                  className={`rounded-lg animate-pulse ${i === 0 ? 'col-span-2 row-span-2' : ''}`}
+                  style={{
+                    aspectRatio: i === 0 ? '1' : '3/4',
+                    background: 'rgba(255,255,255,0.05)',
+                  }}
+                />
+              ))}
+            </div>
+          </div>
+        ) : displayPosts.length === 0 ? (
+          <div className="px-4 py-16 text-center">
+            <div className="text-6xl mb-4">
+              {searchQuery ? '🔍' : '✨'}
+            </div>
+            <h3 className="text-lg font-bold mb-2" style={{ color: 'oklch(0.9 0 0)' }}>
+              {searchQuery ? (t('noSearchResults') || 'Keine Ergebnisse') : (t('noPostsYet') || 'Noch keine Posts')}
+            </h3>
+            <p className="text-sm" style={{ color: 'rgba(255,255,255,0.4)' }}>
+              {searchQuery ? (t('tryDifferentSearch') || 'Versuche einen anderen Suchbegriff') : (t('shareFirstPost') || 'Sei der Erste!')}
+            </p>
+          </div>
+        ) : (
+          <div className="px-1">
+            {/* Instagram-style 3-column grid */}
+            <div className="grid grid-cols-3 gap-0.5">
+              {displayPosts.map((post, idx) => (
+                <GridItem
+                  key={post.id}
+                  post={post}
+                  index={idx}
+                  onClick={() => handlePostClick(post)}
+                  onLike={toggleLike}
+                  onBookmark={toggleBookmark}
+                  userId={userId}
+                />
+              ))}
+            </div>
+
+            {/* Infinite scroll trigger */}
+            <div ref={loadMoreRef} className="h-20 flex items-center justify-center">
+              {loading && (
+                <div className="w-6 h-6 border-2 rounded-full animate-spin" style={{ borderColor: 'rgba(255,255,255,0.1)', borderTopColor: 'oklch(0.78 0.14 85)' }} />
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* ── Post Detail Modal ────────────────────────────── */}
+      <PostDetailModal
+        post={selectedPost}
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        onLikeToggle={handleLikeToggle}
+      />
     </div>
   )
 }

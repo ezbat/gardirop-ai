@@ -14,7 +14,19 @@
       "Bash(tasklist:*)",
       "Bash(findstr:*)",
       "Bash(taskkill:*)",
-      "Bash(node -e:*)"
+      "Bash(node -e:*)",
+      "Bash(npm run build:*)",
+      "Bash(grep:*)",
+      "Bash(xargs sed:*)",
+      "Bash(powershell -Command \"Get-ChildItem -Path app -Recurse -Include *.tsx,*.ts | Select-String ''full_name'' | Select-Object -First 10\")",
+      "Bash(npx supabase:*)",
+      "Bash(curl:*)",
+      "Bash(xargs:*)",
+      "Bash(wc -l \"C:\\\\Users\\\\Ezbat\\\\Documents\\\\projeler\\\\kombin\\\\my-app\\\\supabase\\\\migrations\"/*)",
+      "Bash(echo:*)",
+      "Bash(timeout:*)",
+      "Bash(test:*)",
+      "Bash(npx eslint:*)"
     ]
   }
 }

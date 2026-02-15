@@ -346,4 +346,4 @@ Preview deployments: Her PR için otomatik preview URL oluşur.
 - [ ] Mobile'da test edin
 - [ ] Farklı tarayıcılarda test edin
 
-**Support için**: legal@wearo.com
+**Support için**: legal@gmail.com

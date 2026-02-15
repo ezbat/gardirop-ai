@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { useSession } from "next-auth/react"
 import { motion } from "framer-motion"
 import { Users, Ban, CheckCircle, Shield, Search, Mail, Calendar } from "lucide-react"
 import { Input } from "@/components/ui/input"
@@ -8,7 +9,7 @@ import { Input } from "@/components/ui/input"
 interface User {
   id: string
   email: string
-  full_name?: string
+  name?: string
   role: string
   is_banned?: boolean
   ban_reason?: string
@@ -17,6 +18,9 @@ interface User {
 }
 
 export default function AdminUsersPage() {
+  const { data: session } = useSession()
+  const userId = session?.user?.id
+
   const [users, setUsers] = useState<User[]>([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState<'all' | 'user' | 'admin' | 'banned'>('all')
@@ -24,10 +28,14 @@ export default function AdminUsersPage() {
   const [actionLoading, setActionLoading] = useState(false)
 
   useEffect(() => {
-    fetchUsers()
-  }, [filter])
+    if (userId) {
+      fetchUsers()
+    }
+  }, [filter, userId])
 
   const fetchUsers = async () => {
+    if (!userId) return
+
     try {
       setLoading(true)
       const url = filter === 'all' || filter === 'banned'
@@ -36,7 +44,7 @@ export default function AdminUsersPage() {
 
       const response = await fetch(url, {
         headers: {
-          'x-user-id': 'm3000'
+          'x-user-id': userId
         }
       })
 
@@ -57,17 +65,19 @@ export default function AdminUsersPage() {
     }
   }
 
-  const handleAction = async (userId: string, action: 'ban' | 'unban' | 'make_admin' | 'make_user', notes?: string) => {
+  const handleAction = async (targetUserId: string, action: 'ban' | 'unban' | 'make_admin' | 'make_user', notes?: string) => {
+    if (!userId) return
+
     try {
       setActionLoading(true)
       const response = await fetch('/api/admin/users', {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
-          'x-user-id': 'm3000'
+          'x-user-id': userId
         },
         body: JSON.stringify({
-          targetUserId: userId,
+          targetUserId,
           action,
           notes
         })
@@ -85,7 +95,7 @@ export default function AdminUsersPage() {
 
   const filteredUsers = users.filter(user =>
     user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    user.full_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    user.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     user.id.toLowerCase().includes(searchTerm.toLowerCase())
   )
 
@@ -205,11 +215,11 @@ export default function AdminUsersPage() {
                         <div className="flex items-center gap-3">
                           <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
                             <span className="text-primary font-semibold">
-                              {user.full_name?.charAt(0).toUpperCase() || user.email.charAt(0).toUpperCase()}
+                              {user.name?.charAt(0).toUpperCase() || user.email.charAt(0).toUpperCase()}
                             </span>
                           </div>
                           <div>
-                            <p className="font-medium">{user.full_name || 'Isimsiz'}</p>
+                            <p className="font-medium">{user.name || 'Isimsiz'}</p>
                             <p className="text-xs text-muted-foreground">{user.id.slice(0, 8)}...</p>
                           </div>
                         </div>

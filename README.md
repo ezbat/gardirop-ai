@@ -6,10 +6,16 @@ Modern, lüks ve kullanıcı dostu bir e-ticaret platformu. Next.js 15, Supabase
 
 ### 🛍️ E-Ticaret
 - **Ürün Mağazası**: Kategorilere göre filtreleme, arama, favorilere ekleme
+- **Gelişmiş Filtreleme**: Fiyat aralığı, renk, beden, marka filtreleri
 - **Sepet Yönetimi**: Gerçek zamanlı sepet, beden seçimi, stok kontrolü
 - **Güvenli Ödeme**: Stripe entegrasyonu ile PCI-DSS uyumlu ödeme
 - **Sipariş Takibi**: Detaylı sipariş geçmişi ve durum güncellemeleri
-- **Email Bildirimleri**: Sipariş onayı, kargo bildirimleri (Resend)
+- **Email Bildirimleri**: Sipariş onayı, kargo bildirimleri
+- **Ürün Yorumları**: 5-star rating, verified purchase badge, faydalı oylama
+- **Wish List**: İstek listesi oluşturma ve yönetme
+- **Kupon Sistemi**: İndirim kodları ve kampanyalar
+- **İade Sistemi**: İade talebi oluşturma ve takibi
+- **Kargo Takibi**: Gerçek zamanlı kargo durumu ve timeline
 
 ### 👔 Kombin Sistemi
 - **Outfit Koleksiyonları**: Satıcılar ürünlerinden kombin oluşturabilir
@@ -46,6 +52,9 @@ Modern, lüks ve kullanıcı dostu bir e-ticaret platformu. Next.js 15, Supabase
 - **Pagination**: Performanslı sayfalama (12 ürün/sayfa)
 - **Favori Sistemi**: Ürünleri favorilere ekleme
 - **Cookie Consent**: KVKK/GDPR uyumlu çerez onayı
+- **Real-time Notifications**: Otomatik bildirimler (sipariş, kargo, yorumlar)
+- **Image Optimization**: AVIF/WebP formatları, lazy loading
+- **SEO Optimized**: Dynamic sitemap, meta tags, Open Graph
 
 ### ⚖️ Yasal Uyumluluk
 - **Gizlilik Politikası**: KVKK ve GDPR uyumlu
@@ -67,11 +76,14 @@ Modern, lüks ve kullanıcı dostu bir e-ticaret platformu. Next.js 15, Supabase
 - **Supabase**: PostgreSQL database, auth, storage
 - **Stripe**: Ödeme altyapısı
 - **Resend**: Email servisi
+- **Rate Limiting**: API koruma (in-memory sliding window)
+- **Sentry**: Error tracking ve performance monitoring
 
 ### Altyapı
 - **Vercel**: Hosting ve deployment
 - **GitHub**: Version control
 - **Edge Functions**: Global performans
+- **Security Headers**: HSTS, CSP, XSS protection
 
 ## 📁 Proje Yapısı
 
@@ -285,7 +297,7 @@ Bu proje MIT lisansı altındadır.
 
 ## 📞 İletişim
 
-- **Email**: legal@wearo.com
+- **Email**: wearo.product@gmail.com
 - **Website**: https://wearo.com
 
 ## 🙏 Teşekkürler

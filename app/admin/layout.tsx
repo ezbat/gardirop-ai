@@ -102,6 +102,12 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                   Dashboard
                 </Link>
                 <Link
+                  href="/admin/features"
+                  className="px-3 py-2 rounded-md text-sm font-medium bg-primary text-primary-foreground hover:opacity-90"
+                >
+                  Features ⭐
+                </Link>
+                <Link
                   href="/admin/sellers"
                   className="px-3 py-2 rounded-md text-sm font-medium hover:bg-gray-100 dark:hover:bg-gray-700"
                 >
@@ -124,6 +130,30 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                   className="px-3 py-2 rounded-md text-sm font-medium hover:bg-gray-100 dark:hover:bg-gray-700"
                 >
                   Users
+                </Link>
+                <Link
+                  href="/admin/support"
+                  className="px-3 py-2 rounded-md text-sm font-medium hover:bg-gray-100 dark:hover:bg-gray-700"
+                >
+                  Support
+                </Link>
+                <Link
+                  href="/admin/finances"
+                  className="px-3 py-2 rounded-md text-sm font-medium hover:bg-gray-100 dark:hover:bg-gray-700"
+                >
+                  Finances
+                </Link>
+                <Link
+                  href="/admin/withdrawals"
+                  className="px-3 py-2 rounded-md text-sm font-medium hover:bg-gray-100 dark:hover:bg-gray-700"
+                >
+                  Withdrawals
+                </Link>
+                <Link
+                  href="/admin/requests"
+                  className="px-3 py-2 rounded-md text-sm font-medium hover:bg-gray-100 dark:hover:bg-gray-700"
+                >
+                  Requests
                 </Link>
               </div>
             </div>

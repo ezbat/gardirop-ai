@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
-import { Package, Loader2, Filter, Search, Eye, ChevronDown, Truck, CheckCircle, Clock, XCircle, ArrowLeft, MessageCircle } from 'lucide-react'
+import { Package, Loader2, Filter, Search, Eye, ChevronDown, Truck, CheckCircle, Clock, XCircle, ArrowLeft, MessageCircle, Send } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import FloatingParticles from '@/components/floating-particles'
 
@@ -26,7 +26,14 @@ interface Order {
   created_at: string
   status: string
   total_amount: number
-  shipping_info: {
+  shipping_info?: {
+    fullName: string
+    phone: string
+    address: string
+    city: string
+    district: string
+  }
+  shipping_address?: {
     fullName: string
     phone: string
     address: string
@@ -56,6 +63,11 @@ export default function SellerOrdersPage() {
   const [statusFilter, setStatusFilter] = useState('all')
   const [searchQuery, setSearchQuery] = useState('')
   const [expandedOrder, setExpandedOrder] = useState<string | null>(null)
+  const [shipModalOpen, setShipModalOpen] = useState(false)
+  const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null)
+  const [trackingNumber, setTrackingNumber] = useState('')
+  const [carrier, setCarrier] = useState('DHL')
+  const [shipping, setShipping] = useState(false)
 
   useEffect(() => {
     if (userId) {
@@ -96,7 +108,7 @@ export default function SellerOrdersPage() {
         .from('order_items')
         .select(`
           *,
-          order:orders (*),
+          order:orders!inner (*),
           product:products!inner (
             id,
             title,
@@ -105,6 +117,7 @@ export default function SellerOrdersPage() {
           )
         `)
         .eq('product.seller_id', sellerId)
+        .eq('order.payment_status', 'paid')
 
       if (error) throw error
 
@@ -138,7 +151,7 @@ export default function SellerOrdersPage() {
     if (searchQuery) {
       filtered = filtered.filter(order =>
         order.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        order.shipping_info.fullName.toLowerCase().includes(searchQuery.toLowerCase())
+        (order.shipping_info?.fullName || order.shipping_address?.fullName || '').toLowerCase().includes(searchQuery.toLowerCase())
       )
     }
 
@@ -162,6 +175,57 @@ export default function SellerOrdersPage() {
     } catch (error) {
       console.error('Update status error:', error)
       alert('Durum güncellenemedi!')
+    }
+  }
+
+  const openShipModal = (orderId: string) => {
+    setSelectedOrderId(orderId)
+    setShipModalOpen(true)
+    setTrackingNumber('')
+    setCarrier('DHL')
+  }
+
+  const handleShipOrder = async () => {
+    if (!trackingNumber || !selectedOrderId) {
+      alert('Lütfen takip numarası girin!')
+      return
+    }
+
+    setShipping(true)
+
+    try {
+      const response = await fetch('/api/shipping/manual-ship', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-user-id': userId || '',
+        },
+        body: JSON.stringify({
+          orderId: selectedOrderId,
+          trackingNumber,
+          carrier,
+        }),
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Kargo işlemi başarısız')
+      }
+
+      alert(`✅ Sipariş kargoya verildi!\nTakip No: ${trackingNumber}`)
+
+      // Reload orders
+      await loadOrders(seller.id)
+
+      setShipModalOpen(false)
+      setSelectedOrderId(null)
+      setTrackingNumber('')
+    } catch (error: any) {
+      console.error('Ship order error:', error)
+      alert(error.message || 'Kargo işlemi başarısız!')
+    } finally {
+      setShipping(false)
     }
   }
 
@@ -239,7 +303,7 @@ export default function SellerOrdersPage() {
                       <div>
                         <p className="font-bold mb-1">Sipariş #{order.id.slice(0, 8).toUpperCase()}</p>
                         <p className="text-sm text-muted-foreground mb-1">
-                          Müşteri: {order.shipping_info.fullName}
+                          Müşteri: {order.shipping_info?.fullName || 'Bilgi yok'}
                         </p>
                         <p className="text-sm text-muted-foreground">
                           {new Date(order.created_at).toLocaleDateString('tr-TR', {
@@ -290,10 +354,10 @@ export default function SellerOrdersPage() {
 
                     {expandedOrder === order.id && (
                       <div className="glass border border-border rounded-xl p-4 mb-4 space-y-2 text-sm">
-                        <p><strong>Ad Soyad:</strong> {order.shipping_info.fullName}</p>
-                        <p><strong>Telefon:</strong> {order.shipping_info.phone}</p>
-                        <p><strong>Adres:</strong> {order.shipping_info.address}</p>
-                        <p><strong>Şehir:</strong> {order.shipping_info.city}, {order.shipping_info.district}</p>
+                        <p><strong>Ad Soyad:</strong> {(order.shipping_info || order.shipping_address)?.fullName || 'Bilgi yok'}</p>
+                        <p><strong>Telefon:</strong> {(order.shipping_info || order.shipping_address)?.phone || 'Bilgi yok'}</p>
+                        <p><strong>Adres:</strong> {(order.shipping_info || order.shipping_address)?.address || 'Bilgi yok'}</p>
+                        <p><strong>Şehir:</strong> {(order.shipping_info || order.shipping_address)?.city || 'Bilgi yok'}, {(order.shipping_info || order.shipping_address)?.district || ''}</p>
                       </div>
                     )}
 
@@ -305,19 +369,29 @@ export default function SellerOrdersPage() {
 
                     {/* Actions */}
                     <div className="flex gap-3 pt-4 border-t border-border">
-                      <select
-                        value={order.status}
-                        onChange={(e) => updateOrderStatus(order.id, e.target.value)}
-                        className="flex-1 px-4 py-2 glass border border-border rounded-xl outline-none focus:border-primary text-sm"
-                        disabled={order.status === 'delivered' || order.status === 'cancelled'}
-                      >
-                        <option value="pending">Beklemede</option>
-                        <option value="processing">Hazırlanıyor</option>
-                        <option value="shipped">Kargoda</option>
-                        <option value="delivered">Teslim Edildi</option>
-                        <option value="cancelled">İptal Et</option>
-                      </select>
-                      
+                      {order.status === 'pending' || order.status === 'processing' ? (
+                        <button
+                          onClick={() => openShipModal(order.id)}
+                          className="flex-1 px-4 py-2 bg-primary text-primary-foreground rounded-xl font-semibold hover:opacity-90 transition-opacity text-sm flex items-center justify-center gap-2"
+                        >
+                          <Truck className="w-4 h-4" />
+                          Kargoya Ver
+                        </button>
+                      ) : (
+                        <select
+                          value={order.status}
+                          onChange={(e) => updateOrderStatus(order.id, e.target.value)}
+                          className="flex-1 px-4 py-2 glass border border-border rounded-xl outline-none focus:border-primary text-sm"
+                          disabled={order.status === 'delivered' || order.status === 'cancelled'}
+                        >
+                          <option value="pending">Beklemede</option>
+                          <option value="processing">Hazırlanıyor</option>
+                          <option value="shipped">Kargoda</option>
+                          <option value="delivered">Teslim Edildi</option>
+                          <option value="cancelled">İptal Et</option>
+                        </select>
+                      )}
+
                       <button
                         onClick={() => router.push(`/messages?to=${order.user_id}`)}
                         className="px-4 py-2 glass border border-primary rounded-xl font-semibold hover:bg-primary/10 transition-colors text-sm flex items-center gap-2"
@@ -334,6 +408,76 @@ export default function SellerOrdersPage() {
           )}
         </div>
       </section>
+
+      {/* Ship Order Modal */}
+      {shipModalOpen && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="glass border border-border rounded-2xl p-6 max-w-md w-full">
+            <h2 className="text-2xl font-bold mb-4">Kargoya Ver</h2>
+            <p className="text-sm text-muted-foreground mb-6">
+              Sipariş #{selectedOrderId?.slice(0, 8).toUpperCase()}
+            </p>
+
+            <div className="space-y-4 mb-6">
+              <div>
+                <label className="block text-sm font-semibold mb-2">Kargo Firması</label>
+                <select
+                  value={carrier}
+                  onChange={(e) => setCarrier(e.target.value)}
+                  className="w-full px-4 py-2 glass border border-border rounded-xl outline-none focus:border-primary"
+                >
+                  <option value="DHL">DHL</option>
+                  <option value="UPS">UPS</option>
+                  <option value="FedEx">FedEx</option>
+                  <option value="PTT">PTT Kargo</option>
+                  <option value="Aras">Aras Kargo</option>
+                  <option value="Yurtiçi">Yurtiçi Kargo</option>
+                  <option value="MNG">MNG Kargo</option>
+                  <option value="Other">Diğer</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold mb-2">Takip Numarası</label>
+                <input
+                  type="text"
+                  value={trackingNumber}
+                  onChange={(e) => setTrackingNumber(e.target.value)}
+                  placeholder="örn: 1234567890"
+                  className="w-full px-4 py-2 glass border border-border rounded-xl outline-none focus:border-primary"
+                />
+              </div>
+            </div>
+
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShipModalOpen(false)}
+                className="flex-1 px-4 py-2 glass border border-border rounded-xl font-semibold hover:border-primary transition-colors"
+                disabled={shipping}
+              >
+                İptal
+              </button>
+              <button
+                onClick={handleShipOrder}
+                className="flex-1 px-4 py-2 bg-primary text-primary-foreground rounded-xl font-semibold hover:opacity-90 transition-opacity flex items-center justify-center gap-2"
+                disabled={shipping || !trackingNumber}
+              >
+                {shipping ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Gönderiliyor...
+                  </>
+                ) : (
+                  <>
+                    <Send className="w-4 h-4" />
+                    Kargoya Ver
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

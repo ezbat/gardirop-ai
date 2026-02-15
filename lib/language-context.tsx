@@ -23,13 +23,17 @@ const translations: Record<Language, Translations> = {
 };
 
 export function LanguageProvider({ children }: { children: ReactNode }) {
-  const [language, setLanguageState] = useState<Language>('tr');
+  const [language, setLanguageState] = useState<Language>('de');
 
   // LocalStorage'dan dil yükle
   useEffect(() => {
     const savedLang = localStorage.getItem('gardirop-language') as Language;
     if (savedLang && ['tr', 'en', 'de'].includes(savedLang)) {
       setLanguageState(savedLang);
+    } else {
+      // Varsayılan dil Almanca
+      setLanguageState('de');
+      localStorage.setItem('gardirop-language', 'de');
     }
   }, []);
 

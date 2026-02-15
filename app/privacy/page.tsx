@@ -42,7 +42,7 @@ export default function PrivacyPolicyPage() {
                 </p>
                 <div className="bg-primary/5 p-4 rounded-xl">
                   <p className="font-semibold">Wearo</p>
-                  <p className="text-sm text-muted-foreground">Email: privacy@wearo.com</p>
+                  <p className="text-sm text-muted-foreground">Email: wearo.product@gmail.com</p>
                   <p className="text-sm text-muted-foreground">Web: www.wearo.com</p>
                 </div>
               </section>
@@ -142,7 +142,7 @@ export default function PrivacyPolicyPage() {
                   <li><strong>{t('rightToObject')}:</strong> {t('rightToObjectDesc')}</li>
                 </ul>
                 <p className="mt-4 text-sm text-muted-foreground">
-                  {t('exerciseRights')}: privacy@wearo.com
+                  {t('exerciseRights')}: wearo.product@gmail.com
                 </p>
               </section>
 
@@ -181,8 +181,8 @@ export default function PrivacyPolicyPage() {
                 <p className="text-muted-foreground mb-3">{t('contactDesc')}</p>
                 <div className="bg-primary/5 p-4 rounded-xl">
                   <p className="font-semibold">Wearo - {t('dataProtectionOfficer')}</p>
-                  <p className="text-sm text-muted-foreground">Email: privacy@wearo.com</p>
-                  <p className="text-sm text-muted-foreground">Email: dpo@wearo.com</p>
+                  <p className="text-sm text-muted-foreground">Email: wearo.product@gmail.com</p>
+                  <p className="text-sm text-muted-foreground">Email: wearo.product@gmail.com</p>
                 </div>
               </section>
             </div>

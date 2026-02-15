@@ -70,7 +70,7 @@ export default function CreateOutfitPage() {
 
       if (error || !seller) {
         alert(t('error'))
-        router.push('/seller/apply')
+        router.push('/seller-application')
         return
       }
 

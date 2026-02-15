@@ -3,10 +3,10 @@ import { supabase } from '@/lib/supabase'
 
 export async function GET(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const outfitId = params.id
+    const { id: outfitId } = await params
 
     if (!outfitId) {
       return NextResponse.json({ error: 'Outfit ID required' }, { status: 400 })
@@ -68,26 +68,32 @@ export async function GET(
       isActive: outfit.is_active,
       createdAt: outfit.created_at,
       items: outfit.outfit_items
-        .sort((a, b) => a.display_order - b.display_order)
-        .map(item => ({
-          productId: item.products.id,
-          title: item.products.title,
-          description: item.products.description,
-          price: item.products.price,
-          originalPrice: item.products.original_price,
-          images: item.products.images || [],
-          category: item.products.category,
-          brand: item.products.brand,
-          stockQuantity: item.products.stock_quantity,
-          sizes: item.products.sizes || [],
-          isRequired: item.is_required
-        })),
+        .sort((a: any, b: any) => a.display_order - b.display_order)
+        .map((item: any) => {
+          const product = Array.isArray(item.products) ? item.products[0] : item.products
+          return {
+            productId: product?.id,
+            title: product?.title,
+            description: product?.description,
+            price: product?.price,
+            originalPrice: product?.original_price,
+            images: product?.images || [],
+            category: product?.category,
+            brand: product?.brand,
+            stockQuantity: product?.stock_quantity,
+            sizes: product?.sizes || [],
+            isRequired: item.is_required
+          }
+        }),
       seller: {
-        id: outfit.sellers?.id,
-        shopName: outfit.sellers?.shop_name,
-        logoUrl: outfit.sellers?.logo_url
+        id: (Array.isArray(outfit.sellers) ? outfit.sellers[0] : outfit.sellers)?.id,
+        shopName: (Array.isArray(outfit.sellers) ? outfit.sellers[0] : outfit.sellers)?.shop_name,
+        logoUrl: (Array.isArray(outfit.sellers) ? outfit.sellers[0] : outfit.sellers)?.logo_url
       },
-      totalPrice: outfit.outfit_items.reduce((sum, item) => sum + (item.products.price || 0), 0)
+      totalPrice: outfit.outfit_items.reduce((sum: number, item: any) => {
+        const product = Array.isArray(item.products) ? item.products[0] : item.products
+        return sum + (product?.price || 0)
+      }, 0)
     }
 
     return NextResponse.json({ outfit: formattedOutfit })

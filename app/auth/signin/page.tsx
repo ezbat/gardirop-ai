@@ -48,7 +48,17 @@ function SignInContent() {
         return
       }
 
-      router.push(callbackUrl)
+      // Kullanıcı bilgilerini al ve role kontrol et
+      const response = await fetch('/api/auth/session')
+      const session = await response.json()
+
+      // Admin ise admin paneline yönlendir
+      if (session?.user?.role === 'admin') {
+        router.push('/admin/dashboard')
+      } else {
+        router.push(callbackUrl)
+      }
+
       router.refresh()
     } catch (error) {
       setError(t('error'))

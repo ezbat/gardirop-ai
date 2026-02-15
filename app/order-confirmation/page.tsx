@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { CheckCircle2, Package, Truck, Loader2 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
@@ -8,59 +8,99 @@ import { useLanguage } from '@/lib/language-context'
 import FloatingParticles from '@/components/floating-particles'
 import Link from 'next/link'
 
-export default function OrderConfirmationPage() {
+function OrderConfirmationContent() {
   const { t } = useLanguage()
   const router = useRouter()
   const searchParams = useSearchParams()
   const sessionId = searchParams.get('session_id')
-  const orderId = searchParams.get('order_id')
 
   const [loading, setLoading] = useState(true)
   const [order, setOrder] = useState<any>(null)
   const [error, setError] = useState<string | null>(null)
+  const [pollingAttempt, setPollingAttempt] = useState(0)
 
   useEffect(() => {
-    if (sessionId && orderId) {
-      verifyPayment()
+    if (sessionId) {
+      pollForOrder(sessionId)
     } else {
-      setError('Invalid confirmation link')
+      setError('Invalid confirmation link - missing session ID')
       setLoading(false)
     }
-  }, [sessionId, orderId])
+  }, [sessionId])
 
-  const verifyPayment = async () => {
+  const pollForOrder = async (sessionId: string) => {
+    const maxAttempts = 10
+    const delayMs = 1000
+
     try {
-      // Wait a bit for webhook to process
-      await new Promise(resolve => setTimeout(resolve, 2000))
+      for (let i = 0; i < maxAttempts; i++) {
+        setPollingAttempt(i + 1)
 
-      // Fetch order details
-      const { data: orderData, error: orderError } = await supabase
-        .from('orders')
-        .select('*')
-        .eq('id', orderId)
-        .single()
+        console.log(`🔄 Polling for order (attempt ${i + 1}/${maxAttempts})...`)
 
-      if (orderError || !orderData) {
-        throw new Error('Order not found')
+        // Query order by stripe_checkout_session_id
+        const { data: orderData, error: orderError } = await supabase
+          .from('orders')
+          .select('*')
+          .eq('stripe_checkout_session_id', sessionId)
+          .single()
+
+        if (orderData) {
+          console.log('✅ Order found:', orderData.id)
+          setOrder(orderData)
+          setLoading(false)
+
+          // Clear cart on successful order
+          localStorage.removeItem('cart')
+          return
+        }
+
+        // If not found yet, wait and retry
+        if (i < maxAttempts - 1) {
+          await new Promise(resolve => setTimeout(resolve, delayMs))
+        }
       }
 
-      setOrder(orderData)
-
-      // Clear cart
-      localStorage.removeItem('cart')
+      // Timeout after max attempts
+      console.error('⏱️ Order creation timeout')
+      setError('Order creation is taking longer than expected. Please check your email or contact support with session ID: ' + sessionId.slice(-8))
+      setLoading(false)
     } catch (err: any) {
-      console.error('Payment verification error:', err)
+      console.error('❌ Polling error:', err)
       setError(err.message || 'Failed to verify payment')
-    } finally {
       setLoading(false)
     }
   }
 
   if (loading) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center">
-        <Loader2 className="w-12 h-12 animate-spin text-primary mb-4" />
-        <p className="text-muted-foreground">{t('loading')}</p>
+      <div className="min-h-screen flex flex-col items-center justify-center p-4">
+        <div className="text-center max-w-md">
+          <Loader2 className="w-16 h-16 animate-spin text-primary mb-6 mx-auto" />
+          <h2 className="text-2xl font-bold mb-3">Processing your order...</h2>
+          <p className="text-muted-foreground mb-2">
+            This usually takes a few seconds
+          </p>
+          {pollingAttempt > 0 && (
+            <div className="mt-4">
+              <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
+                <div className="flex gap-1">
+                  {Array.from({ length: 10 }).map((_, i) => (
+                    <div
+                      key={i}
+                      className={`w-2 h-2 rounded-full transition-colors ${
+                        i < pollingAttempt ? 'bg-primary' : 'bg-muted'
+                      }`}
+                    />
+                  ))}
+                </div>
+              </div>
+              <p className="text-xs text-muted-foreground mt-2">
+                Attempt {pollingAttempt} of 10
+              </p>
+            </div>
+          )}
+        </div>
       </div>
     )
   }
@@ -168,5 +208,17 @@ export default function OrderConfirmationPage() {
         </div>
       </section>
     </div>
+  )
+}
+
+export default function OrderConfirmationPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="w-12 h-12 animate-spin text-primary" />
+      </div>
+    }>
+      <OrderConfirmationContent />
+    </Suspense>
   )
 }

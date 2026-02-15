@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, Suspense } from "react"
 import { useSession } from "next-auth/react"
 import { useRouter, useSearchParams } from "next/navigation"
 import Link from "next/link"
@@ -15,7 +15,7 @@ interface User {
   bio: string | null
 }
 
-export default function FollowersPage() {
+function FollowersContent() {
   const { data: session } = useSession()
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -159,5 +159,17 @@ export default function FollowersPage() {
         </div>
       )}
     </div>
+  )
+}
+
+export default function FollowersPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    }>
+      <FollowersContent />
+    </Suspense>
   )
 }

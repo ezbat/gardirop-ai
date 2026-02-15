@@ -246,3 +246,456 @@
   background: oklch(0 0 0 / 0.2);
   border: 1px solid oklch(1 0 0 / 0.1);
 }
+
+/* Mobile-friendly touch targets */
+@media (max-width: 768px) {
+  button, a {
+    min-height: 44px;
+    min-width: 44px;
+  }
+
+  input, textarea, select {
+    font-size: 16px; /* Prevents zoom on iOS */
+  }
+
+  /* Improve tap targets */
+  .glass {
+    padding: 12px;
+  }
+
+  /* Better spacing on mobile */
+  .container {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+}
+
+/* App-style interactive elements */
+.app-button {
+  @apply transition-all active:scale-[0.98] rounded-xl;
+}
+
+.app-button:active {
+  transform: scale(0.98);
+}
+
+/* Smooth scrolling for mobile */
+@media (max-width: 768px) {
+  * {
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
+/* Modern notification glow */
+@keyframes notification-glow {
+  0%, 100% {
+    filter: drop-shadow(0 0 2px rgba(var(--primary-rgb), 0.5));
+  }
+  50% {
+    filter: drop-shadow(0 0 4px rgba(var(--primary-rgb), 0.8));
+  }
+}
+
+.notification-active {
+  animation: notification-glow 2s ease-in-out infinite;
+}
+
+/* Premium glass effect for app */
+.glass-premium {
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(20px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.dark .glass-premium {
+  background: rgba(0, 0, 0, 0.3);
+  backdrop-filter: blur(20px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+/* ========================================
+   MOBILE-NATIVE APP STYLES
+   ======================================== */
+
+/* Primary color RGB for dynamic effects */
+:root {
+  --primary-rgb: 199, 153, 76; /* Gold color in RGB */
+}
+
+.dark {
+  --primary-rgb: 199, 153, 76; /* Gold color in RGB */
+}
+
+/* Thumb zone optimization - mobile-first design */
+.thumb-zone {
+  padding-bottom: calc(env(safe-area-inset-bottom) + 80px);
+}
+
+/* Safe area support for notched devices (iPhone X+) */
+.safe-area-top {
+  padding-top: env(safe-area-inset-top);
+}
+
+.safe-area-bottom {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+.safe-area-left {
+  padding-left: env(safe-area-inset-left);
+}
+
+.safe-area-right {
+  padding-right: env(safe-area-inset-right);
+}
+
+/* Full viewport height accounting for mobile browsers */
+.min-h-screen-mobile {
+  min-height: 100vh;
+  min-height: -webkit-fill-available;
+}
+
+/* Swipe navigation active state */
+.swipe-nav-active {
+  overflow: hidden;
+}
+
+.will-change-transform {
+  will-change: transform;
+}
+
+/* Prevent swipe navigation on specific elements */
+.no-swipe {
+  touch-action: auto;
+}
+
+/* Prevent text selection on mobile UI elements */
+.no-select {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+
+/* Improve tap response */
+.tap-highlight-none {
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Typography mobile-first (iOS zoom prevention) */
+body {
+  font-size: 16px; /* Min 16px prevents iOS auto-zoom */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Mobile-optimized headings */
+h1 {
+  font-size: 28px;
+  line-height: 1.2;
+  font-weight: 700;
+}
+
+h2 {
+  font-size: 22px;
+  line-height: 1.3;
+  font-weight: 600;
+}
+
+h3 {
+  font-size: 18px;
+  line-height: 1.4;
+  font-weight: 600;
+}
+
+/* Buttons - Apple HIG compliant */
+button, .button {
+  min-height: 44px;
+  min-width: 44px;
+  font-size: 16px;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Pull-to-refresh enabler */
+.pull-to-refresh {
+  overscroll-behavior-y: contain;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Disable desktop-style hover on touch devices */
+@media (hover: none) and (pointer: coarse) {
+  button:hover,
+  a:hover {
+    /* No hover styles on touch devices */
+  }
+}
+
+/* Swipe gesture support */
+.swipeable {
+  touch-action: pan-y;
+  user-select: none;
+}
+
+/* Video container for Reels/TikTok style */
+.video-container {
+  position: relative;
+  width: 100%;
+  height: 100vh;
+  height: -webkit-fill-available;
+  overflow: hidden;
+}
+
+/* Sticky bottom action button (common in mobile apps) */
+.sticky-bottom-action {
+  position: fixed;
+  bottom: calc(env(safe-area-inset-bottom) + 80px);
+  left: 16px;
+  right: 16px;
+  z-index: 30;
+}
+
+/* Bottom sheet/drawer */
+.bottom-sheet {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: var(--background);
+  border-top-left-radius: 20px;
+  border-top-right-radius: 20px;
+  padding-bottom: env(safe-area-inset-bottom);
+  transform: translateY(100%);
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  z-index: 50;
+}
+
+.bottom-sheet.open {
+  transform: translateY(0);
+}
+
+/* Bottom sheet handle */
+.bottom-sheet-handle {
+  width: 36px;
+  height: 4px;
+  background: var(--muted-foreground);
+  border-radius: 2px;
+  margin: 12px auto 20px;
+  opacity: 0.5;
+}
+
+/* Haptic feedback visual (subtle scale) */
+@keyframes haptic-tap {
+  0% { transform: scale(1); }
+  50% { transform: scale(0.96); }
+  100% { transform: scale(1); }
+}
+
+.haptic-tap {
+  animation: haptic-tap 150ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Hide scrollbar but keep functionality (mobile-native feel) */
+.hide-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* Snap scroll for stories/reels */
+.snap-scroll-y {
+  scroll-snap-type: y mandatory;
+  overflow-y: scroll;
+  scroll-behavior: smooth;
+}
+
+.snap-item {
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
+}
+
+/* Loading skeleton for native feel */
+@keyframes skeleton-pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.4;
+  }
+}
+
+.skeleton {
+  animation: skeleton-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  background: var(--muted);
+  border-radius: 8px;
+}
+
+/* FAB (Floating Action Button) - Material Design style */
+.fab {
+  position: fixed;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  -webkit-tap-highlight-color: transparent;
+}
+
+.fab:active {
+  transform: scale(0.92);
+}
+
+/* Remove ALL desktop-first responsive styles */
+/* Mobile-native means NO md: lg: xl: breakpoints */
+/* If needed later, we build tablet/desktop as SEPARATE views */
+
+/* ========================================
+   SELLER DASHBOARD ECOSYSTEM
+   ======================================== */
+
+/* Seller Semantic Colors */
+:root {
+  --seller-success: oklch(0.72 0.19 145);
+  --seller-danger: oklch(0.63 0.24 25);
+  --seller-warning: oklch(0.82 0.17 85);
+  --seller-info: oklch(0.65 0.15 250);
+  --seller-premium: oklch(0.55 0.2 300);
+  --seller-sidebar-bg: oklch(0.06 0.02 260);
+  --seller-sidebar-hover: oklch(0.12 0.02 260);
+  --seller-sidebar-active: oklch(0.16 0.03 260);
+  --seller-sidebar-divider: oklch(0.18 0.02 260);
+}
+
+.dark {
+  --seller-success: oklch(0.72 0.19 145);
+  --seller-danger: oklch(0.63 0.24 25);
+  --seller-warning: oklch(0.82 0.17 85);
+  --seller-info: oklch(0.65 0.15 250);
+  --seller-premium: oklch(0.55 0.2 300);
+  --seller-sidebar-bg: oklch(0.06 0.02 260);
+  --seller-sidebar-hover: oklch(0.12 0.02 260);
+  --seller-sidebar-active: oklch(0.16 0.03 260);
+  --seller-sidebar-divider: oklch(0.18 0.02 260);
+}
+
+/* Seller KPI Pulse - live data indicator */
+@keyframes kpi-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 oklch(0.72 0.19 145 / 0.4); }
+  50% { box-shadow: 0 0 0 6px oklch(0.72 0.19 145 / 0); }
+}
+
+.kpi-live {
+  animation: kpi-pulse 2s ease-in-out infinite;
+}
+
+/* Sidebar active glow */
+@keyframes glow-breathe {
+  0%, 100% { box-shadow: 0 0 8px oklch(0.78 0.14 85 / 0.3); }
+  50% { box-shadow: 0 0 16px oklch(0.78 0.14 85 / 0.5); }
+}
+
+.sidebar-glow {
+  animation: glow-breathe 3s ease-in-out infinite;
+}
+
+/* Count-up number animation */
+@keyframes count-fade-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.count-animate {
+  animation: count-fade-in 0.6s ease-out forwards;
+}
+
+/* Staggered card entrance */
+@keyframes card-enter {
+  from { opacity: 0; transform: translateY(16px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.card-stagger {
+  animation: card-enter 0.5s ease-out forwards;
+  opacity: 0;
+}
+
+.card-stagger:nth-child(1) { animation-delay: 0.05s; }
+.card-stagger:nth-child(2) { animation-delay: 0.1s; }
+.card-stagger:nth-child(3) { animation-delay: 0.15s; }
+.card-stagger:nth-child(4) { animation-delay: 0.2s; }
+.card-stagger:nth-child(5) { animation-delay: 0.25s; }
+.card-stagger:nth-child(6) { animation-delay: 0.3s; }
+
+/* Live ticker marquee */
+@keyframes ticker-scroll {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+
+.ticker-animate {
+  animation: ticker-scroll 30s linear infinite;
+}
+
+.ticker-animate:hover {
+  animation-play-state: paused;
+}
+
+/* Hover lift for cards */
+.hover-lift {
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.hover-lift:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px oklch(0 0 0 / 0.15);
+}
+
+/* Score ring animation */
+@keyframes score-fill {
+  from { stroke-dashoffset: 283; }
+}
+
+.score-ring-animate {
+  animation: score-fill 1.5s ease-out forwards;
+}
+
+/* Seller sidebar glass */
+.seller-sidebar-glass {
+  background: oklch(0.06 0.02 260 / 0.95);
+  backdrop-filter: blur(24px) saturate(180%);
+  border-right: 1px solid oklch(1 0 0 / 0.06);
+}
+
+/* Seller card */
+.seller-card {
+  background: oklch(0.1 0.02 260 / 0.6);
+  backdrop-filter: blur(12px);
+  border: 1px solid oklch(1 0 0 / 0.08);
+  border-radius: 16px;
+  transition: all 0.2s ease;
+}
+
+.seller-card:hover {
+  border-color: oklch(1 0 0 / 0.12);
+  background: oklch(0.12 0.02 260 / 0.7);
+}
+
+/* Light mode seller overrides */
+:root .seller-card {
+  background: oklch(1 0 0 / 0.7);
+  border: 1px solid oklch(0 0 0 / 0.08);
+}
+
+:root .seller-card:hover {
+  border-color: oklch(0 0 0 / 0.12);
+  background: oklch(1 0 0 / 0.85);
+}
+
+:root .seller-sidebar-glass {
+  background: oklch(0.98 0.005 85 / 0.95);
+  border-right: 1px solid oklch(0 0 0 / 0.08);
+}

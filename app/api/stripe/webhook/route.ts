@@ -3,7 +3,6 @@ import { stripe } from '@/lib/stripe'
 import { supabase } from '@/lib/supabase'
 import { Resend } from 'resend'
 import { getOrderConfirmationEmail } from '@/lib/email-templates'
-import { transitionOrderState } from '@/lib/orderStateMachine'
 import Stripe from 'stripe'
 
 const resend = new Resend(process.env.RESEND_API_KEY)
@@ -60,98 +59,40 @@ export async function POST(request: NextRequest) {
 }
 
 async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) {
-  console.log('💳 Payment successful! Creating order from session:', session.id)
+  const orderId = session.metadata?.orderId
 
-  // 1. IDEMPOTENCY CHECK - Prevent duplicate orders
-  const { data: existing } = await supabase
-    .from('orders')
-    .select('id')
-    .eq('stripe_checkout_session_id', session.id)
-    .single()
-
-  if (existing) {
-    console.log('⚠️ Order already exists for session, skipping:', existing.id)
+  if (!orderId) {
+    console.error('No orderId in session metadata')
     return
   }
 
-  // 2. EXTRACT METADATA
-  const metadata = session.metadata
-  if (!metadata || !metadata.userId || !metadata.cart_items) {
-    console.error('❌ Missing required metadata in session:', session.id)
-    await logFailedCheckout(session, new Error('Missing metadata'))
+  console.log('✅ Payment successful for order:', orderId)
+
+  // Update order: payment_status 'paid', state 'PAID' (state machine compliant)
+  const { error } = await supabase
+    .from('orders')
+      .update({
+        payment_status: 'paid',
+        status: 'PAID',
+        state: 'PAID',
+        stripe_payment_intent_id: session.payment_intent as string,
+        paid_at: new Date().toISOString(),
+      })
+    .eq('id', orderId)
+
+  if (error) {
+    console.error('Failed to update order after payment:', error)
     return
   }
 
-  const userId = metadata.userId
-  const cartItems = JSON.parse(metadata.cart_items)
-  const shippingAddress = JSON.parse(metadata.shipping_address)
-  const total = parseFloat(metadata.total)
-
-  console.log('📦 Creating order for user:', userId, 'Total:', total)
-
-  // 3. CREATE ORDER WITH PAID STATE DIRECTLY
-  const { data: order, error: orderError } = await supabase
-    .from('orders')
-    .insert([{
-      user_id: userId,
-      total_amount: total,
-      currency: 'EUR',
-      status: 'processing',
-      state: 'PAID',  // ← Skip CREATED/PAYMENT_PENDING, start with PAID
-      shipping_address: shippingAddress,
-      payment_status: 'paid',
-      payment_method: 'stripe',
-      stripe_checkout_session_id: session.id,
-      stripe_payment_intent_id: session.payment_intent as string,
-      paid_at: new Date().toISOString(),
-    }])
-    .select()
-    .single()
-
-  if (orderError || !order) {
-    console.error('❌ Order creation failed:', orderError)
-    await logFailedCheckout(session, orderError || new Error('Order creation failed'))
-    throw orderError || new Error('Order creation failed')
-  }
-
-  console.log('✅ Order created successfully:', order.id)
-
-  // 4. CREATE ORDER ITEMS WITH COMMISSION DATA
-  const orderItems = cartItems.map((item: any) => ({
-    order_id: order.id,
-    product_id: item.product_id,
-    quantity: item.quantity,
-    price: item.price,
-    seller_id: item.seller_id,
-    seller_payout_amount: item.metadata.seller_payout_amount,
-    platform_commission: item.metadata.platform_commission,
-    commission_rate: item.metadata.commission_rate,
-    seller_payout_status: 'pending',
-  }))
-
-  const { error: itemsError } = await supabase
-    .from('order_items')
-    .insert(orderItems)
-
-  if (itemsError) {
-    console.error('❌ Order items creation failed:', itemsError)
-    // Rollback: delete the order
-    await supabase.from('orders').delete().eq('id', order.id)
-    await logFailedCheckout(session, itemsError)
-    throw itemsError
-  }
-
-  console.log('✅ Order items created successfully')
-  console.log('💰 Seller balances will be updated automatically via database trigger')
-
-  const orderId = order.id
+  console.log('Order updated successfully:', orderId)
 
   // Fetch order details for email
-  const { data: orderDetails } = await supabase
+  const { data: order } = await supabase
     .from('orders')
     .select(`
       *,
-      user:users(email, name),
+      user:users(email, full_name),
       items:order_items(
         quantity,
         size,
@@ -161,88 +102,26 @@ async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) 
     .eq('id', orderId)
     .single()
 
-  if (!orderDetails || !orderDetails.user) {
+  if (!order || !order.user) {
     console.error('Order or user not found for email')
     return
   }
 
   // Send confirmation email
   try {
-    const emailTemplate = getOrderConfirmationEmail(orderDetails as any)
+    const emailTemplate = getOrderConfirmationEmail(order as any)
 
     await resend.emails.send({
       from: process.env.RESEND_FROM_EMAIL || 'Wearo <orders@wearo.com>',
-      to: orderDetails.user.email,
+      to: order.user.email,
       subject: emailTemplate.subject,
       html: emailTemplate.html,
     })
 
-    console.log('📧 Order confirmation email sent to:', orderDetails.user.email)
+    console.log('📧 Order confirmation email sent to:', order.user.email)
   } catch (emailError) {
     console.error('Failed to send order confirmation email:', emailError)
     // Don't fail the webhook if email fails
-  }
-
-  // Notify seller(s) about new order
-  try {
-    // Get order items with product details
-    const { data: orderItems } = await supabase
-      .from('order_items')
-      .select(`
-        *,
-        product:products!inner(
-          title,
-          seller_id,
-          seller:sellers!inner(
-            user_id,
-            shop_name
-          )
-        )
-      `)
-      .eq('order_id', orderId)
-
-    if (orderItems && orderItems.length > 0) {
-      // Group items by seller
-      const sellerMap = new Map()
-      orderItems.forEach((item: any) => {
-        const sellerId = item.product.seller_id
-        if (!sellerMap.has(sellerId)) {
-          sellerMap.set(sellerId, {
-            seller_user_id: item.product.seller.user_id,
-            shop_name: item.product.seller.shop_name,
-            items: []
-          })
-        }
-        sellerMap.get(sellerId).items.push(item)
-      })
-
-      // Send notification to each seller
-      for (const [sellerId, sellerData] of sellerMap.entries()) {
-        const itemCount = sellerData.items.reduce((sum: number, item: any) => sum + item.quantity, 0)
-
-        await supabase
-          .from('notifications')
-          .insert({
-            user_id: sellerData.seller_user_id,
-            type: 'order',
-            title: '🎉 Neue Bestellung erhalten!',
-            message: `Sie haben eine neue Bestellung mit ${itemCount} Artikel(n) erhalten.`,
-            link: `/seller/orders`,  // ← Satıcı siparişler sayfasına git
-            data: {
-              order_id: orderId,
-              order_number: order.order_number || order.id.substring(0, 8).toUpperCase(),
-              item_count: itemCount,
-              total_amount: sellerData.items.reduce((sum: number, item: any) => sum + (item.price * item.quantity), 0)
-            },
-            read: false
-          })
-
-        console.log('🔔 Seller notification sent to:', sellerData.shop_name)
-      }
-    }
-  } catch (notifError) {
-    console.error('Failed to send seller notifications:', notifError)
-    // Don't fail the webhook if notifications fail
   }
 }
 
@@ -255,12 +134,13 @@ async function handleCheckoutSessionExpired(session: Stripe.Checkout.Session) {
 
   console.log('⏰ Checkout session expired for order:', orderId)
 
-  // Update order status to cancelled
+  // Update order: state machine compliant CANCELLED state
   await supabase
     .from('orders')
     .update({
       payment_status: 'failed',
-      status: 'cancelled',
+      status: 'CANCELLED',
+      state: 'CANCELLED',
     })
     .eq('id', orderId)
 }
@@ -278,26 +158,9 @@ async function handlePaymentFailed(paymentIntent: Stripe.PaymentIntent) {
       .from('orders')
       .update({
         payment_status: 'failed',
-        status: 'cancelled',
+        status: 'CANCELLED',
+        state: 'CANCELLED',
       })
       .eq('id', order.id)
-  }
-}
-
-// Helper function to log failed checkout sessions for manual recovery
-async function logFailedCheckout(session: Stripe.Checkout.Session, error: any) {
-  try {
-    await supabase
-      .from('failed_checkouts')
-      .insert({
-        stripe_session_id: session.id,
-        error_message: error?.message || 'Unknown error',
-        session_data: session as any,
-        retry_count: 0,
-      })
-
-    console.log('🚨 Failed checkout logged for manual recovery:', session.id)
-  } catch (logError) {
-    console.error('Failed to log failed checkout:', logError)
   }
 }

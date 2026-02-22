@@ -1,942 +1,677 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
-import { useSession } from "next-auth/react"
-import { useRouter } from "next/navigation"
+import { useState } from "react"
 import {
-  Package, Search, Filter, AlertTriangle, CheckCircle,
-  XCircle, RefreshCw, Save, Loader2, ArrowUpDown,
-  ChevronLeft, ChevronRight, Warehouse
+  Package, AlertTriangle, XCircle, TrendingUp, TrendingDown,
+  BarChart3, RefreshCw, ShoppingBag, Layers, Ruler,
+  Clock, ArrowRight, Euro, PieChart as PieChartIcon
 } from "lucide-react"
-import { supabase } from "@/lib/supabase"
-import Image from "next/image"
+import {
+  ResponsiveContainer, PieChart, Pie, Cell, Tooltip,
+  LineChart, Line, XAxis, YAxis, CartesianGrid,
+  BarChart, Bar, AreaChart, Area, ReferenceLine, Legend
+} from "recharts"
 
-// ─── TYPES ─────────────────────────────────────────────
-interface Product {
-  id: string
-  title: string
-  description: string
-  price: number
-  stock: number
-  images: string[]
-  category: string
-  status: string
-  sku?: string
-  moderation_status?: string
-  created_at: string
-  updated_at?: string
+// ─── OKLCH COLORS ───────────────────────────────────────
+const COLORS = {
+  purple: "oklch(0.65 0.15 250)",
+  green: "oklch(0.72 0.19 145)",
+  gold: "oklch(0.78 0.14 85)",
+  red: "oklch(0.7 0.15 25)",
+  blue: "oklch(0.65 0.18 260)",
 }
 
-type StockStatus = "all" | "in_stock" | "low_stock" | "out_of_stock"
-type SortField = "title" | "stock" | "updated_at"
-type SortDirection = "asc" | "desc"
-
-// ─── HELPERS ───────────────────────────────────────────
-function getStockStatus(stock: number): "in_stock" | "low_stock" | "out_of_stock" {
-  if (stock <= 0) return "out_of_stock"
-  if (stock < 5) return "low_stock"
-  return "in_stock"
+// Hex fallbacks for recharts (recharts needs hex/rgb)
+const HEX = {
+  purple: "#7c6fef",
+  green: "#4caf7c",
+  gold: "#c9a84c",
+  red: "#d4654a",
+  blue: "#5b7fe8",
+  gray: "#6b7280",
 }
 
-function getStockBadge(stock: number) {
-  const status = getStockStatus(stock)
-  switch (status) {
-    case "in_stock":
-      return {
-        label: "In Stock",
-        color: "oklch(0.72 0.19 145)",
-        bg: "oklch(0.72 0.19 145 / 0.12)",
-        icon: CheckCircle,
-      }
-    case "low_stock":
-      return {
-        label: "Low Stock",
-        color: "oklch(0.82 0.17 85)",
-        bg: "oklch(0.82 0.17 85 / 0.12)",
-        icon: AlertTriangle,
-      }
-    case "out_of_stock":
-      return {
-        label: "Out of Stock",
-        color: "oklch(0.63 0.24 25)",
-        bg: "oklch(0.63 0.24 25 / 0.12)",
-        icon: XCircle,
-      }
+// ─── MOCK DATA ──────────────────────────────────────────
+
+// Stock level pie chart data
+const stockLevelData = [
+  { name: "Gut (>20)", value: 68, color: HEX.green },
+  { name: "Mittel (5-20)", value: 20, color: HEX.gold },
+  { name: "Niedrig (<5)", value: 8, color: HEX.red },
+  { name: "Ausverkauft", value: 4, color: HEX.gray },
+]
+
+// Stock movement line chart data (30 days)
+function generateMovementData() {
+  const data = []
+  const now = new Date()
+  for (let i = 29; i >= 0; i--) {
+    const date = new Date(now)
+    date.setDate(date.getDate() - i)
+    const day = date.toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit" })
+    data.push({
+      tag: day,
+      eingang: Math.floor(Math.random() * 30) + 5,
+      ausgang: Math.floor(Math.random() * 25) + 8,
+    })
   }
+  return data
 }
+const movementData = generateMovementData()
 
-function formatDate(dateStr: string | undefined): string {
-  if (!dateStr) return "—"
-  try {
-    return new Intl.DateTimeFormat("de-DE", {
-      day: "2-digit",
-      month: "2-digit",
-      year: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    }).format(new Date(dateStr))
-  } catch {
-    return "—"
+// Low stock alerts table
+const lowStockProducts = [
+  { id: 1, name: "Oversized Blazer Schwarz M", sku: "WR-BLZ-001", bestand: 3, rate: 2.1, tage: 1 },
+  { id: 2, name: "Satin Midikleid Bordeaux S", sku: "WR-KLD-012", bestand: 2, rate: 1.8, tage: 1 },
+  { id: 3, name: "Cargo Hose Beige L", sku: "WR-HSE-045", bestand: 4, rate: 1.5, tage: 3 },
+  { id: 4, name: "Cropped Strickjacke Creme M", sku: "WR-STR-078", bestand: 1, rate: 0.9, tage: 1 },
+  { id: 5, name: "High-Waist Jeans Dunkelblau S", sku: "WR-JNS-023", bestand: 3, rate: 2.5, tage: 1 },
+  { id: 6, name: "Lederimitat Jacke Schwarz L", sku: "WR-JCK-034", bestand: 2, rate: 1.2, tage: 2 },
+  { id: 7, name: "Plissee Rock Smaragd M", sku: "WR-ROK-056", bestand: 4, rate: 1.0, tage: 4 },
+  { id: 8, name: "Turtleneck Pullover Grau XL", sku: "WR-PUL-089", bestand: 1, rate: 0.7, tage: 1 },
+  { id: 9, name: "Wickelbluse Wei\u00df S", sku: "WR-BLS-067", bestand: 3, rate: 1.6, tage: 2 },
+  { id: 10, name: "Palazzo Hose Schwarz M", sku: "WR-HSE-091", bestand: 2, rate: 1.3, tage: 2 },
+  { id: 11, name: "Denim Jacke Vintage L", sku: "WR-JCK-015", bestand: 4, rate: 0.8, tage: 5 },
+  { id: 12, name: "Bodycon Kleid Schwarz XS", sku: "WR-KLD-042", bestand: 1, rate: 1.1, tage: 1 },
+]
+
+// Category stock bar chart
+const categoryData = [
+  { kategorie: "Kleider", bestand: 42 },
+  { kategorie: "Blazer", bestand: 28 },
+  { kategorie: "Hosen", bestand: 35 },
+  { kategorie: "R\u00f6cke", bestand: 18 },
+  { kategorie: "Jacken", bestand: 22 },
+  { kategorie: "Strick", bestand: 15 },
+  { kategorie: "Blusen", bestand: 31 },
+  { kategorie: "Accessoires", bestand: 24 },
+]
+
+// Restock forecast area chart (30 days)
+function generateForecastData() {
+  const data = []
+  let stock = 156
+  const now = new Date()
+  for (let i = 0; i <= 30; i++) {
+    const date = new Date(now)
+    date.setDate(date.getDate() + i)
+    const day = date.toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit" })
+    data.push({
+      tag: day,
+      bestand: Math.max(0, Math.round(stock)),
+      nachbestellpunkt: 40,
+    })
+    stock -= (Math.random() * 5) + 2
   }
+  return data
 }
+const forecastData = generateForecastData()
 
-function generateSKU(product: Product): string {
-  if (product.sku) return product.sku
-  const prefix = (product.category || "GEN").slice(0, 3).toUpperCase()
-  const suffix = product.id.slice(-6).toUpperCase()
-  return `${prefix}-${suffix}`
-}
+// Size distribution bar chart
+const sizeData = [
+  { groesse: "XS", bestand: 18 },
+  { groesse: "S", bestand: 35 },
+  { groesse: "M", bestand: 48 },
+  { groesse: "L", bestand: 32 },
+  { groesse: "XL", bestand: 23 },
+]
 
-// ─── STATUS OVERVIEW CARD ──────────────────────────────
-function OverviewCard({
+// Recently restocked
+const recentRestocked = [
+  { name: "Wollmantel Camel M", menge: 25, datum: "14.02.2026", sku: "WR-MNT-011" },
+  { name: "Seidenbluse Ivory S", menge: 15, datum: "13.02.2026", sku: "WR-BLS-088" },
+  { name: "Jogginghose Anthrazit L", menge: 30, datum: "12.02.2026", sku: "WR-HSE-033" },
+  { name: "Strickkleid Taupe M", menge: 20, datum: "11.02.2026", sku: "WR-KLD-077" },
+  { name: "Leinenblazer Sand S", menge: 12, datum: "10.02.2026", sku: "WR-BLZ-055" },
+]
+
+// ─── STAT CARD ──────────────────────────────────────────
+function StatCard({
   label,
   value,
   icon: Icon,
   color,
-  active,
-  onClick,
+  suffix,
 }: {
   label: string
-  value: number
-  icon: any
+  value: string | number
+  icon: React.ElementType
   color: string
-  active: boolean
-  onClick: () => void
+  suffix?: string
 }) {
   return (
-    <button
-      onClick={onClick}
-      className={`seller-card p-5 text-left transition-all w-full ${
-        active ? "ring-2" : "hover:ring-1"
-      }`}
-      style={{
-        ringColor: color,
-        borderColor: active ? color : undefined,
-        boxShadow: active ? `0 0 0 2px ${color}` : undefined,
-      }}
-    >
+    <div className="seller-card p-5">
       <div className="flex items-start justify-between mb-3">
         <div
           className="w-10 h-10 rounded-xl flex items-center justify-center"
-          style={{ background: `color-mix(in oklch, ${color} 12%, transparent)` }}
+          style={{ background: `color-mix(in oklch, ${color} 15%, transparent)` }}
         >
           <Icon className="w-5 h-5" style={{ color }} />
         </div>
       </div>
       <p className="text-[13px] text-muted-foreground mb-1">{label}</p>
-      <p className="text-2xl font-bold tracking-tight">{value}</p>
-    </button>
-  )
-}
-
-// ─── INVENTORY ROW ─────────────────────────────────────
-function InventoryRow({
-  product,
-  editingStock,
-  onStockChange,
-  onUpdateStock,
-  isUpdating,
-}: {
-  product: Product
-  editingStock: number | null
-  onStockChange: (value: number | null) => void
-  onUpdateStock: () => void
-  isUpdating: boolean
-}) {
-  const badge = getStockBadge(product.stock)
-  const BadgeIcon = badge.icon
-  const currentStock = editingStock !== null ? editingStock : product.stock
-  const hasChanged = editingStock !== null && editingStock !== product.stock
-
-  return (
-    <tr className="border-b border-white/[0.06] hover:bg-white/[0.02] transition-colors">
-      {/* Image */}
-      <td className="py-3 px-4">
-        <div className="w-12 h-12 rounded-xl overflow-hidden bg-white/[0.04] flex-shrink-0">
-          {product.images?.[0] ? (
-            <Image
-              src={product.images[0]}
-              alt={product.title}
-              width={48}
-              height={48}
-              className="w-full h-full object-cover"
-            />
-          ) : (
-            <div className="w-full h-full flex items-center justify-center">
-              <Package className="w-5 h-5 text-muted-foreground/40" />
-            </div>
-          )}
-        </div>
-      </td>
-
-      {/* Name */}
-      <td className="py-3 px-4">
-        <p className="text-sm font-medium truncate max-w-[200px]">{product.title}</p>
-        <p className="text-xs text-muted-foreground truncate max-w-[200px]">
-          {product.category || "Uncategorized"}
-        </p>
-      </td>
-
-      {/* SKU */}
-      <td className="py-3 px-4">
-        <code className="text-xs px-2 py-1 rounded-lg bg-white/[0.04] text-muted-foreground font-mono">
-          {generateSKU(product)}
-        </code>
-      </td>
-
-      {/* Current Stock - Editable */}
-      <td className="py-3 px-4">
-        <div className="flex items-center gap-2">
-          <input
-            type="number"
-            min={0}
-            value={currentStock}
-            onChange={(e) => {
-              const val = e.target.value === "" ? null : parseInt(e.target.value, 10)
-              onStockChange(val !== null && !isNaN(val) ? val : null)
-            }}
-            className="w-20 px-3 py-1.5 text-sm rounded-lg border border-white/[0.1] bg-white/[0.04] focus:outline-none focus:ring-2 text-center font-semibold"
-            style={{
-              focusRingColor: "oklch(0.78 0.14 85)",
-            }}
-          />
-        </div>
-      </td>
-
-      {/* Status Badge */}
-      <td className="py-3 px-4">
-        <span
-          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold"
-          style={{ background: badge.bg, color: badge.color }}
-        >
-          <BadgeIcon className="w-3 h-3" />
-          {badge.label}
-        </span>
-      </td>
-
-      {/* Last Updated */}
-      <td className="py-3 px-4">
-        <span className="text-xs text-muted-foreground">
-          {formatDate(product.updated_at || product.created_at)}
-        </span>
-      </td>
-
-      {/* Update Button */}
-      <td className="py-3 px-4">
-        <button
-          onClick={onUpdateStock}
-          disabled={!hasChanged || isUpdating}
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all disabled:opacity-30 disabled:cursor-not-allowed"
-          style={{
-            background: hasChanged ? "oklch(0.78 0.14 85)" : "oklch(0.78 0.14 85 / 0.15)",
-            color: hasChanged ? "#000" : "oklch(0.78 0.14 85 / 0.5)",
-          }}
-        >
-          {isUpdating ? (
-            <Loader2 className="w-3 h-3 animate-spin" />
-          ) : (
-            <Save className="w-3 h-3" />
-          )}
-          Update
-        </button>
-      </td>
-    </tr>
-  )
-}
-
-// ─── MOBILE INVENTORY CARD ─────────────────────────────
-function InventoryCard({
-  product,
-  editingStock,
-  onStockChange,
-  onUpdateStock,
-  isUpdating,
-}: {
-  product: Product
-  editingStock: number | null
-  onStockChange: (value: number | null) => void
-  onUpdateStock: () => void
-  isUpdating: boolean
-}) {
-  const badge = getStockBadge(product.stock)
-  const BadgeIcon = badge.icon
-  const currentStock = editingStock !== null ? editingStock : product.stock
-  const hasChanged = editingStock !== null && editingStock !== product.stock
-
-  return (
-    <div className="seller-card p-4">
-      <div className="flex items-start gap-3 mb-3">
-        <div className="w-14 h-14 rounded-xl overflow-hidden bg-white/[0.04] flex-shrink-0">
-          {product.images?.[0] ? (
-            <Image
-              src={product.images[0]}
-              alt={product.title}
-              width={56}
-              height={56}
-              className="w-full h-full object-cover"
-            />
-          ) : (
-            <div className="w-full h-full flex items-center justify-center">
-              <Package className="w-6 h-6 text-muted-foreground/40" />
-            </div>
-          )}
-        </div>
-        <div className="flex-1 min-w-0">
-          <p className="text-sm font-semibold truncate">{product.title}</p>
-          <code className="text-[11px] text-muted-foreground font-mono">
-            {generateSKU(product)}
-          </code>
-        </div>
-        <span
-          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold flex-shrink-0"
-          style={{ background: badge.bg, color: badge.color }}
-        >
-          <BadgeIcon className="w-3 h-3" />
-          {badge.label}
-        </span>
-      </div>
-
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-muted-foreground">Stock:</span>
-          <input
-            type="number"
-            min={0}
-            value={currentStock}
-            onChange={(e) => {
-              const val = e.target.value === "" ? null : parseInt(e.target.value, 10)
-              onStockChange(val !== null && !isNaN(val) ? val : null)
-            }}
-            className="w-20 px-2 py-1 text-sm rounded-lg border border-white/[0.1] bg-white/[0.04] focus:outline-none focus:ring-2 text-center font-semibold"
-          />
-        </div>
-        <button
-          onClick={onUpdateStock}
-          disabled={!hasChanged || isUpdating}
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all disabled:opacity-30 disabled:cursor-not-allowed"
-          style={{
-            background: hasChanged ? "oklch(0.78 0.14 85)" : "oklch(0.78 0.14 85 / 0.15)",
-            color: hasChanged ? "#000" : "oklch(0.78 0.14 85 / 0.5)",
-          }}
-        >
-          {isUpdating ? (
-            <Loader2 className="w-3 h-3 animate-spin" />
-          ) : (
-            <Save className="w-3 h-3" />
-          )}
-          Update
-        </button>
-      </div>
-
-      <p className="text-[11px] text-muted-foreground/60 mt-2">
-        Updated: {formatDate(product.updated_at || product.created_at)}
+      <p className="text-2xl font-bold tracking-tight">
+        {suffix === "\u20AC" ? `\u20AC${value}` : value}
       </p>
     </div>
   )
 }
 
-// ─── MAIN PAGE ─────────────────────────────────────────
-export default function InventoryManagementPage() {
-  const { data: session } = useSession()
-  const router = useRouter()
-  const userId = session?.user?.id
-
-  const [loading, setLoading] = useState(true)
-  const [products, setProducts] = useState<Product[]>([])
-  const [seller, setSeller] = useState<any>(null)
-  const [searchQuery, setSearchQuery] = useState("")
-  const [statusFilter, setStatusFilter] = useState<StockStatus>("all")
-  const [sortField, setSortField] = useState<SortField>("title")
-  const [sortDirection, setSortDirection] = useState<SortDirection>("asc")
-  const [editingStocks, setEditingStocks] = useState<Record<string, number>>({})
-  const [updatingIds, setUpdatingIds] = useState<Set<string>>(new Set())
-  const [successMessage, setSuccessMessage] = useState<string | null>(null)
-  const [page, setPage] = useState(1)
-  const perPage = 15
-
-  // Load data
-  useEffect(() => {
-    if (userId) loadData()
-  }, [userId])
-
-  const loadData = useCallback(async () => {
-    try {
-      setLoading(true)
-
-      // First get seller profile
-      const { data: sellerData, error: sellerError } = await supabase
-        .from("sellers")
-        .select("*")
-        .eq("user_id", userId)
-        .single()
-
-      if (sellerError || !sellerData) {
-        router.push("/seller-application")
-        return
-      }
-
-      setSeller(sellerData)
-
-      // Fetch products via API
-      const response = await fetch(
-        `/api/seller/products/list?sellerId=${sellerData.id}`
-      )
-      const data = await response.json()
-
-      if (response.ok && data.products) {
-        setProducts(data.products)
-      } else {
-        setProducts([])
-      }
-    } catch (error) {
-      console.error("Load inventory error:", error)
-      setProducts([])
-    } finally {
-      setLoading(false)
-    }
-  }, [userId, router])
-
-  // Filter and sort products
-  const filteredProducts = products
-    .filter((p) => {
-      // Status filter
-      if (statusFilter !== "all") {
-        const status = getStockStatus(p.stock)
-        if (status !== statusFilter) return false
-      }
-      // Search filter
-      if (searchQuery) {
-        const q = searchQuery.toLowerCase()
-        return (
-          p.title.toLowerCase().includes(q) ||
-          (p.category || "").toLowerCase().includes(q) ||
-          generateSKU(p).toLowerCase().includes(q)
-        )
-      }
-      return true
-    })
-    .sort((a, b) => {
-      const dir = sortDirection === "asc" ? 1 : -1
-      switch (sortField) {
-        case "title":
-          return dir * a.title.localeCompare(b.title)
-        case "stock":
-          return dir * (a.stock - b.stock)
-        case "updated_at":
-          return (
-            dir *
-            (new Date(a.updated_at || a.created_at).getTime() -
-              new Date(b.updated_at || b.created_at).getTime())
-          )
-        default:
-          return 0
-      }
-    })
-
-  // Pagination
-  const totalPages = Math.max(1, Math.ceil(filteredProducts.length / perPage))
-  const paginatedProducts = filteredProducts.slice(
-    (page - 1) * perPage,
-    page * perPage
+// ─── CUSTOM TOOLTIP ─────────────────────────────────────
+function CustomTooltip({ active, payload, label }: any) {
+  if (!active || !payload?.length) return null
+  return (
+    <div
+      className="rounded-xl px-3 py-2 text-xs shadow-lg border border-white/[0.1]"
+      style={{ background: "oklch(0.18 0.01 260)" }}
+    >
+      <p className="font-semibold text-white/80 mb-1">{label}</p>
+      {payload.map((entry: any, i: number) => (
+        <p key={i} style={{ color: entry.color }} className="flex items-center gap-1.5">
+          <span className="w-2 h-2 rounded-full inline-block" style={{ background: entry.color }} />
+          {entry.name}: <span className="font-bold">{entry.value}</span>
+        </p>
+      ))}
+    </div>
   )
+}
 
-  // Reset page when filters change
-  useEffect(() => {
-    setPage(1)
-  }, [searchQuery, statusFilter])
+// ─── MAIN PAGE ──────────────────────────────────────────
+export default function InventoryManagementPage() {
+  const [reorderingIds, setReorderingIds] = useState<Set<number>>(new Set())
 
-  // Counts
-  const totalCount = products.length
-  const inStockCount = products.filter((p) => p.stock >= 5).length
-  const lowStockCount = products.filter(
-    (p) => p.stock > 0 && p.stock < 5
-  ).length
-  const outOfStockCount = products.filter((p) => p.stock <= 0).length
-
-  // Stock update handler
-  const handleUpdateStock = async (productId: string) => {
-    const newStock = editingStocks[productId]
-    if (newStock === undefined) return
-
-    setUpdatingIds((prev) => new Set(prev).add(productId))
-
-    try {
-      const { error } = await supabase
-        .from("products")
-        .update({ stock: newStock, updated_at: new Date().toISOString() })
-        .eq("id", productId)
-
-      if (error) throw error
-
-      // Update local state
-      setProducts((prev) =>
-        prev.map((p) =>
-          p.id === productId
-            ? { ...p, stock: newStock, updated_at: new Date().toISOString() }
-            : p
-        )
-      )
-
-      // Clear editing state
-      setEditingStocks((prev) => {
-        const next = { ...prev }
-        delete next[productId]
-        return next
-      })
-
-      setSuccessMessage(`Stock updated for product successfully!`)
-      setTimeout(() => setSuccessMessage(null), 3000)
-    } catch (error) {
-      console.error("Update stock error:", error)
-      alert("Failed to update stock. Please try again.")
-    } finally {
-      setUpdatingIds((prev) => {
+  const handleReorder = (id: number) => {
+    setReorderingIds(prev => {
+      const next = new Set(prev)
+      next.add(id)
+      return next
+    })
+    setTimeout(() => {
+      setReorderingIds(prev => {
         const next = new Set(prev)
-        next.delete(productId)
+        next.delete(id)
         return next
       })
-    }
-  }
-
-  // Sort toggle
-  const toggleSort = (field: SortField) => {
-    if (sortField === field) {
-      setSortDirection((d) => (d === "asc" ? "desc" : "asc"))
-    } else {
-      setSortField(field)
-      setSortDirection("asc")
-    }
-  }
-
-  // ─── LOADING STATE ──────────────────────────────────
-  if (loading) {
-    return (
-      <div className="min-h-screen p-6">
-        <div className="max-w-7xl mx-auto">
-          {/* Skeleton header */}
-          <div className="mb-8">
-            <div className="skeleton w-64 h-8 rounded-lg mb-2" />
-            <div className="skeleton w-40 h-4 rounded-lg" />
-          </div>
-          {/* Skeleton cards */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-            {[...Array(4)].map((_, i) => (
-              <div key={i} className="seller-card p-5 space-y-3">
-                <div className="skeleton w-10 h-10 rounded-xl" />
-                <div className="skeleton w-20 h-3 rounded" />
-                <div className="skeleton w-16 h-7 rounded" />
-              </div>
-            ))}
-          </div>
-          {/* Skeleton table */}
-          <div className="seller-card p-6">
-            <div className="skeleton w-full h-4 rounded mb-4" />
-            {[...Array(5)].map((_, i) => (
-              <div key={i} className="skeleton w-full h-12 rounded mb-2" />
-            ))}
-          </div>
-        </div>
-      </div>
-    )
+    }, 1500)
   }
 
   return (
-    <div className="min-h-screen p-6">
-      <div className="max-w-7xl mx-auto">
-        {/* ─── SUCCESS TOAST ───────────────────────── */}
-        {successMessage && (
-          <div
-            className="fixed top-4 right-4 z-50 flex items-center gap-2 px-4 py-3 rounded-xl text-sm font-medium shadow-lg"
-            style={{
-              background: "oklch(0.72 0.19 145 / 0.15)",
-              color: "oklch(0.72 0.19 145)",
-              border: "1px solid oklch(0.72 0.19 145 / 0.3)",
-            }}
-          >
-            <CheckCircle className="w-4 h-4" />
-            {successMessage}
-          </div>
-        )}
+    <div className="min-h-screen p-4 md:p-6 pb-24">
+      <div className="max-w-7xl mx-auto space-y-6">
 
         {/* ─── HEADER ──────────────────────────────── */}
-        <div className="flex items-center justify-between mb-8">
+        <div className="flex items-center justify-between">
           <div>
             <div className="flex items-center gap-3 mb-1">
-              <h1 className="text-3xl font-bold tracking-tight">
-                Inventory Management
+              <h1 className="text-2xl md:text-3xl font-bold tracking-tight">
+                Bestandsverwaltung
               </h1>
               <span
                 className="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider"
                 style={{
-                  background: "oklch(0.65 0.15 250 / 0.15)",
-                  color: "oklch(0.65 0.15 250)",
+                  background: `color-mix(in oklch, ${COLORS.purple} 15%, transparent)`,
+                  color: COLORS.purple,
                 }}
               >
-                {totalCount} Products
+                Live
               </span>
             </div>
             <p className="text-sm text-muted-foreground">
-              Track stock levels, update quantities, and manage product
-              availability
+              Lagerbestand, Warenbewegungen und Nachbestellungen im \u00dcberblick
             </p>
           </div>
           <button
-            onClick={loadData}
-            className="p-2.5 rounded-xl hover:bg-white/[0.04] transition-colors"
-            title="Refresh inventory"
+            className="p-2.5 rounded-xl hover:bg-white/[0.06] transition-colors"
+            title="Aktualisieren"
           >
             <RefreshCw className="w-4 h-4 text-muted-foreground" />
           </button>
         </div>
 
-        {/* ─── STATUS OVERVIEW CARDS ───────────────── */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-          <OverviewCard
-            label="Total Products"
-            value={totalCount}
-            icon={Package}
-            color="oklch(0.65 0.15 250)"
-            active={statusFilter === "all"}
-            onClick={() => setStatusFilter("all")}
-          />
-          <OverviewCard
-            label="In Stock"
-            value={inStockCount}
-            icon={CheckCircle}
-            color="oklch(0.72 0.19 145)"
-            active={statusFilter === "in_stock"}
-            onClick={() => setStatusFilter("in_stock")}
-          />
-          <OverviewCard
-            label="Low Stock"
-            value={lowStockCount}
-            icon={AlertTriangle}
-            color="oklch(0.82 0.17 85)"
-            active={statusFilter === "low_stock"}
-            onClick={() => setStatusFilter("low_stock")}
-          />
-          <OverviewCard
-            label="Out of Stock"
-            value={outOfStockCount}
-            icon={XCircle}
-            color="oklch(0.63 0.24 25)"
-            active={statusFilter === "out_of_stock"}
-            onClick={() => setStatusFilter("out_of_stock")}
-          />
+        {/* ─── STATS CARDS ─────────────────────────── */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <StatCard label="Gesamtprodukte" value={156} icon={Package} color={COLORS.purple} />
+          <StatCard label="Niedriger Bestand" value={12} icon={AlertTriangle} color={COLORS.gold} />
+          <StatCard label="Ausverkauft" value={3} icon={XCircle} color={COLORS.red} />
+          <StatCard label="Inventarwert" value="45.670" icon={Euro} color={COLORS.green} suffix={"\u20AC"} />
         </div>
 
-        {/* ─── SEARCH & FILTER BAR ─────────────────── */}
-        <div className="seller-card p-4 mb-6">
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
-            {/* Search */}
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <input
-                type="text"
-                placeholder="Search by name, category, or SKU..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-10 pr-4 py-2.5 text-sm rounded-xl border border-white/[0.1] bg-white/[0.04] focus:outline-none focus:ring-2 placeholder:text-muted-foreground/50"
-                style={{ focusRingColor: "oklch(0.78 0.14 85)" }}
-              />
-            </div>
+        {/* ─── ROW: PIE CHART + LINE CHART ─────────── */}
+        <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
 
-            {/* Status Filter */}
-            <div className="flex items-center gap-2">
-              <Filter className="w-4 h-4 text-muted-foreground flex-shrink-0" />
-              <select
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value as StockStatus)}
-                className="px-3 py-2.5 text-sm rounded-xl border border-white/[0.1] bg-white/[0.04] focus:outline-none focus:ring-2 appearance-none cursor-pointer min-w-[140px]"
-              >
-                <option value="all">All Status</option>
-                <option value="in_stock">In Stock</option>
-                <option value="low_stock">Low Stock</option>
-                <option value="out_of_stock">Out of Stock</option>
-              </select>
+          {/* Stock Level Pie Chart */}
+          <div className="lg:col-span-2 seller-card p-5">
+            <div className="flex items-center gap-2 mb-4">
+              <PieChartIcon className="w-4 h-4" style={{ color: COLORS.purple }} />
+              <h2 className="text-sm font-semibold">Bestandslevel</h2>
             </div>
-          </div>
-        </div>
-
-        {/* ─── INVENTORY TABLE (DESKTOP) ───────────── */}
-        {filteredProducts.length === 0 ? (
-          <div className="seller-card py-20 text-center">
-            <Warehouse
-              className="w-14 h-14 mx-auto mb-4"
-              style={{ color: "oklch(0.65 0.15 250 / 0.3)" }}
-            />
-            <h3 className="text-lg font-semibold mb-2">
-              {products.length === 0
-                ? "No products in your inventory"
-                : "No products match your filters"}
-            </h3>
-            <p className="text-sm text-muted-foreground max-w-md mx-auto">
-              {products.length === 0
-                ? "Start by adding products to your store. Once you have products listed, you can manage their stock levels here."
-                : "Try adjusting your search query or status filter to find what you're looking for."}
-            </p>
-            {products.length === 0 && (
-              <button
-                onClick={() => router.push("/seller/products/create")}
-                className="mt-6 inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold transition-all hover:opacity-90"
-                style={{ background: "oklch(0.78 0.14 85)", color: "#000" }}
-              >
-                <Package className="w-4 h-4" />
-                Add Your First Product
-              </button>
-            )}
-          </div>
-        ) : (
-          <>
-            {/* Desktop Table */}
-            <div className="seller-card overflow-hidden hidden md:block">
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead>
-                    <tr
-                      className="border-b border-white/[0.08] text-left"
-                      style={{ background: "oklch(0.15 0.02 260 / 0.5)" }}
-                    >
-                      <th className="py-3 px-4 text-xs font-semibold text-muted-foreground uppercase tracking-wider w-16">
-                        Image
-                      </th>
-                      <th className="py-3 px-4">
-                        <button
-                          onClick={() => toggleSort("title")}
-                          className="flex items-center gap-1 text-xs font-semibold text-muted-foreground uppercase tracking-wider hover:text-foreground transition-colors"
-                        >
-                          Name
-                          <ArrowUpDown className="w-3 h-3" />
-                        </button>
-                      </th>
-                      <th className="py-3 px-4 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                        SKU
-                      </th>
-                      <th className="py-3 px-4">
-                        <button
-                          onClick={() => toggleSort("stock")}
-                          className="flex items-center gap-1 text-xs font-semibold text-muted-foreground uppercase tracking-wider hover:text-foreground transition-colors"
-                        >
-                          Stock
-                          <ArrowUpDown className="w-3 h-3" />
-                        </button>
-                      </th>
-                      <th className="py-3 px-4 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                        Status
-                      </th>
-                      <th className="py-3 px-4">
-                        <button
-                          onClick={() => toggleSort("updated_at")}
-                          className="flex items-center gap-1 text-xs font-semibold text-muted-foreground uppercase tracking-wider hover:text-foreground transition-colors"
-                        >
-                          Last Updated
-                          <ArrowUpDown className="w-3 h-3" />
-                        </button>
-                      </th>
-                      <th className="py-3 px-4 text-xs font-semibold text-muted-foreground uppercase tracking-wider w-24">
-                        Action
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {paginatedProducts.map((product) => (
-                      <InventoryRow
-                        key={product.id}
-                        product={product}
-                        editingStock={
-                          editingStocks[product.id] !== undefined
-                            ? editingStocks[product.id]
-                            : null
-                        }
-                        onStockChange={(value) =>
-                          setEditingStocks((prev) => {
-                            if (value === null) {
-                              const next = { ...prev }
-                              delete next[product.id]
-                              return next
-                            }
-                            return { ...prev, [product.id]: value }
-                          })
-                        }
-                        onUpdateStock={() => handleUpdateStock(product.id)}
-                        isUpdating={updatingIds.has(product.id)}
-                      />
+            <div className="h-[220px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={stockLevelData}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={55}
+                    outerRadius={85}
+                    paddingAngle={3}
+                    dataKey="value"
+                    stroke="none"
+                  >
+                    {stockLevelData.map((entry, index) => (
+                      <Cell key={index} fill={entry.color} />
                     ))}
-                  </tbody>
-                </table>
-              </div>
+                  </Pie>
+                  <Tooltip content={<CustomTooltip />} />
+                </PieChart>
+              </ResponsiveContainer>
             </div>
-
-            {/* Mobile Cards */}
-            <div className="md:hidden space-y-3">
-              {paginatedProducts.map((product) => (
-                <InventoryCard
-                  key={product.id}
-                  product={product}
-                  editingStock={
-                    editingStocks[product.id] !== undefined
-                      ? editingStocks[product.id]
-                      : null
-                  }
-                  onStockChange={(value) =>
-                    setEditingStocks((prev) => {
-                      if (value === null) {
-                        const next = { ...prev }
-                        delete next[product.id]
-                        return next
-                      }
-                      return { ...prev, [product.id]: value }
-                    })
-                  }
-                  onUpdateStock={() => handleUpdateStock(product.id)}
-                  isUpdating={updatingIds.has(product.id)}
-                />
+            <div className="grid grid-cols-2 gap-2 mt-2">
+              {stockLevelData.map((item) => (
+                <div key={item.name} className="flex items-center gap-2 text-xs">
+                  <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: item.color }} />
+                  <span className="text-muted-foreground truncate">{item.name}</span>
+                  <span className="font-semibold ml-auto">{item.value}%</span>
+                </div>
               ))}
             </div>
+          </div>
 
-            {/* ─── PAGINATION ────────────────────────── */}
-            {totalPages > 1 && (
-              <div className="flex items-center justify-between mt-6">
-                <p className="text-xs text-muted-foreground">
-                  Showing {(page - 1) * perPage + 1}–
-                  {Math.min(page * perPage, filteredProducts.length)} of{" "}
-                  {filteredProducts.length} products
-                </p>
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => setPage((p) => Math.max(1, p - 1))}
-                    disabled={page === 1}
-                    className="p-2 rounded-lg hover:bg-white/[0.04] transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+          {/* Stock Movement Line Chart */}
+          <div className="lg:col-span-3 seller-card p-5">
+            <div className="flex items-center gap-2 mb-4">
+              <TrendingUp className="w-4 h-4" style={{ color: COLORS.green }} />
+              <h2 className="text-sm font-semibold">Warenbewegung (30 Tage)</h2>
+            </div>
+            <div className="h-[280px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={movementData}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
+                  <XAxis
+                    dataKey="tag"
+                    tick={{ fontSize: 10, fill: "#9ca3af" }}
+                    tickLine={false}
+                    axisLine={false}
+                    interval={4}
+                  />
+                  <YAxis
+                    tick={{ fontSize: 10, fill: "#9ca3af" }}
+                    tickLine={false}
+                    axisLine={false}
+                    width={30}
+                  />
+                  <Tooltip content={<CustomTooltip />} />
+                  <Legend
+                    wrapperStyle={{ fontSize: "11px", paddingTop: "8px" }}
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="eingang"
+                    name="Eingang"
+                    stroke={HEX.green}
+                    strokeWidth={2}
+                    dot={false}
+                    activeDot={{ r: 4, fill: HEX.green }}
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="ausgang"
+                    name="Ausgang"
+                    stroke={HEX.red}
+                    strokeWidth={2}
+                    dot={false}
+                    activeDot={{ r: 4, fill: HEX.red }}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        </div>
+
+        {/* ─── LOW STOCK ALERTS TABLE ──────────────── */}
+        <div className="seller-card p-5">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <AlertTriangle className="w-4 h-4" style={{ color: COLORS.gold }} />
+              <h2 className="text-sm font-semibold">Niedrigbestand-Warnungen</h2>
+              <span
+                className="px-2 py-0.5 rounded-full text-[10px] font-bold"
+                style={{
+                  background: `color-mix(in oklch, ${COLORS.red} 15%, transparent)`,
+                  color: COLORS.red,
+                }}
+              >
+                {lowStockProducts.length} Artikel
+              </span>
+            </div>
+          </div>
+
+          {/* Desktop Table */}
+          <div className="hidden md:block overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr
+                  className="border-b border-white/[0.08] text-left"
+                  style={{ background: "oklch(0.15 0.02 260 / 0.5)" }}
+                >
+                  <th className="py-3 px-4 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Produkt</th>
+                  <th className="py-3 px-4 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">SKU</th>
+                  <th className="py-3 px-4 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider text-center">Bestand</th>
+                  <th className="py-3 px-4 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider text-center">Verkaufsrate/Tag</th>
+                  <th className="py-3 px-4 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider text-center">Tage bis ausverkauft</th>
+                  <th className="py-3 px-4 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider text-right">Aktion</th>
+                </tr>
+              </thead>
+              <tbody>
+                {lowStockProducts.map((product) => (
+                  <tr key={product.id} className="border-b border-white/[0.04] hover:bg-white/[0.02] transition-colors">
+                    <td className="py-3 px-4">
+                      <p className="text-sm font-medium">{product.name}</p>
+                    </td>
+                    <td className="py-3 px-4">
+                      <code className="text-xs px-2 py-1 rounded-lg bg-white/[0.04] text-muted-foreground font-mono">
+                        {product.sku}
+                      </code>
+                    </td>
+                    <td className="py-3 px-4 text-center">
+                      <span
+                        className="inline-flex items-center justify-center px-2.5 py-1 rounded-full text-xs font-bold min-w-[32px]"
+                        style={{
+                          background: product.bestand <= 2
+                            ? `color-mix(in oklch, ${COLORS.red} 15%, transparent)`
+                            : `color-mix(in oklch, ${COLORS.gold} 15%, transparent)`,
+                          color: product.bestand <= 2 ? COLORS.red : COLORS.gold,
+                        }}
+                      >
+                        {product.bestand}
+                      </span>
+                    </td>
+                    <td className="py-3 px-4 text-center">
+                      <span className="text-sm text-muted-foreground">{product.rate.toFixed(1)}</span>
+                    </td>
+                    <td className="py-3 px-4 text-center">
+                      <span
+                        className="text-sm font-semibold"
+                        style={{ color: product.tage <= 1 ? COLORS.red : product.tage <= 3 ? COLORS.gold : COLORS.green }}
+                      >
+                        {product.tage} {product.tage === 1 ? "Tag" : "Tage"}
+                      </span>
+                    </td>
+                    <td className="py-3 px-4 text-right">
+                      <button
+                        onClick={() => handleReorder(product.id)}
+                        disabled={reorderingIds.has(product.id)}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all disabled:opacity-60"
+                        style={{
+                          background: reorderingIds.has(product.id)
+                            ? `color-mix(in oklch, ${COLORS.green} 20%, transparent)`
+                            : COLORS.gold,
+                          color: reorderingIds.has(product.id) ? COLORS.green : "#000",
+                        }}
+                      >
+                        {reorderingIds.has(product.id) ? (
+                          <>
+                            <RefreshCw className="w-3 h-3 animate-spin" />
+                            Bestellt...
+                          </>
+                        ) : (
+                          <>
+                            <ShoppingBag className="w-3 h-3" />
+                            Nachbestellen
+                          </>
+                        )}
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Mobile Cards */}
+          <div className="md:hidden space-y-3">
+            {lowStockProducts.map((product) => (
+              <div key={product.id} className="p-3 rounded-xl bg-white/[0.02] border border-white/[0.06]">
+                <div className="flex items-start justify-between mb-2">
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium truncate">{product.name}</p>
+                    <code className="text-[10px] text-muted-foreground font-mono">{product.sku}</code>
+                  </div>
+                  <span
+                    className="inline-flex items-center justify-center px-2 py-0.5 rounded-full text-[11px] font-bold ml-2 flex-shrink-0"
+                    style={{
+                      background: product.bestand <= 2
+                        ? `color-mix(in oklch, ${COLORS.red} 15%, transparent)`
+                        : `color-mix(in oklch, ${COLORS.gold} 15%, transparent)`,
+                      color: product.bestand <= 2 ? COLORS.red : COLORS.gold,
+                    }}
                   >
-                    <ChevronLeft className="w-4 h-4" />
-                  </button>
-                  {Array.from({ length: totalPages }, (_, i) => i + 1)
-                    .filter(
-                      (p) =>
-                        p === 1 ||
-                        p === totalPages ||
-                        Math.abs(p - page) <= 1
-                    )
-                    .map((p, idx, arr) => {
-                      const showEllipsis =
-                        idx > 0 && p - arr[idx - 1] > 1
-                      return (
-                        <span key={p} className="flex items-center">
-                          {showEllipsis && (
-                            <span className="px-1 text-muted-foreground text-xs">
-                              ...
-                            </span>
-                          )}
-                          <button
-                            onClick={() => setPage(p)}
-                            className={`w-8 h-8 rounded-lg text-xs font-medium transition-all ${
-                              page === p
-                                ? "text-black"
-                                : "text-muted-foreground hover:text-foreground hover:bg-white/[0.04]"
-                            }`}
-                            style={
-                              page === p
-                                ? { background: "oklch(0.78 0.14 85)" }
-                                : undefined
-                            }
-                          >
-                            {p}
-                          </button>
-                        </span>
-                      )
-                    })}
+                    {product.bestand} St\u00fcck
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3 text-[11px] text-muted-foreground">
+                    <span>{product.rate.toFixed(1)}/Tag</span>
+                    <span
+                      className="font-semibold"
+                      style={{ color: product.tage <= 1 ? COLORS.red : product.tage <= 3 ? COLORS.gold : COLORS.green }}
+                    >
+                      {product.tage}d \u00fcbrig
+                    </span>
+                  </div>
                   <button
-                    onClick={() =>
-                      setPage((p) => Math.min(totalPages, p + 1))
-                    }
-                    disabled={page === totalPages}
-                    className="p-2 rounded-lg hover:bg-white/[0.04] transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                    onClick={() => handleReorder(product.id)}
+                    disabled={reorderingIds.has(product.id)}
+                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-all disabled:opacity-60"
+                    style={{
+                      background: reorderingIds.has(product.id)
+                        ? `color-mix(in oklch, ${COLORS.green} 20%, transparent)`
+                        : COLORS.gold,
+                      color: reorderingIds.has(product.id) ? COLORS.green : "#000",
+                    }}
                   >
-                    <ChevronRight className="w-4 h-4" />
+                    {reorderingIds.has(product.id) ? "Bestellt..." : "Nachbestellen"}
                   </button>
                 </div>
               </div>
-            )}
-          </>
-        )}
-
-        {/* ─── LOW STOCK ALERT BANNER ──────────────── */}
-        {lowStockCount > 0 && statusFilter === "all" && (
-          <div
-            className="seller-card p-4 mt-6 flex items-center gap-3"
-            style={{
-              background: "oklch(0.82 0.17 85 / 0.06)",
-              border: "1px solid oklch(0.82 0.17 85 / 0.15)",
-            }}
-          >
-            <AlertTriangle
-              className="w-5 h-5 flex-shrink-0"
-              style={{ color: "oklch(0.82 0.17 85)" }}
-            />
-            <div className="flex-1">
-              <p
-                className="text-sm font-semibold"
-                style={{ color: "oklch(0.82 0.17 85)" }}
-              >
-                {lowStockCount} product{lowStockCount > 1 ? "s" : ""} running
-                low on stock
-              </p>
-              <p className="text-xs text-muted-foreground">
-                Products with fewer than 5 units need restocking to avoid
-                stockouts.
-              </p>
-            </div>
-            <button
-              onClick={() => setStatusFilter("low_stock")}
-              className="px-3 py-1.5 rounded-lg text-xs font-semibold transition-all hover:opacity-90 flex-shrink-0"
-              style={{
-                background: "oklch(0.82 0.17 85)",
-                color: "#000",
-              }}
-            >
-              View Low Stock
-            </button>
+            ))}
           </div>
-        )}
+        </div>
 
-        {/* ─── OUT OF STOCK ALERT BANNER ───────────── */}
-        {outOfStockCount > 0 && statusFilter === "all" && (
-          <div
-            className="seller-card p-4 mt-4 flex items-center gap-3"
-            style={{
-              background: "oklch(0.63 0.24 25 / 0.06)",
-              border: "1px solid oklch(0.63 0.24 25 / 0.15)",
-            }}
-          >
-            <XCircle
-              className="w-5 h-5 flex-shrink-0"
-              style={{ color: "oklch(0.63 0.24 25)" }}
-            />
-            <div className="flex-1">
-              <p
-                className="text-sm font-semibold"
-                style={{ color: "oklch(0.63 0.24 25)" }}
-              >
-                {outOfStockCount} product{outOfStockCount > 1 ? "s" : ""} out
-                of stock
-              </p>
-              <p className="text-xs text-muted-foreground">
-                These products are unavailable for purchase. Restock them to
-                resume sales.
-              </p>
+        {/* ─── ROW: CATEGORY BAR + RESTOCK FORECAST ── */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+          {/* Category Stock Bar Chart (Horizontal) */}
+          <div className="seller-card p-5">
+            <div className="flex items-center gap-2 mb-4">
+              <Layers className="w-4 h-4" style={{ color: COLORS.blue }} />
+              <h2 className="text-sm font-semibold">Bestand nach Kategorie</h2>
             </div>
-            <button
-              onClick={() => setStatusFilter("out_of_stock")}
-              className="px-3 py-1.5 rounded-lg text-xs font-semibold transition-all hover:opacity-90 flex-shrink-0"
-              style={{
-                background: "oklch(0.63 0.24 25)",
-                color: "#fff",
-              }}
-            >
-              View Out of Stock
-            </button>
+            <div className="h-[280px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={categoryData} layout="vertical" margin={{ left: 10 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" horizontal={false} />
+                  <XAxis
+                    type="number"
+                    tick={{ fontSize: 10, fill: "#9ca3af" }}
+                    tickLine={false}
+                    axisLine={false}
+                  />
+                  <YAxis
+                    type="category"
+                    dataKey="kategorie"
+                    tick={{ fontSize: 11, fill: "#9ca3af" }}
+                    tickLine={false}
+                    axisLine={false}
+                    width={80}
+                  />
+                  <Tooltip content={<CustomTooltip />} />
+                  <Bar
+                    dataKey="bestand"
+                    name="Bestand"
+                    fill={HEX.blue}
+                    radius={[0, 6, 6, 0]}
+                    barSize={18}
+                  />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
           </div>
-        )}
+
+          {/* Restock Forecast Area Chart */}
+          <div className="seller-card p-5">
+            <div className="flex items-center gap-2 mb-4">
+              <TrendingDown className="w-4 h-4" style={{ color: COLORS.red }} />
+              <h2 className="text-sm font-semibold">Nachbestellprognose (30 Tage)</h2>
+            </div>
+            <div className="h-[280px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={forecastData}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
+                  <XAxis
+                    dataKey="tag"
+                    tick={{ fontSize: 10, fill: "#9ca3af" }}
+                    tickLine={false}
+                    axisLine={false}
+                    interval={5}
+                  />
+                  <YAxis
+                    tick={{ fontSize: 10, fill: "#9ca3af" }}
+                    tickLine={false}
+                    axisLine={false}
+                    width={35}
+                  />
+                  <Tooltip content={<CustomTooltip />} />
+                  <Legend wrapperStyle={{ fontSize: "11px", paddingTop: "8px" }} />
+                  <defs>
+                    <linearGradient id="bestandGradient" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor={HEX.purple} stopOpacity={0.3} />
+                      <stop offset="95%" stopColor={HEX.purple} stopOpacity={0.02} />
+                    </linearGradient>
+                  </defs>
+                  <Area
+                    type="monotone"
+                    dataKey="bestand"
+                    name="Progn. Bestand"
+                    stroke={HEX.purple}
+                    strokeWidth={2}
+                    fill="url(#bestandGradient)"
+                    activeDot={{ r: 4, fill: HEX.purple }}
+                  />
+                  <ReferenceLine
+                    y={40}
+                    stroke={HEX.red}
+                    strokeDasharray="6 4"
+                    strokeWidth={1.5}
+                    label={{
+                      value: "Nachbestellpunkt",
+                      position: "insideTopRight",
+                      fill: HEX.red,
+                      fontSize: 10,
+                    }}
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        </div>
+
+        {/* ─── ROW: SIZE DISTRIBUTION + RECENTLY RESTOCKED */}
+        <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
+
+          {/* Size Distribution Bar Chart */}
+          <div className="lg:col-span-3 seller-card p-5">
+            <div className="flex items-center gap-2 mb-4">
+              <Ruler className="w-4 h-4" style={{ color: COLORS.purple }} />
+              <h2 className="text-sm font-semibold">Gr\u00f6\u00dfenverteilung</h2>
+            </div>
+            <div className="h-[240px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={sizeData}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
+                  <XAxis
+                    dataKey="groesse"
+                    tick={{ fontSize: 12, fill: "#9ca3af", fontWeight: 600 }}
+                    tickLine={false}
+                    axisLine={false}
+                  />
+                  <YAxis
+                    tick={{ fontSize: 10, fill: "#9ca3af" }}
+                    tickLine={false}
+                    axisLine={false}
+                    width={30}
+                  />
+                  <Tooltip content={<CustomTooltip />} />
+                  <Bar
+                    dataKey="bestand"
+                    name="Bestand"
+                    radius={[6, 6, 0, 0]}
+                    barSize={40}
+                  >
+                    {sizeData.map((entry, index) => {
+                      const colors = [HEX.purple, HEX.blue, HEX.green, HEX.gold, HEX.red]
+                      return <Cell key={index} fill={colors[index % colors.length]} />
+                    })}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+            <div className="flex items-center justify-center gap-4 mt-3">
+              {sizeData.map((item, index) => {
+                const colors = [HEX.purple, HEX.blue, HEX.green, HEX.gold, HEX.red]
+                return (
+                  <div key={item.groesse} className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                    <span className="w-2 h-2 rounded-full" style={{ background: colors[index] }} />
+                    {item.groesse}: <span className="font-semibold text-foreground">{item.bestand}</span>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+
+          {/* Recently Restocked */}
+          <div className="lg:col-span-2 seller-card p-5">
+            <div className="flex items-center gap-2 mb-4">
+              <Clock className="w-4 h-4" style={{ color: COLORS.green }} />
+              <h2 className="text-sm font-semibold">K\u00fcrzlich nachbestellt</h2>
+            </div>
+            <div className="space-y-3">
+              {recentRestocked.map((item, index) => (
+                <div
+                  key={index}
+                  className="flex items-center gap-3 p-3 rounded-xl bg-white/[0.02] border border-white/[0.06] hover:bg-white/[0.04] transition-colors"
+                >
+                  <div
+                    className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0"
+                    style={{ background: `color-mix(in oklch, ${COLORS.green} 15%, transparent)` }}
+                  >
+                    <ArrowRight className="w-4 h-4" style={{ color: COLORS.green }} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium truncate">{item.name}</p>
+                    <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
+                      <code className="font-mono">{item.sku}</code>
+                      <span>\u00b7</span>
+                      <span>{item.datum}</span>
+                    </div>
+                  </div>
+                  <span
+                    className="text-xs font-bold px-2 py-0.5 rounded-full flex-shrink-0"
+                    style={{
+                      background: `color-mix(in oklch, ${COLORS.green} 15%, transparent)`,
+                      color: COLORS.green,
+                    }}
+                  >
+                    +{item.menge}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* ─── BOTTOM SPACER FOR MOBILE NAV ────────── */}
+        <div className="h-4" />
       </div>
     </div>
   )

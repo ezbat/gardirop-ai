@@ -37,7 +37,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
     }
 
-    // Satıcı kontrolü
+    // Satıcı kontrolü + Stripe verification enforcement
     const { data: seller, error: sellerError } = await supabaseAdmin
       .from('sellers')
       .select('*')
@@ -48,6 +48,19 @@ export async function POST(request: Request) {
     if (sellerError || !seller) {
       console.log('❌ Seller not found or unauthorized')
       return NextResponse.json({ error: 'Seller not found' }, { status: 403 })
+    }
+
+    if (seller.status !== 'approved') {
+      return NextResponse.json({ error: 'Seller account not approved' }, { status: 403 })
+    }
+
+    // Enforce Stripe verification for product listing
+    if (!seller.stripe_account_id || !seller.stripe_charges_enabled || !seller.stripe_payouts_enabled) {
+      return NextResponse.json({
+        error: 'Stripe-Verifizierung erforderlich. Bitte schließen Sie die Verifizierung ab, bevor Sie Produkte einstellen.',
+        code: 'STRIPE_VERIFICATION_REQUIRED',
+        action: 'COMPLETE_ONBOARDING'
+      }, { status: 403 })
     }
 
     console.log('✅ Seller verified:', seller.shop_name)

@@ -2,31 +2,29 @@
 
 import { useState, useEffect, useRef } from "react"
 import {
-  Trophy, Truck, SmilePlus, RotateCcw, Image, MessageCircle,
+  Trophy, Truck, Star, RotateCcw, HeadphonesIcon, BadgeEuro,
   TrendingUp, TrendingDown, ChevronRight, Lightbulb, Target,
-  Award, Star, Zap, ArrowUpRight, ArrowDownRight, Info,
-  Clock, ShieldCheck, Sparkles, BarChart3
+  Award, Zap, ArrowUpRight, Info, AlertTriangle,
+  Clock, ShieldCheck, Sparkles, BarChart3, Package, ThumbsUp,
+  Crown, Medal, CircleDot
 } from "lucide-react"
+import {
+  RadialBarChart, RadialBar, ResponsiveContainer,
+  RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis,
+  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine, Legend,
+  BarChart, Bar
+} from "recharts"
 
-// ─── TYPES ─────────────────────────────────────────────
-interface ScoreCategory {
-  label: string
-  score: number
-  maxScore: number
-  color: string
-  bgColor: string
-  icon: any
-  description: string
-  tip: string
+// ─── OKLCH COLOR CONSTANTS ─────────────────────────────
+const COLORS = {
+  purple: "oklch(0.65 0.15 250)",
+  green: "oklch(0.72 0.19 145)",
+  gold: "oklch(0.78 0.14 85)",
+  red: "oklch(0.7 0.15 25)",
+  blue: "oklch(0.65 0.18 260)",
 }
 
-interface MonthlyScore {
-  month: string
-  score: number
-  avg: number
-}
-
-// ─── ANIMATED COUNTER HOOK ────────────────────────────
+// ─── ANIMATED COUNTER HOOK ─────────────────────────────
 function useCountUp(end: number, duration = 1400) {
   const [count, setCount] = useState(0)
   const started = useRef(false)
@@ -50,155 +48,126 @@ function useCountUp(end: number, duration = 1400) {
   return count
 }
 
-// ─── ANIMATED RING COMPONENT ──────────────────────────
-function ScoreRing({ score, size = 200, strokeWidth = 12 }: { score: number; size?: number; strokeWidth?: number }) {
-  const radius = (size - strokeWidth) / 2
-  const circumference = 2 * Math.PI * radius
-  const [offset, setOffset] = useState(circumference)
-  const animatedScore = useCountUp(score, 1800)
-
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setOffset(circumference - (score / 100) * circumference)
-    }, 200)
-    return () => clearTimeout(timer)
-  }, [score, circumference])
-
-  const tierLabel = score >= 80 ? "Gold Seller" : score >= 60 ? "Rising Star" : "New Seller"
-  const tierColor = score >= 80 ? "oklch(0.78 0.14 85)" : score >= 60 ? "oklch(0.65 0.15 250)" : "oklch(0.55 0.03 260)"
-  const TierIcon = score >= 80 ? Trophy : score >= 60 ? Star : Zap
-
+// ─── CUSTOM RECHARTS TOOLTIP ──────────────────────────
+function CustomTooltip({ active, payload, label }: any) {
+  if (!active || !payload?.length) return null
   return (
-    <div className="flex flex-col items-center">
-      <div className="relative" style={{ width: size, height: size }}>
-        <svg width={size} height={size} style={{ transform: "rotate(-90deg)" }}>
-          <defs>
-            <linearGradient id="scoreRingGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stopColor="oklch(0.78 0.14 85)" />
-              <stop offset="50%" stopColor="oklch(0.72 0.19 145)" />
-              <stop offset="100%" stopColor="oklch(0.65 0.15 250)" />
-            </linearGradient>
-            <filter id="ringGlow">
-              <feGaussianBlur stdDeviation="4" result="blur" />
-              <feMerge>
-                <feMergeNode in="blur" />
-                <feMergeNode in="SourceGraphic" />
-              </feMerge>
-            </filter>
-          </defs>
-          {/* Background track */}
-          <circle
-            cx={size / 2}
-            cy={size / 2}
-            r={radius}
-            fill="none"
-            strokeWidth={strokeWidth}
-            stroke="oklch(0.2 0.02 260)"
-          />
-          {/* Score arc */}
-          <circle
-            cx={size / 2}
-            cy={size / 2}
-            r={radius}
-            fill="none"
-            strokeWidth={strokeWidth}
-            stroke="url(#scoreRingGrad)"
-            strokeLinecap="round"
-            strokeDasharray={circumference}
-            strokeDashoffset={offset}
-            filter="url(#ringGlow)"
-            style={{ transition: "stroke-dashoffset 1.8s cubic-bezier(0.4, 0, 0.2, 1)" }}
-          />
-        </svg>
-        {/* Center content */}
-        <div className="absolute inset-0 flex flex-col items-center justify-center">
-          <span className="text-5xl font-bold tracking-tight">{animatedScore}</span>
-          <span className="text-sm text-muted-foreground mt-0.5">/100</span>
-        </div>
-      </div>
-
-      {/* Tier badge */}
-      <div
-        className="flex items-center gap-2 px-4 py-2 rounded-full mt-4"
-        style={{
-          background: `color-mix(in oklch, ${tierColor} 15%, transparent)`,
-          border: `1px solid color-mix(in oklch, ${tierColor} 30%, transparent)`
-        }}
-      >
-        <TierIcon className="w-4 h-4" style={{ color: tierColor }} />
-        <span className="text-sm font-bold" style={{ color: tierColor }}>{tierLabel}</span>
-      </div>
+    <div
+      className="px-3 py-2 rounded-lg text-xs"
+      style={{
+        background: "oklch(0.15 0.02 260 / 0.95)",
+        border: "1px solid oklch(1 0 0 / 0.1)",
+        backdropFilter: "blur(8px)",
+      }}
+    >
+      <p className="font-semibold mb-1" style={{ color: "oklch(0.85 0 0)" }}>{label}</p>
+      {payload.map((entry: any, i: number) => (
+        <p key={i} className="flex items-center gap-2">
+          <span className="w-2 h-2 rounded-full inline-block" style={{ background: entry.color }} />
+          <span style={{ color: "oklch(0.7 0 0)" }}>{entry.name}:</span>
+          <span className="font-bold" style={{ color: entry.color }}>{entry.value}</span>
+        </p>
+      ))}
     </div>
   )
 }
 
-// ─── CATEGORY PROGRESS BAR ────────────────────────────
-function CategoryBar({ category, index }: { category: ScoreCategory; index: number }) {
-  const [width, setWidth] = useState(0)
-  const Icon = category.icon
-  const percentage = (category.score / category.maxScore) * 100
+// ─── OVERALL SCORE: RADIAL BAR CHART ──────────────────
+function OverallScoreSection() {
+  const score = 87
+  const animatedScore = useCountUp(score, 1800)
 
-  useEffect(() => {
-    const timer = setTimeout(() => setWidth(percentage), 300 + index * 150)
-    return () => clearTimeout(timer)
-  }, [percentage, index])
-
-  const isGood = percentage >= 80
-  const isOk = percentage >= 60 && percentage < 80
+  const radialData = [
+    { name: "Score", value: score, fill: "url(#scoreGradient)" },
+  ]
 
   return (
-    <div className="seller-card p-5">
-      <div className="flex items-start gap-4">
-        {/* Icon */}
-        <div
-          className="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0"
-          style={{ background: category.bgColor }}
-        >
-          <Icon className="w-5 h-5" style={{ color: category.color }} />
+    <div className="seller-card p-8 mb-6">
+      <div className="flex flex-col md:flex-row items-center gap-8">
+        {/* Radial Bar Chart */}
+        <div className="relative" style={{ width: 220, height: 220 }}>
+          <ResponsiveContainer width="100%" height="100%">
+            <RadialBarChart
+              cx="50%"
+              cy="50%"
+              innerRadius="72%"
+              outerRadius="100%"
+              startAngle={90}
+              endAngle={-270}
+              data={radialData}
+              barSize={14}
+            >
+              <defs>
+                <linearGradient id="scoreGradient" x1="0" y1="0" x2="1" y2="1">
+                  <stop offset="0%" stopColor="oklch(0.78 0.14 85)" />
+                  <stop offset="50%" stopColor="oklch(0.72 0.19 145)" />
+                  <stop offset="100%" stopColor="oklch(0.65 0.18 260)" />
+                </linearGradient>
+              </defs>
+              <RadialBar
+                dataKey="value"
+                cornerRadius={10}
+                background={{ fill: "oklch(0.2 0.02 260)" }}
+                max={100}
+              />
+            </RadialBarChart>
+          </ResponsiveContainer>
+          {/* Center content */}
+          <div className="absolute inset-0 flex flex-col items-center justify-center">
+            <span className="text-5xl font-bold tracking-tight">{animatedScore}</span>
+            <span className="text-sm text-muted-foreground">/100</span>
+            <span
+              className="text-sm font-bold mt-1"
+              style={{ color: COLORS.green }}
+            >
+              Sehr Gut
+            </span>
+          </div>
         </div>
 
-        {/* Content */}
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center justify-between mb-1">
-            <span className="text-sm font-semibold">{category.label}</span>
-            <div className="flex items-center gap-2">
-              <span className="text-lg font-bold" style={{ color: category.color }}>
-                {category.score}
-              </span>
-              <span className="text-xs text-muted-foreground">/{category.maxScore}</span>
+        {/* Summary stats */}
+        <div className="flex-1 w-full">
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+            {/* Monthly change */}
+            <div className="text-center p-4 rounded-xl" style={{ background: "oklch(0.15 0.02 260 / 0.5)" }}>
+              <div className="flex items-center justify-center gap-1 mb-1">
+                <TrendingUp className="w-4 h-4" style={{ color: COLORS.green }} />
+                <span className="text-lg font-bold" style={{ color: COLORS.green }}>+3</span>
+              </div>
+              <span className="text-[11px] text-muted-foreground">vs. Vormonat</span>
+            </div>
+
+            {/* Best category */}
+            <div className="text-center p-4 rounded-xl" style={{ background: "oklch(0.15 0.02 260 / 0.5)" }}>
+              <div className="flex items-center justify-center gap-1 mb-1">
+                <Award className="w-4 h-4" style={{ color: COLORS.gold }} />
+                <span className="text-lg font-bold" style={{ color: COLORS.gold }}>95</span>
+              </div>
+              <span className="text-[11px] text-muted-foreground">Bester: Service</span>
+            </div>
+
+            {/* Focus area */}
+            <div className="text-center p-4 rounded-xl col-span-2 sm:col-span-1" style={{ background: "oklch(0.15 0.02 260 / 0.5)" }}>
+              <div className="flex items-center justify-center gap-1 mb-1">
+                <Target className="w-4 h-4" style={{ color: COLORS.red }} />
+                <span className="text-lg font-bold" style={{ color: COLORS.red }}>78</span>
+              </div>
+              <span className="text-[11px] text-muted-foreground">Fokus: Preis</span>
             </div>
           </div>
 
-          <p className="text-xs text-muted-foreground mb-3">{category.description}</p>
-
-          {/* Progress bar */}
-          <div className="h-2.5 rounded-full overflow-hidden" style={{ background: "oklch(0.2 0.02 260)" }}>
-            <div
-              className="h-full rounded-full"
-              style={{
-                width: `${width}%`,
-                background: category.color,
-                transition: "width 1s cubic-bezier(0.4, 0, 0.2, 1)",
-                boxShadow: `0 0 8px color-mix(in oklch, ${category.color} 40%, transparent)`
-              }}
-            />
-          </div>
-
-          {/* Status indicator */}
-          <div className="flex items-center gap-1.5 mt-2">
-            {isGood ? (
-              <span className="inline-flex items-center gap-1 text-[11px] font-medium" style={{ color: "oklch(0.72 0.19 145)" }}>
-                <ShieldCheck className="w-3 h-3" /> Excellent
-              </span>
-            ) : isOk ? (
-              <span className="inline-flex items-center gap-1 text-[11px] font-medium" style={{ color: "oklch(0.78 0.14 85)" }}>
-                <TrendingUp className="w-3 h-3" /> Good - Room to improve
-              </span>
-            ) : (
-              <span className="inline-flex items-center gap-1 text-[11px] font-medium" style={{ color: "oklch(0.7 0.18 55)" }}>
-                <Info className="w-3 h-3" /> Needs attention
-              </span>
-            )}
+          {/* Commission info */}
+          <div
+            className="mt-4 p-3 rounded-xl flex items-center gap-3"
+            style={{
+              background: `color-mix(in oklch, ${COLORS.gold} 8%, transparent)`,
+              border: `1px solid color-mix(in oklch, ${COLORS.gold} 15%, transparent)`,
+            }}
+          >
+            <Sparkles className="w-4 h-4 flex-shrink-0" style={{ color: COLORS.gold }} />
+            <p className="text-xs" style={{ color: COLORS.gold }}>
+              <span className="font-semibold">Gold-Status aktiv!</span> Du profitierst von 2% niedrigerer Provision und bevorzugter Platzierung.
+            </p>
           </div>
         </div>
       </div>
@@ -206,294 +175,626 @@ function CategoryBar({ category, index }: { category: ScoreCategory; index: numb
   )
 }
 
-// ─── SCORE HISTORY MINI CHART ─────────────────────────
-function ScoreHistoryChart({ data }: { data: MonthlyScore[] }) {
-  const maxScore = 100
-  const chartHeight = 180
-  const chartWidth = 100
-  const padding = { top: 10, bottom: 25, left: 0, right: 0 }
-  const plotHeight = chartHeight - padding.top - padding.bottom
-  const pointSpacing = chartWidth / (data.length - 1)
-
-  const getY = (score: number) => padding.top + plotHeight - (score / maxScore) * plotHeight
-
-  // Build path for "your score" line
-  const yourPath = data
-    .map((d, i) => `${i === 0 ? "M" : "L"} ${i * pointSpacing} ${getY(d.score)}`)
-    .join(" ")
-
-  // Build path for "average" line
-  const avgPath = data
-    .map((d, i) => `${i === 0 ? "M" : "L"} ${i * pointSpacing} ${getY(d.avg)}`)
-    .join(" ")
-
-  // Area fill path for "your score"
-  const areaPath = `${yourPath} L ${(data.length - 1) * pointSpacing} ${chartHeight - padding.bottom} L 0 ${chartHeight - padding.bottom} Z`
+// ─── SCORE BREAKDOWN: RADAR CHART ─────────────────────
+function ScoreBreakdownRadar() {
+  const radarData = [
+    { axis: "Lieferung", score: 92, fullMark: 100 },
+    { axis: "Qualität", score: 88, fullMark: 100 },
+    { axis: "Service", score: 95, fullMark: 100 },
+    { axis: "Preis", score: 78, fullMark: 100 },
+    { axis: "Bewertungen", score: 85, fullMark: 100 },
+    { axis: "Retouren", score: 82, fullMark: 100 },
+  ]
 
   return (
     <div className="seller-card p-6">
-      <div className="flex items-center justify-between mb-5">
-        <h3 className="text-lg font-bold flex items-center gap-2">
-          <BarChart3 className="w-5 h-5" style={{ color: "oklch(0.65 0.15 250)" }} />
-          Score History
-        </h3>
-        <span className="text-xs text-muted-foreground">Last 6 months</span>
-      </div>
-
-      <div className="overflow-x-auto">
-        <svg
-          viewBox={`-10 0 ${chartWidth + 20} ${chartHeight}`}
-          className="w-full"
-          style={{ minWidth: 320, maxHeight: 220 }}
-          preserveAspectRatio="xMidYMid meet"
-        >
-          <defs>
-            <linearGradient id="areaFill" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="oklch(0.72 0.19 145)" stopOpacity="0.25" />
-              <stop offset="100%" stopColor="oklch(0.72 0.19 145)" stopOpacity="0" />
-            </linearGradient>
-          </defs>
-
-          {/* Grid lines */}
-          {[0, 25, 50, 75, 100].map((v) => (
-            <line
-              key={v}
-              x1={0}
-              y1={getY(v)}
-              x2={chartWidth}
-              y2={getY(v)}
-              stroke="oklch(0.2 0.02 260)"
+      <h3 className="text-lg font-bold flex items-center gap-2 mb-4">
+        <CircleDot className="w-5 h-5" style={{ color: COLORS.purple }} />
+        Score-Aufschlüsselung
+      </h3>
+      <div style={{ width: "100%", height: 300 }}>
+        <ResponsiveContainer width="100%" height="100%">
+          <RadarChart cx="50%" cy="50%" outerRadius="70%" data={radarData}>
+            <PolarGrid
+              stroke="oklch(0.3 0.02 260)"
               strokeDasharray="3 3"
             />
-          ))}
-
-          {/* Area fill */}
-          <path d={areaPath} fill="url(#areaFill)" />
-
-          {/* Average line */}
-          <path d={avgPath} fill="none" stroke="oklch(0.45 0.03 260)" strokeWidth="1.5" strokeDasharray="4 4" />
-
-          {/* Your score line */}
-          <path d={yourPath} fill="none" stroke="oklch(0.72 0.19 145)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
-
-          {/* Data points - your score */}
-          {data.map((d, i) => (
-            <g key={`point-${i}`}>
-              <circle cx={i * pointSpacing} cy={getY(d.score)} r="4" fill="oklch(0.72 0.19 145)" />
-              <circle cx={i * pointSpacing} cy={getY(d.score)} r="2" fill="oklch(0.12 0.02 260)" />
-              {/* Score label */}
-              <text
-                x={i * pointSpacing}
-                y={getY(d.score) - 10}
-                textAnchor="middle"
-                fill="oklch(0.72 0.19 145)"
-                fontSize="5"
-                fontWeight="700"
-              >
-                {d.score}
-              </text>
-            </g>
-          ))}
-
-          {/* Average points */}
-          {data.map((d, i) => (
-            <circle
-              key={`avg-${i}`}
-              cx={i * pointSpacing}
-              cy={getY(d.avg)}
-              r="2.5"
-              fill="oklch(0.45 0.03 260)"
+            <PolarAngleAxis
+              dataKey="axis"
+              tick={{ fill: "oklch(0.7 0 0)", fontSize: 12, fontWeight: 600 }}
             />
-          ))}
-
-          {/* Month labels */}
-          {data.map((d, i) => (
-            <text
-              key={`label-${i}`}
-              x={i * pointSpacing}
-              y={chartHeight - 5}
-              textAnchor="middle"
-              fill="oklch(0.5 0.02 260)"
-              fontSize="5"
-            >
-              {d.month}
-            </text>
-          ))}
-        </svg>
+            <PolarRadiusAxis
+              angle={30}
+              domain={[0, 100]}
+              tick={{ fill: "oklch(0.4 0 0)", fontSize: 10 }}
+              tickCount={5}
+            />
+            <Radar
+              name="Dein Score"
+              dataKey="score"
+              stroke="oklch(0.65 0.15 250)"
+              fill="oklch(0.65 0.15 250)"
+              fillOpacity={0.2}
+              strokeWidth={2}
+            />
+          </RadarChart>
+        </ResponsiveContainer>
       </div>
-
-      {/* Legend */}
-      <div className="flex items-center justify-center gap-6 mt-4">
-        <div className="flex items-center gap-2">
-          <div className="w-3 h-0.5 rounded-full" style={{ background: "oklch(0.72 0.19 145)" }} />
-          <span className="text-xs text-muted-foreground">Your Score</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="w-3 h-0.5 rounded-full" style={{ background: "oklch(0.45 0.03 260)", borderTop: "1px dashed oklch(0.45 0.03 260)" }} />
-          <span className="text-xs text-muted-foreground">Avg. Seller</span>
-        </div>
+      {/* Score chips below radar */}
+      <div className="flex flex-wrap justify-center gap-2 mt-2">
+        {radarData.map((d) => (
+          <span
+            key={d.axis}
+            className="px-2.5 py-1 rounded-full text-[11px] font-bold"
+            style={{
+              background: `color-mix(in oklch, ${COLORS.purple} 12%, transparent)`,
+              color: COLORS.purple,
+            }}
+          >
+            {d.axis}: {d.score}
+          </span>
+        ))}
       </div>
     </div>
   )
 }
 
-// ─── COMPARISON SECTION ───────────────────────────────
-function ComparisonSection({ categories }: { categories: ScoreCategory[] }) {
-  const avgScores: Record<string, number> = {
-    "Shipping Speed": 72,
-    "Customer Satisfaction": 68,
-    "Return Rate": 75,
-    "Content Quality": 60,
-    "Response Time": 65,
-  }
+// ─── SCORE HISTORY: LINE CHART (12 MONTHS) ────────────
+function ScoreHistoryLine() {
+  const historyData = [
+    { month: "Mär", score: 79, avg: 72 },
+    { month: "Apr", score: 80, avg: 72 },
+    { month: "Mai", score: 78, avg: 73 },
+    { month: "Jun", score: 81, avg: 73 },
+    { month: "Jul", score: 82, avg: 74 },
+    { month: "Aug", score: 80, avg: 73 },
+    { month: "Sep", score: 83, avg: 74 },
+    { month: "Okt", score: 82, avg: 74 },
+    { month: "Nov", score: 84, avg: 75 },
+    { month: "Dez", score: 85, avg: 75 },
+    { month: "Jan", score: 84, avg: 74 },
+    { month: "Feb", score: 87, avg: 75 },
+  ]
 
   return (
     <div className="seller-card p-6">
-      <div className="flex items-center justify-between mb-5">
+      <div className="flex items-center justify-between mb-4">
         <h3 className="text-lg font-bold flex items-center gap-2">
-          <Target className="w-5 h-5" style={{ color: "oklch(0.78 0.14 85)" }} />
-          Your Score vs. Average Seller
+          <BarChart3 className="w-5 h-5" style={{ color: COLORS.blue }} />
+          Score-Verlauf
         </h3>
+        <span className="text-xs text-muted-foreground">Letzte 12 Monate</span>
       </div>
+      <div style={{ width: "100%", height: 280 }}>
+        <ResponsiveContainer width="100%" height="100%">
+          <LineChart data={historyData} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="oklch(0.25 0.02 260)" />
+            <XAxis
+              dataKey="month"
+              tick={{ fill: "oklch(0.55 0 0)", fontSize: 11 }}
+              axisLine={{ stroke: "oklch(0.25 0.02 260)" }}
+              tickLine={false}
+            />
+            <YAxis
+              domain={[50, 100]}
+              tick={{ fill: "oklch(0.55 0 0)", fontSize: 11 }}
+              axisLine={{ stroke: "oklch(0.25 0.02 260)" }}
+              tickLine={false}
+            />
+            <Tooltip content={<CustomTooltip />} />
+            {/* Threshold lines */}
+            <ReferenceLine
+              y={60}
+              stroke="oklch(0.55 0.08 260)"
+              strokeDasharray="6 4"
+              label={{ value: "Silber (60)", position: "insideTopRight", fill: "oklch(0.55 0.08 260)", fontSize: 10 }}
+            />
+            <ReferenceLine
+              y={75}
+              stroke="oklch(0.78 0.14 85)"
+              strokeDasharray="6 4"
+              label={{ value: "Gold (75)", position: "insideTopRight", fill: "oklch(0.78 0.14 85)", fontSize: 10 }}
+            />
+            <ReferenceLine
+              y={90}
+              stroke="oklch(0.65 0.15 250)"
+              strokeDasharray="6 4"
+              label={{ value: "Platin (90)", position: "insideTopRight", fill: "oklch(0.65 0.15 250)", fontSize: 10 }}
+            />
+            <Line
+              type="monotone"
+              dataKey="avg"
+              name="Durchschnitt"
+              stroke="oklch(0.45 0.03 260)"
+              strokeWidth={2}
+              strokeDasharray="5 5"
+              dot={false}
+            />
+            <Line
+              type="monotone"
+              dataKey="score"
+              name="Dein Score"
+              stroke={COLORS.green}
+              strokeWidth={2.5}
+              dot={{ fill: COLORS.green, r: 3 }}
+              activeDot={{ r: 5, fill: COLORS.green, stroke: "oklch(0.12 0.02 260)", strokeWidth: 2 }}
+            />
+            <Legend
+              verticalAlign="bottom"
+              height={30}
+              iconType="line"
+              formatter={(value: string) => (
+                <span style={{ color: "oklch(0.6 0 0)", fontSize: 11 }}>{value}</span>
+              )}
+            />
+          </LineChart>
+        </ResponsiveContainer>
+      </div>
+    </div>
+  )
+}
 
-      <div className="space-y-4">
-        {categories.map((cat) => {
-          const avg = avgScores[cat.label] || 65
-          const diff = cat.score - avg
-          const isAhead = diff > 0
+// ─── INDIVIDUAL METRIC CARDS (6) ──────────────────────
+function MetricCards() {
+  const metrics = [
+    {
+      label: "Liefergeschwindigkeit",
+      score: 92,
+      detail: "\u00D8 2.1 Tage",
+      icon: Truck,
+      color: COLORS.green,
+      trend: "+4",
+      trendUp: true,
+    },
+    {
+      label: "Produktqualität",
+      score: 88,
+      detail: "4.2% Retoure",
+      icon: Package,
+      color: COLORS.blue,
+      trend: "+2",
+      trendUp: true,
+    },
+    {
+      label: "Kundenservice",
+      score: 95,
+      detail: "\u00D8 1.4h Antwortzeit",
+      icon: HeadphonesIcon,
+      color: COLORS.purple,
+      trend: "+5",
+      trendUp: true,
+    },
+    {
+      label: "Preis-Leistung",
+      score: 78,
+      detail: "Index 0.95",
+      icon: BadgeEuro,
+      color: COLORS.gold,
+      trend: "-2",
+      trendUp: false,
+    },
+    {
+      label: "Bewertungen",
+      score: 85,
+      detail: "4.7\u2605 Durchschnitt",
+      icon: Star,
+      color: COLORS.gold,
+      trend: "+1",
+      trendUp: true,
+    },
+    {
+      label: "Retourenmanagement",
+      score: 82,
+      detail: "\u00D8 1.8 Tage Bearbeitung",
+      icon: RotateCcw,
+      color: COLORS.red,
+      trend: "+3",
+      trendUp: true,
+    },
+  ]
+
+  return (
+    <div className="mb-6">
+      <h2 className="text-lg font-bold mb-4 flex items-center gap-2">
+        <ChevronRight className="w-5 h-5" style={{ color: COLORS.purple }} />
+        Einzelne Metriken
+      </h2>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        {metrics.map((m) => {
+          const Icon = m.icon
+          const percentage = m.score
+          const status = percentage >= 90 ? "Exzellent" : percentage >= 80 ? "Gut" : percentage >= 70 ? "Befriedigend" : "Verbesserungsbedarf"
+          const statusColor = percentage >= 90 ? COLORS.green : percentage >= 80 ? COLORS.blue : percentage >= 70 ? COLORS.gold : COLORS.red
 
           return (
-            <div key={cat.label} className="group">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-sm font-medium">{cat.label}</span>
-                <div className="flex items-center gap-2">
+            <div key={m.label} className="seller-card p-5">
+              <div className="flex items-start justify-between mb-3">
+                <div
+                  className="w-10 h-10 rounded-xl flex items-center justify-center"
+                  style={{ background: `color-mix(in oklch, ${m.color} 12%, transparent)` }}
+                >
+                  <Icon className="w-5 h-5" style={{ color: m.color }} />
+                </div>
+                <div className="flex items-center gap-1">
+                  {m.trendUp ? (
+                    <ArrowUpRight className="w-3.5 h-3.5" style={{ color: COLORS.green }} />
+                  ) : (
+                    <TrendingDown className="w-3.5 h-3.5" style={{ color: COLORS.red }} />
+                  )}
                   <span
-                    className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded text-[11px] font-bold"
-                    style={{
-                      background: isAhead ? "oklch(0.72 0.19 145 / 0.12)" : "oklch(0.7 0.18 55 / 0.12)",
-                      color: isAhead ? "oklch(0.72 0.19 145)" : "oklch(0.7 0.18 55)",
-                    }}
+                    className="text-xs font-bold"
+                    style={{ color: m.trendUp ? COLORS.green : COLORS.red }}
                   >
-                    {isAhead ? <ArrowUpRight className="w-3 h-3" /> : <ArrowDownRight className="w-3 h-3" />}
-                    {isAhead ? "+" : ""}{diff}
+                    {m.trend}
                   </span>
                 </div>
               </div>
 
-              {/* Dual bar comparison */}
-              <div className="space-y-1.5">
-                <div className="flex items-center gap-3">
-                  <span className="text-[10px] text-muted-foreground w-8">You</span>
-                  <div className="flex-1 h-2 rounded-full overflow-hidden" style={{ background: "oklch(0.2 0.02 260)" }}>
-                    <div
-                      className="h-full rounded-full"
-                      style={{
-                        width: `${cat.score}%`,
-                        background: cat.color,
-                        transition: "width 1s ease",
-                      }}
-                    />
-                  </div>
-                  <span className="text-xs font-bold w-8 text-right" style={{ color: cat.color }}>{cat.score}</span>
-                </div>
-                <div className="flex items-center gap-3">
-                  <span className="text-[10px] text-muted-foreground w-8">Avg</span>
-                  <div className="flex-1 h-2 rounded-full overflow-hidden" style={{ background: "oklch(0.2 0.02 260)" }}>
-                    <div
-                      className="h-full rounded-full"
-                      style={{
-                        width: `${avg}%`,
-                        background: "oklch(0.45 0.03 260)",
-                        transition: "width 1s ease",
-                      }}
-                    />
-                  </div>
-                  <span className="text-xs font-medium text-muted-foreground w-8 text-right">{avg}</span>
-                </div>
+              <div className="mb-2">
+                <span className="text-sm font-semibold">{m.label}</span>
               </div>
+
+              <div className="flex items-end justify-between mb-3">
+                <span className="text-3xl font-bold" style={{ color: m.color }}>{m.score}</span>
+                <span className="text-xs text-muted-foreground">{m.detail}</span>
+              </div>
+
+              {/* Progress bar */}
+              <div className="h-2 rounded-full overflow-hidden mb-2" style={{ background: "oklch(0.2 0.02 260)" }}>
+                <div
+                  className="h-full rounded-full"
+                  style={{
+                    width: `${percentage}%`,
+                    background: m.color,
+                    transition: "width 1s cubic-bezier(0.4, 0, 0.2, 1)",
+                    boxShadow: `0 0 8px color-mix(in oklch, ${m.color} 40%, transparent)`,
+                  }}
+                />
+              </div>
+
+              <span
+                className="inline-flex items-center gap-1 text-[11px] font-medium"
+                style={{ color: statusColor }}
+              >
+                <ShieldCheck className="w-3 h-3" />
+                {status}
+              </span>
             </div>
           )
         })}
       </div>
+    </div>
+  )
+}
 
-      {/* Overall comparison summary */}
+// ─── MONTHLY PERFORMANCE: STACKED BAR CHART ───────────
+function MonthlyPerformanceBars() {
+  const barData = [
+    { month: "Sep", Lieferung: 88, Qualität: 85, Service: 90, Preis: 75, Bewertungen: 82, Retouren: 78 },
+    { month: "Okt", Lieferung: 89, Qualität: 86, Service: 91, Preis: 76, Bewertungen: 83, Retouren: 79 },
+    { month: "Nov", Lieferung: 90, Qualität: 87, Service: 92, Preis: 76, Bewertungen: 84, Retouren: 80 },
+    { month: "Dez", Lieferung: 91, Qualität: 86, Service: 93, Preis: 77, Bewertungen: 84, Retouren: 81 },
+    { month: "Jan", Lieferung: 91, Qualität: 87, Service: 94, Preis: 77, Bewertungen: 85, Retouren: 81 },
+    { month: "Feb", Lieferung: 92, Qualität: 88, Service: 95, Preis: 78, Bewertungen: 85, Retouren: 82 },
+  ]
+
+  return (
+    <div className="seller-card p-6">
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="text-lg font-bold flex items-center gap-2">
+          <BarChart3 className="w-5 h-5" style={{ color: COLORS.gold }} />
+          Monatliche Leistung
+        </h3>
+        <span className="text-xs text-muted-foreground">Letzte 6 Monate</span>
+      </div>
+      <div style={{ width: "100%", height: 300 }}>
+        <ResponsiveContainer width="100%" height="100%">
+          <BarChart data={barData} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="oklch(0.25 0.02 260)" />
+            <XAxis
+              dataKey="month"
+              tick={{ fill: "oklch(0.55 0 0)", fontSize: 11 }}
+              axisLine={{ stroke: "oklch(0.25 0.02 260)" }}
+              tickLine={false}
+            />
+            <YAxis
+              tick={{ fill: "oklch(0.55 0 0)", fontSize: 11 }}
+              axisLine={{ stroke: "oklch(0.25 0.02 260)" }}
+              tickLine={false}
+            />
+            <Tooltip content={<CustomTooltip />} />
+            <Legend
+              verticalAlign="bottom"
+              height={36}
+              iconType="square"
+              iconSize={10}
+              formatter={(value: string) => (
+                <span style={{ color: "oklch(0.6 0 0)", fontSize: 10 }}>{value}</span>
+              )}
+            />
+            <Bar dataKey="Lieferung" stackId="a" fill={COLORS.green} radius={[0, 0, 0, 0]} />
+            <Bar dataKey="Qualität" stackId="a" fill={COLORS.blue} />
+            <Bar dataKey="Service" stackId="a" fill={COLORS.purple} />
+            <Bar dataKey="Preis" stackId="a" fill={COLORS.gold} />
+            <Bar dataKey="Bewertungen" stackId="a" fill="oklch(0.7 0.12 200)" />
+            <Bar dataKey="Retouren" stackId="a" fill={COLORS.red} radius={[4, 4, 0, 0]} />
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+    </div>
+  )
+}
+
+// ─── PENALTIES SECTION ────────────────────────────────
+function PenaltiesSection() {
+  const penalties = [
+    {
+      date: "12. Jan 2026",
+      reason: "Verspätete Lieferung - Bestellung #WR-4821",
+      points: -2,
+    },
+    {
+      date: "25. Jan 2026",
+      reason: "Verspätete Lieferung - Bestellung #WR-5103",
+      points: -2,
+    },
+    {
+      date: "03. Feb 2026",
+      reason: "Verspätete Lieferung - Bestellung #WR-5287",
+      points: -1,
+    },
+  ]
+
+  const totalPenalty = penalties.reduce((sum, p) => sum + p.points, 0)
+
+  return (
+    <div className="seller-card p-6">
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="text-lg font-bold flex items-center gap-2">
+          <AlertTriangle className="w-5 h-5" style={{ color: COLORS.red }} />
+          Abzüge & Strafen
+        </h3>
+        <span
+          className="px-2.5 py-1 rounded-full text-xs font-bold"
+          style={{
+            background: `color-mix(in oklch, ${COLORS.red} 12%, transparent)`,
+            color: COLORS.red,
+          }}
+        >
+          {totalPenalty} Punkte
+        </span>
+      </div>
+
+      <div className="space-y-3">
+        {penalties.map((p, i) => (
+          <div
+            key={i}
+            className="flex items-center gap-4 p-3 rounded-xl"
+            style={{
+              background: `color-mix(in oklch, ${COLORS.red} 5%, transparent)`,
+              border: `1px solid color-mix(in oklch, ${COLORS.red} 12%, transparent)`,
+            }}
+          >
+            <div
+              className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
+              style={{ background: `color-mix(in oklch, ${COLORS.red} 15%, transparent)` }}
+            >
+              <Clock className="w-4 h-4" style={{ color: COLORS.red }} />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium">{p.reason}</p>
+              <p className="text-xs text-muted-foreground">{p.date}</p>
+            </div>
+            <span className="text-sm font-bold flex-shrink-0" style={{ color: COLORS.red }}>
+              {p.points}
+            </span>
+          </div>
+        ))}
+      </div>
+
       <div
-        className="mt-6 p-4 rounded-xl flex items-center gap-3"
+        className="mt-4 p-3 rounded-xl flex items-center gap-3"
         style={{
-          background: "oklch(0.72 0.19 145 / 0.08)",
-          border: "1px solid oklch(0.72 0.19 145 / 0.15)",
+          background: `color-mix(in oklch, ${COLORS.gold} 8%, transparent)`,
+          border: `1px solid color-mix(in oklch, ${COLORS.gold} 15%, transparent)`,
         }}
       >
-        <Award className="w-5 h-5 flex-shrink-0" style={{ color: "oklch(0.72 0.19 145)" }} />
-        <p className="text-xs" style={{ color: "oklch(0.72 0.19 145)" }}>
-          <span className="font-semibold">You are outperforming</span> the average seller in 4 out of 5 categories. Keep up the great work!
+        <Info className="w-4 h-4 flex-shrink-0" style={{ color: COLORS.gold }} />
+        <p className="text-xs" style={{ color: COLORS.gold }}>
+          3 verspätete Lieferungen im letzten Monat. Versuche, alle Bestellungen innerhalb von 48 Stunden zu versenden, um Abzüge zu vermeiden.
         </p>
       </div>
     </div>
   )
 }
 
-// ─── TIPS SECTION ─────────────────────────────────────
-function TipsSection({ categories }: { categories: ScoreCategory[] }) {
-  const sortedByNeed = [...categories].sort((a, b) => (a.score / a.maxScore) - (b.score / b.maxScore))
+// ─── TIPS TO IMPROVE ──────────────────────────────────
+function ImprovementTips() {
+  const tips = [
+    {
+      icon: BadgeEuro,
+      title: "Preis-Leistungs-Verhältnis verbessern",
+      description: "Dein Preis-Index liegt bei 0.95. Überprüfe deine Preise im Vergleich zu ähnlichen Produkten und biete Bundle-Angebote an, um den wahrgenommenen Wert zu steigern.",
+      impact: "+5-8 Punkte",
+      color: COLORS.gold,
+    },
+    {
+      icon: Truck,
+      title: "Lieferzeiten weiter optimieren",
+      description: "Nutze vorverpackte Artikel für Bestseller und erwäge einen Expressversand-Partner. Ziel: Alle Bestellungen am selben Tag versenden.",
+      impact: "+3-5 Punkte",
+      color: COLORS.green,
+    },
+    {
+      icon: RotateCcw,
+      title: "Retourenquote senken",
+      description: "Füge detaillierte Größentabellen und 360°-Produktfotos hinzu. Kunden, die die richtige Größe bestellen, retournieren 40% seltener.",
+      impact: "+4-6 Punkte",
+      color: COLORS.blue,
+    },
+    {
+      icon: ThumbsUp,
+      title: "Mehr Bewertungen sammeln",
+      description: "Sende eine freundliche Bewertungsanfrage 3 Tage nach Lieferung. Biete einen 5%-Gutschein für die nächste Bestellung als Dankeschön an.",
+      impact: "+3-4 Punkte",
+      color: COLORS.purple,
+    },
+  ]
 
   return (
     <div className="seller-card p-6">
       <div className="flex items-center justify-between mb-5">
         <h3 className="text-lg font-bold flex items-center gap-2">
-          <Lightbulb className="w-5 h-5" style={{ color: "oklch(0.78 0.14 85)" }} />
-          Improvement Tips
+          <Lightbulb className="w-5 h-5" style={{ color: COLORS.gold }} />
+          Verbesserungsvorschläge
         </h3>
         <span
           className="px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider"
-          style={{ background: "oklch(0.65 0.15 250 / 0.12)", color: "oklch(0.65 0.15 250)" }}
+          style={{
+            background: `color-mix(in oklch, ${COLORS.purple} 12%, transparent)`,
+            color: COLORS.purple,
+          }}
         >
-          Prioritized
+          Priorisiert
         </span>
       </div>
 
       <div className="space-y-3">
-        {sortedByNeed.map((cat, index) => {
-          const Icon = cat.icon
-          const percentage = (cat.score / cat.maxScore) * 100
-          const urgency = percentage < 70 ? "High" : percentage < 85 ? "Medium" : "Low"
-          const urgencyColor = percentage < 70 ? "oklch(0.7 0.18 55)" : percentage < 85 ? "oklch(0.78 0.14 85)" : "oklch(0.72 0.19 145)"
-
+        {tips.map((tip, i) => {
+          const Icon = tip.icon
           return (
             <div
-              key={cat.label}
+              key={i}
               className="flex items-start gap-4 p-4 rounded-xl transition-all hover:bg-white/[0.03]"
               style={{
-                border: `1px solid color-mix(in oklch, ${cat.color} 12%, transparent)`,
+                border: `1px solid color-mix(in oklch, ${tip.color} 12%, transparent)`,
               }}
             >
               <div
-                className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5"
-                style={{ background: cat.bgColor }}
+                className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5"
+                style={{ background: `color-mix(in oklch, ${tip.color} 12%, transparent)` }}
               >
-                <Icon className="w-4 h-4" style={{ color: cat.color }} />
+                <Icon className="w-4 h-4" style={{ color: tip.color }} />
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 mb-1">
-                  <span className="text-sm font-semibold">{cat.label}</span>
-                  <span
-                    className="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase"
-                    style={{
-                      background: `color-mix(in oklch, ${urgencyColor} 12%, transparent)`,
-                      color: urgencyColor,
-                    }}
-                  >
-                    {urgency} priority
-                  </span>
+                  <span className="text-sm font-semibold">{tip.title}</span>
                 </div>
-                <p className="text-xs text-muted-foreground leading-relaxed">{cat.tip}</p>
+                <p className="text-xs text-muted-foreground leading-relaxed mb-2">{tip.description}</p>
+                <span
+                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold"
+                  style={{
+                    background: `color-mix(in oklch, ${COLORS.green} 12%, transparent)`,
+                    color: COLORS.green,
+                  }}
+                >
+                  <Zap className="w-3 h-3" />
+                  Geschätzter Effekt: {tip.impact}
+                </span>
               </div>
-              <span className="text-lg font-bold flex-shrink-0" style={{ color: cat.color }}>
-                {cat.score}
-              </span>
             </div>
           )
         })}
+      </div>
+    </div>
+  )
+}
+
+// ─── BADGE STATUS ─────────────────────────────────────
+function BadgeStatus() {
+  const currentScore = 87
+  const platinThreshold = 90
+  const pointsNeeded = platinThreshold - currentScore
+
+  const tiers = [
+    { name: "Silber", min: 60, color: "oklch(0.55 0.08 260)", icon: Medal },
+    { name: "Gold", min: 75, color: COLORS.gold, icon: Trophy },
+    { name: "Platin", min: 90, color: COLORS.purple, icon: Crown },
+  ]
+
+  return (
+    <div className="seller-card p-6">
+      <div className="flex items-center justify-between mb-5">
+        <h3 className="text-lg font-bold flex items-center gap-2">
+          <Trophy className="w-5 h-5" style={{ color: COLORS.gold }} />
+          Badge-Status
+        </h3>
+        <div
+          className="flex items-center gap-2 px-3 py-1.5 rounded-full"
+          style={{
+            background: `color-mix(in oklch, ${COLORS.gold} 15%, transparent)`,
+            border: `1px solid color-mix(in oklch, ${COLORS.gold} 30%, transparent)`,
+          }}
+        >
+          <Trophy className="w-4 h-4" style={{ color: COLORS.gold }} />
+          <span className="text-sm font-bold" style={{ color: COLORS.gold }}>Gold</span>
+        </div>
+      </div>
+
+      {/* Progress to Platin */}
+      <div className="mb-6">
+        <div className="flex items-center justify-between mb-2">
+          <span className="text-sm text-muted-foreground">Fortschritt zu Platin</span>
+          <span className="text-sm font-bold">
+            <span style={{ color: COLORS.green }}>{currentScore}</span>
+            <span className="text-muted-foreground"> / {platinThreshold}</span>
+          </span>
+        </div>
+        <div className="relative h-3 rounded-full overflow-hidden" style={{ background: "oklch(0.2 0.02 260)" }}>
+          <div
+            className="h-full rounded-full"
+            style={{
+              width: `${(currentScore / platinThreshold) * 100}%`,
+              background: `linear-gradient(90deg, ${COLORS.gold}, ${COLORS.purple})`,
+              transition: "width 1.5s cubic-bezier(0.4, 0, 0.2, 1)",
+              boxShadow: `0 0 12px color-mix(in oklch, ${COLORS.gold} 40%, transparent)`,
+            }}
+          />
+          {/* Marker indicators for tiers */}
+          {tiers.map((tier) => (
+            <div
+              key={tier.name}
+              className="absolute top-0 h-full w-0.5"
+              style={{
+                left: `${(tier.min / platinThreshold) * 100}%`,
+                background: tier.color,
+                opacity: 0.5,
+              }}
+            />
+          ))}
+        </div>
+        <div className="flex justify-between mt-2">
+          {tiers.map((tier) => {
+            const TierIcon = tier.icon
+            return (
+              <div key={tier.name} className="flex items-center gap-1">
+                <TierIcon className="w-3 h-3" style={{ color: tier.color }} />
+                <span className="text-[10px] font-medium" style={{ color: tier.color }}>
+                  {tier.name} ({tier.min})
+                </span>
+              </div>
+            )
+          })}
+        </div>
+      </div>
+
+      {/* Callout */}
+      <div
+        className="p-4 rounded-xl flex items-center gap-3"
+        style={{
+          background: `color-mix(in oklch, ${COLORS.purple} 8%, transparent)`,
+          border: `1px solid color-mix(in oklch, ${COLORS.purple} 15%, transparent)`,
+        }}
+      >
+        <Crown className="w-5 h-5 flex-shrink-0" style={{ color: COLORS.purple }} />
+        <div>
+          <p className="text-sm font-semibold" style={{ color: COLORS.purple }}>
+            Nur noch {pointsNeeded} Punkte bis Platin!
+          </p>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            Platin-Seller erhalten 4% niedrigere Provision, ein exklusives Badge und Premium-Support.
+          </p>
+        </div>
       </div>
     </div>
   )
@@ -501,74 +802,6 @@ function TipsSection({ categories }: { categories: ScoreCategory[] }) {
 
 // ─── MAIN PAGE ────────────────────────────────────────
 export default function SellerScorePage() {
-  const overallScore = 78
-
-  // ─── MOCK DATA: CATEGORIES ──────────────────────────
-  const categories: ScoreCategory[] = [
-    {
-      label: "Shipping Speed",
-      score: 85,
-      maxScore: 100,
-      color: "oklch(0.65 0.15 250)",
-      bgColor: "oklch(0.65 0.15 250 / 0.12)",
-      icon: Truck,
-      description: "Average time from order to dispatch. Based on last 90 days.",
-      tip: "Your average ship time is 1.2 days. Try to dispatch within 24 hours for all orders to reach 90+. Consider pre-packaging popular items.",
-    },
-    {
-      label: "Customer Satisfaction",
-      score: 82,
-      maxScore: 100,
-      color: "oklch(0.72 0.19 145)",
-      bgColor: "oklch(0.72 0.19 145 / 0.12)",
-      icon: SmilePlus,
-      description: "Based on reviews, ratings, and repeat purchase rate.",
-      tip: "You have a 4.3-star average. Add a thank-you note to orders and respond to negative reviews within 24 hours to improve this score.",
-    },
-    {
-      label: "Return Rate",
-      score: 90,
-      maxScore: 100,
-      color: "oklch(0.78 0.14 85)",
-      bgColor: "oklch(0.78 0.14 85 / 0.12)",
-      icon: RotateCcw,
-      description: "Lower return rate = higher score. Measures product accuracy.",
-      tip: "Your return rate is just 3.2% -- excellent! Keep it low by providing accurate descriptions and high-quality product photos.",
-    },
-    {
-      label: "Content Quality",
-      score: 65,
-      maxScore: 100,
-      color: "oklch(0.65 0.15 250)",
-      bgColor: "oklch(0.65 0.15 250 / 0.12)",
-      icon: Image,
-      description: "Photo quality, description completeness, tag usage.",
-      tip: "12 of your listings lack size charts. Add at least 4 photos per product and use all available tags. Complete descriptions boost visibility by 35%.",
-    },
-    {
-      label: "Response Time",
-      score: 70,
-      maxScore: 100,
-      color: "oklch(0.7 0.18 55)",
-      bgColor: "oklch(0.7 0.18 55 / 0.12)",
-      icon: MessageCircle,
-      description: "Average time to first reply to customer inquiries.",
-      tip: "Your average response time is 4.5 hours. Aim for under 2 hours. Enable mobile notifications and set up auto-reply templates for common questions.",
-    },
-  ]
-
-  // ─── MOCK DATA: HISTORY ─────────────────────────────
-  const scoreHistory: MonthlyScore[] = [
-    { month: "Sep", score: 62, avg: 66 },
-    { month: "Oct", score: 68, avg: 67 },
-    { month: "Nov", score: 71, avg: 68 },
-    { month: "Dec", score: 74, avg: 69 },
-    { month: "Jan", score: 75, avg: 68 },
-    { month: "Feb", score: 78, avg: 69 },
-  ]
-
-  const scoreDelta = scoreHistory[scoreHistory.length - 1].score - scoreHistory[scoreHistory.length - 2].score
-
   return (
     <div className="min-h-screen p-6 pb-24">
       <div className="max-w-5xl mx-auto">
@@ -576,103 +809,47 @@ export default function SellerScorePage() {
         {/* ─── HEADER ─────────────────────────────── */}
         <div className="mb-8">
           <div className="flex items-center gap-3 mb-1">
-            <h1 className="text-3xl font-bold tracking-tight">Seller Score</h1>
+            <h1 className="text-3xl font-bold tracking-tight">Verkäufer-Score</h1>
             <span
               className="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider"
-              style={{ background: "oklch(0.78 0.14 85 / 0.15)", color: "oklch(0.78 0.14 85)" }}
+              style={{
+                background: `color-mix(in oklch, ${COLORS.gold} 15%, transparent)`,
+                color: COLORS.gold,
+              }}
             >
-              Performance
+              Leistung
             </span>
           </div>
           <p className="text-sm text-muted-foreground">
-            Your performance score based on shipping, satisfaction, returns, content, and response time. Higher score = lower commission.
+            Dein Leistungs-Score basierend auf Lieferung, Qualität, Service, Preis, Bewertungen und Retouren. Höherer Score = niedrigere Provision.
           </p>
         </div>
 
-        {/* ─── SCORE RING + SUMMARY ───────────────── */}
-        <div className="seller-card p-8 mb-6">
-          <div className="flex flex-col md:flex-row items-center gap-8">
-            {/* Ring */}
-            <ScoreRing score={overallScore} size={200} strokeWidth={14} />
+        {/* ─── 1. OVERALL SCORE (RadialBarChart) ── */}
+        <OverallScoreSection />
 
-            {/* Summary stats */}
-            <div className="flex-1 w-full">
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-                {/* Monthly change */}
-                <div className="text-center p-4 rounded-xl" style={{ background: "oklch(0.15 0.02 260 / 0.5)" }}>
-                  <div className="flex items-center justify-center gap-1 mb-1">
-                    {scoreDelta >= 0 ? (
-                      <TrendingUp className="w-4 h-4" style={{ color: "oklch(0.72 0.19 145)" }} />
-                    ) : (
-                      <TrendingDown className="w-4 h-4" style={{ color: "oklch(0.7 0.18 55)" }} />
-                    )}
-                    <span
-                      className="text-lg font-bold"
-                      style={{ color: scoreDelta >= 0 ? "oklch(0.72 0.19 145)" : "oklch(0.7 0.18 55)" }}
-                    >
-                      {scoreDelta >= 0 ? "+" : ""}{scoreDelta}
-                    </span>
-                  </div>
-                  <span className="text-[11px] text-muted-foreground">vs. Last Month</span>
-                </div>
-
-                {/* Best category */}
-                <div className="text-center p-4 rounded-xl" style={{ background: "oklch(0.15 0.02 260 / 0.5)" }}>
-                  <div className="flex items-center justify-center gap-1 mb-1">
-                    <Award className="w-4 h-4" style={{ color: "oklch(0.78 0.14 85)" }} />
-                    <span className="text-lg font-bold" style={{ color: "oklch(0.78 0.14 85)" }}>90</span>
-                  </div>
-                  <span className="text-[11px] text-muted-foreground">Best: Return Rate</span>
-                </div>
-
-                {/* Focus area */}
-                <div className="text-center p-4 rounded-xl col-span-2 sm:col-span-1" style={{ background: "oklch(0.15 0.02 260 / 0.5)" }}>
-                  <div className="flex items-center justify-center gap-1 mb-1">
-                    <Target className="w-4 h-4" style={{ color: "oklch(0.7 0.18 55)" }} />
-                    <span className="text-lg font-bold" style={{ color: "oklch(0.7 0.18 55)" }}>65</span>
-                  </div>
-                  <span className="text-[11px] text-muted-foreground">Focus: Content</span>
-                </div>
-              </div>
-
-              {/* Commission info */}
-              <div
-                className="mt-4 p-3 rounded-xl flex items-center gap-3"
-                style={{
-                  background: "oklch(0.78 0.14 85 / 0.08)",
-                  border: "1px solid oklch(0.78 0.14 85 / 0.15)",
-                }}
-              >
-                <Sparkles className="w-4 h-4 flex-shrink-0" style={{ color: "oklch(0.78 0.14 85)" }} />
-                <p className="text-xs" style={{ color: "oklch(0.78 0.14 85)" }}>
-                  <span className="font-semibold">Score 80+</span> to unlock Gold Seller benefits: 2% lower commission, priority placement, and a Gold badge on your shop.
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* ─── CATEGORY BREAKDOWN ─────────────────── */}
-        <div className="mb-6">
-          <h2 className="text-lg font-bold mb-4 flex items-center gap-2">
-            <ChevronRight className="w-5 h-5" style={{ color: "oklch(0.65 0.15 250)" }} />
-            Category Breakdown
-          </h2>
-          <div className="space-y-3">
-            {categories.map((cat, index) => (
-              <CategoryBar key={cat.label} category={cat} index={index} />
-            ))}
-          </div>
-        </div>
-
-        {/* ─── HISTORY + COMPARISON GRID ──────────── */}
+        {/* ─── 2. RADAR + 3. LINE CHART GRID ────── */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-          <ScoreHistoryChart data={scoreHistory} />
-          <ComparisonSection categories={categories} />
+          <ScoreBreakdownRadar />
+          <ScoreHistoryLine />
         </div>
 
-        {/* ─── TIPS SECTION ───────────────────────── */}
-        <TipsSection categories={categories} />
+        {/* ─── 4. INDIVIDUAL METRIC CARDS (6) ───── */}
+        <MetricCards />
+
+        {/* ─── 5. MONTHLY PERFORMANCE (BarChart) ── */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+          <MonthlyPerformanceBars />
+          <PenaltiesSection />
+        </div>
+
+        {/* ─── 7. TIPS TO IMPROVE ────────────────── */}
+        <div className="mb-6">
+          <ImprovementTips />
+        </div>
+
+        {/* ─── 8. BADGE STATUS ───────────────────── */}
+        <BadgeStatus />
 
       </div>
     </div>

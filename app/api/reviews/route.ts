@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
-import { withRateLimit, RateLimitPresets } from '@/lib/rate-limit'
+import { rateLimitMiddleware, API_LIMITS } from '@/lib/rate-limit'
 
 // GET - Fetch reviews for a product (no rate limit for reading)
 async function getReviewsHandler(req: NextRequest) {
@@ -145,4 +145,8 @@ async function createReviewHandler(req: NextRequest) {
 }
 
 // Apply rate limiting: 10 requests per minute for creating reviews
-export const POST = withRateLimit(createReviewHandler, RateLimitPresets.standard)
+export async function POST(req: NextRequest) {
+  const limited = rateLimitMiddleware(req, API_LIMITS.auth)
+  if (limited) return limited
+  return createReviewHandler(req)
+}

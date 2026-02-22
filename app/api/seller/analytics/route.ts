@@ -1,18 +1,49 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { supabase } from '@/lib/supabase'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/app/api/auth/[...nextauth]/route'
+import { supabaseAdmin } from '@/lib/supabase-admin'
+import {
+  getSellerRevenue,
+  getDailyRevenue,
+  getTopProductsByRevenue,
+  getTodayMetrics,
+  getOrderStatusBreakdown,
+  getPeriodComparison,
+} from '@/lib/financial-engine'
 
+/**
+ * GET /api/seller/analytics
+ *
+ * Enhanced analytics endpoint using the Real Financial Engine.
+ * All revenue/sales data from actual database aggregation.
+ * NO hardcoded values.
+ *
+ * Query params:
+ *   - period: '7' | '30' | '90' (days, default 7)
+ */
 export async function GET(request: NextRequest) {
   try {
-    const userId = request.headers.get('x-user-id')
+    // Support both auth methods: NextAuth session and x-user-id header
+    let userId: string | null = null
+
+    const session = await getServerSession(authOptions)
+    if (session?.user?.id) {
+      userId = session.user.id
+    } else {
+      userId = request.headers.get('x-user-id')
+    }
 
     if (!userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Get seller info
-    const { data: seller } = await supabase
+    const { searchParams } = new URL(request.url)
+    const period = parseInt(searchParams.get('period') || '7')
+
+    // Get seller info with commission rate
+    const { data: seller } = await supabaseAdmin
       .from('sellers')
-      .select('id')
+      .select('id, commission_rate')
       .eq('user_id', userId)
       .single()
 
@@ -21,118 +52,154 @@ export async function GET(request: NextRequest) {
     }
 
     const sellerId = seller.id
+    const commissionRate = parseFloat(seller.commission_rate || '15')
 
-    // Fetch all analytics data in parallel
+    // Date range
+    const endDate = new Date().toISOString()
+    const startDate = new Date()
+    startDate.setDate(startDate.getDate() - period)
+
+    // Fetch all analytics data in parallel from real sources
     const [
-      { count: totalProducts },
-      { count: activeProducts },
-      { count: pendingProducts },
-      { data: products },
-      { count: totalOutfits },
-      { data: orderItems },
-      { data: recentOrders },
+      productCounts,
+      activeCounts,
+      pendingCounts,
+      products,
+      outfitCounts,
+      revenueData,
+      dailyStats,
+      topProducts,
+      todayMetrics,
+      orderStatus,
+      periodComparison,
+      recentOrdersResult,
     ] = await Promise.all([
-      supabase.from('products').select('*', { count: 'exact', head: true }).eq('seller_id', sellerId),
-      supabase.from('products').select('*', { count: 'exact', head: true }).eq('seller_id', sellerId).eq('moderation_status', 'approved'),
-      supabase.from('products').select('*', { count: 'exact', head: true }).eq('seller_id', sellerId).eq('moderation_status', 'pending'),
-      supabase.from('products').select('id, title, stock_quantity, price').eq('seller_id', sellerId),
-      supabase.from('outfits').select('*', { count: 'exact', head: true }).eq('seller_id', sellerId),
-      supabase
-        .from('order_items')
-        .select('product_id, quantity, price, product:products!inner(seller_id), order:orders!inner(payment_status, created_at, total_amount)')
-        .eq('product.seller_id', sellerId),
-      supabase
-        .from('order_items')
+      // Product counts
+      supabaseAdmin
+        .from('products')
+        .select('*', { count: 'exact', head: true })
+        .eq('seller_id', sellerId),
+      supabaseAdmin
+        .from('products')
+        .select('*', { count: 'exact', head: true })
+        .eq('seller_id', sellerId)
+        .eq('moderation_status', 'approved'),
+      supabaseAdmin
+        .from('products')
+        .select('*', { count: 'exact', head: true })
+        .eq('seller_id', sellerId)
+        .eq('moderation_status', 'pending'),
+      // All products (for low stock)
+      supabaseAdmin
+        .from('products')
+        .select('id, title, stock_quantity, price, low_stock_threshold, sku, images')
+        .eq('seller_id', sellerId),
+      // Outfit count
+      supabaseAdmin
+        .from('outfits')
+        .select('*', { count: 'exact', head: true })
+        .eq('seller_id', sellerId),
+      // Real revenue from financial engine
+      getSellerRevenue(sellerId, startDate.toISOString(), endDate),
+      // Daily breakdown from financial engine
+      getDailyRevenue(sellerId, period, commissionRate),
+      // Top products from financial engine (real order_items aggregation)
+      getTopProductsByRevenue(sellerId, 5, startDate.toISOString(), endDate),
+      // Today's metrics from financial engine
+      getTodayMetrics(sellerId, commissionRate),
+      // Order status breakdown
+      getOrderStatusBreakdown(sellerId),
+      // Period comparison
+      getPeriodComparison(sellerId, period),
+      // Recent orders (raw, for display)
+      supabaseAdmin
+        .from('orders')
         .select(`
-          *,
-          product:products!inner(id, title, images, seller_id),
-          order:orders!inner(id, created_at, payment_status, total_amount, user:users(email, name))
+          id, total_amount, status, payment_status, created_at,
+          platform_fee, seller_earnings, tax_amount,
+          users(email, full_name, name)
         `)
-        .eq('product.seller_id', sellerId)
+        .eq('seller_id', sellerId)
         .order('created_at', { ascending: false })
         .limit(10),
     ])
 
-    // Calculate revenue from ALL orders (paid and pending)
-    const totalRevenue = (orderItems || [])
-      .reduce((sum: number, item: any) => sum + (item.price * item.quantity), 0)
-
-    const totalSales = (orderItems || [])
-      .reduce((sum: number, item: any) => sum + item.quantity, 0)
-
-    // Calculate daily revenue for last 7 days
-    const last7Days = Array.from({ length: 7 }, (_, i) => {
-      const date = new Date()
-      date.setDate(date.getDate() - (6 - i))
-      return date.toISOString().split('T')[0]
-    })
-
-    const dailyStats = last7Days.map(date => {
-      const dayItems = (orderItems || []).filter((item: any) =>
-        item.order?.created_at?.startsWith(date)
-      )
-      const dayRevenue = dayItems.reduce((sum: number, item: any) => sum + (item.price * item.quantity), 0)
-      const daySales = dayItems.reduce((sum: number, item: any) => sum + item.quantity, 0)
-
-      return {
-        date: new Date(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-        revenue: Math.round(dayRevenue),
-        sales: daySales,
-      }
-    })
-
-    // Top selling products (from ALL orders)
-    const productSales = new Map<string, { id: string; title: string; quantity: number; revenue: number }>()
-
-    ;(orderItems || [])
-      .forEach((item: any) => {
-        const productId = item.product_id
-        const product = products?.find((p: any) => p.id === productId)
-
-        if (product) {
-          if (productSales.has(productId)) {
-            const existing = productSales.get(productId)!
-            existing.quantity += item.quantity
-            existing.revenue += item.price * item.quantity
-          } else {
-            productSales.set(productId, {
-              id: productId,
-              title: product.title,
-              quantity: item.quantity,
-              revenue: item.price * item.quantity,
-            })
-          }
-        }
+    // Low stock products (using real threshold from DB)
+    const lowStockProducts = (products.data || [])
+      .filter((p: any) => {
+        const threshold = p.low_stock_threshold || 5
+        return p.stock_quantity <= threshold
       })
-
-    const topProducts = Array.from(productSales.values())
-      .sort((a, b) => b.quantity - a.quantity)
-      .slice(0, 5)
-
-    // Low stock products
-    const lowStockProducts = (products || [])
-      .filter((p: any) => p.stock_quantity < 5)
       .sort((a: any, b: any) => a.stock_quantity - b.stock_quantity)
       .slice(0, 5)
+      .map((p: any) => ({
+        id: p.id,
+        title: p.title,
+        stock_quantity: p.stock_quantity,
+        low_stock_threshold: p.low_stock_threshold || 5,
+        price: p.price,
+        sku: p.sku,
+        image: p.images?.[0] || null,
+      }))
+
+    // Format daily stats for chart display
+    const formattedDailyStats = dailyStats.map(d => ({
+      date: new Date(d.date).toLocaleDateString('de-DE', { month: 'short', day: 'numeric' }),
+      fullDate: d.date,
+      revenue: d.revenue,
+      orders: d.orders,
+      platformFees: d.platformFees,
+      sellerEarnings: d.sellerEarnings,
+    }))
+
+    // Format recent orders
+    const formattedRecentOrders = (recentOrdersResult.data || []).map((order: any) => ({
+      id: order.id,
+      totalAmount: parseFloat(order.total_amount || '0'),
+      platformFee: parseFloat(order.platform_fee || '0'),
+      sellerEarnings: parseFloat(order.seller_earnings || '0'),
+      taxAmount: parseFloat(order.tax_amount || '0'),
+      status: order.status,
+      paymentStatus: order.payment_status,
+      createdAt: order.created_at,
+      customerName: order.users?.full_name || order.users?.name || order.users?.email || 'Unbekannt',
+    }))
 
     const analytics = {
       summary: {
-        totalProducts: totalProducts || 0,
-        activeProducts: activeProducts || 0,
-        pendingProducts: pendingProducts || 0,
-        totalOutfits: totalOutfits || 0,
-        totalRevenue: Math.round(totalRevenue * 100) / 100,
-        totalSales: totalSales || 0,
+        totalProducts: productCounts.count || 0,
+        activeProducts: activeCounts.count || 0,
+        pendingProducts: pendingCounts.count || 0,
+        totalOutfits: outfitCounts.count || 0,
+        // Real financial data from DB aggregation
+        totalRevenue: revenueData.revenue,
+        totalOrders: revenueData.orderCount,
+        averageOrderValue: revenueData.orderCount > 0
+          ? Math.round((revenueData.revenue / revenueData.orderCount) * 100) / 100
+          : 0,
+        commissionRate,
       },
-      dailyStats,
+      today: todayMetrics,
+      dailyStats: formattedDailyStats,
       topProducts,
       lowStockProducts,
-      recentOrders: recentOrders || [],
+      recentOrders: formattedRecentOrders,
+      orderStatus,
+      periodComparison,
+      meta: {
+        period,
+        startDate: startDate.toISOString(),
+        endDate,
+        generatedAt: new Date().toISOString(),
+      },
     }
 
     return NextResponse.json({ analytics })
-  } catch (error) {
+  } catch (error: any) {
     console.error('Seller analytics error:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    return NextResponse.json(
+      { error: 'Internal server error', details: error?.message },
+      { status: 500 }
+    )
   }
 }

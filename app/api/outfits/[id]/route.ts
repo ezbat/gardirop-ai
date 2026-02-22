@@ -68,32 +68,26 @@ export async function GET(
       isActive: outfit.is_active,
       createdAt: outfit.created_at,
       items: outfit.outfit_items
-        .sort((a: any, b: any) => a.display_order - b.display_order)
-        .map((item: any) => {
-          const product = Array.isArray(item.products) ? item.products[0] : item.products
-          return {
-            productId: product?.id,
-            title: product?.title,
-            description: product?.description,
-            price: product?.price,
-            originalPrice: product?.original_price,
-            images: product?.images || [],
-            category: product?.category,
-            brand: product?.brand,
-            stockQuantity: product?.stock_quantity,
-            sizes: product?.sizes || [],
-            isRequired: item.is_required
-          }
-        }),
+        .sort((a, b) => a.display_order - b.display_order)
+        .map((item: any) => ({
+          productId: item.products.id,
+          title: item.products.title,
+          description: item.products.description,
+          price: item.products.price,
+          originalPrice: item.products.original_price,
+          images: item.products.images || [],
+          category: item.products.category,
+          brand: item.products.brand,
+          stockQuantity: item.products.stock_quantity,
+          sizes: item.products.sizes || [],
+          isRequired: item.is_required
+        })),
       seller: {
-        id: (Array.isArray(outfit.sellers) ? outfit.sellers[0] : outfit.sellers)?.id,
-        shopName: (Array.isArray(outfit.sellers) ? outfit.sellers[0] : outfit.sellers)?.shop_name,
-        logoUrl: (Array.isArray(outfit.sellers) ? outfit.sellers[0] : outfit.sellers)?.logo_url
+        id: (outfit.sellers as any)?.id,
+        shopName: (outfit.sellers as any)?.shop_name,
+        logoUrl: (outfit.sellers as any)?.logo_url
       },
-      totalPrice: outfit.outfit_items.reduce((sum: number, item: any) => {
-        const product = Array.isArray(item.products) ? item.products[0] : item.products
-        return sum + (product?.price || 0)
-      }, 0)
+      totalPrice: outfit.outfit_items.reduce((sum: number, item: any) => sum + (item.products.price || 0), 0)
     }
 
     return NextResponse.json({ outfit: formattedOutfit })

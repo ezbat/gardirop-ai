@@ -214,9 +214,14 @@ ALTER TABLE reviews ENABLE ROW LEVEL SECURITY;
 
 -- Service role bypass (for API routes using supabaseAdmin)
 -- These policies allow the service role full access
-CREATE POLICY IF NOT EXISTS "Service role full access" ON campaigns FOR ALL USING (true);
-CREATE POLICY IF NOT EXISTS "Service role full access" ON campaign_products FOR ALL USING (true);
-CREATE POLICY IF NOT EXISTS "Service role full access" ON ad_spend FOR ALL USING (true);
-CREATE POLICY IF NOT EXISTS "Service role full access" ON inventory_movements FOR ALL USING (true);
-CREATE POLICY IF NOT EXISTS "Service role full access" ON tax_reports FOR ALL USING (true);
-CREATE POLICY IF NOT EXISTS "Service role full access" ON reviews FOR ALL USING (true);
+-- DROP + CREATE to avoid "already exists" errors on re-run
+DO $$
+DECLARE
+  tbl TEXT;
+BEGIN
+  FOR tbl IN SELECT unnest(ARRAY['campaigns', 'campaign_products', 'ad_spend', 'inventory_movements', 'tax_reports', 'reviews'])
+  LOOP
+    EXECUTE format('DROP POLICY IF EXISTS "Service role full access" ON %I', tbl);
+    EXECUTE format('CREATE POLICY "Service role full access" ON %I FOR ALL USING (true)', tbl);
+  END LOOP;
+END $$;

@@ -88,8 +88,8 @@ export default function UserProfilePage() {
       if (error) throw error
       if (viewerId) {
         const postsWithStatus = await Promise.all((postsData || []).map(async (post) => {
-          const { data: likeData } = await supabase.from('likes').select('id').eq('post_id', post.id).eq('user_id', viewerId).single()
-          const { data: bookmarkData } = await supabase.from('bookmarks').select('id').eq('post_id', post.id).eq('user_id', viewerId).single()
+          const { data: likeData } = await supabase.from('likes').select('id').eq('post_id', post.id).eq('user_id', viewerId).maybeSingle()
+          const { data: bookmarkData } = await supabase.from('bookmarks').select('id').eq('post_id', post.id).eq('user_id', viewerId).maybeSingle()
           return { ...post, liked_by_user: !!likeData, bookmarked_by_user: !!bookmarkData }
         }))
         setUserPosts(postsWithStatus)

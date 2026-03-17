@@ -2,12 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/app/api/auth/[...nextauth]/route'
 import { supabaseAdmin } from '@/lib/supabase-admin'
-import Stripe from 'stripe'
+import type Stripe from 'stripe'
+import { stripe } from '@/lib/stripe'
 import { MWST_STANDARD, MWST_ERMAESSIGT } from '@/lib/tax-invoice'
-
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: '2025-12-15.clover',
-})
 
 /**
  * POST /api/checkout

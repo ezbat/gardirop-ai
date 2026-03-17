@@ -4,41 +4,50 @@ import { useEffect, useState } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import Link from 'next/link'
 
+/**
+ * Admin layout.
+ *
+ * Design tokens (hardcoded, no CSS vars):
+ *   page bg     #0B0D14
+ *   surface     #111520
+ *   elevated    #1A1E2E
+ *   border      #252A3C
+ *   border-l    #1E2235
+ *   text-1      #F0F2F8
+ *   text-2      #8B92A8
+ *   text-3      #515A72
+ *   accent      indigo-500 / #6366F1
+ */
+
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
-  const router = useRouter()
+  const router   = useRouter()
   const pathname = usePathname()
-  const [isAdmin, setIsAdmin] = useState(false)
-  const [loading, setLoading] = useState(true)
+  const [isAdmin,  setIsAdmin]  = useState(false)
+  const [loading,  setLoading]  = useState(true)
 
   useEffect(() => {
-    // Skip auth check for login page
     if (pathname === '/admin/login') {
       setLoading(false)
       setIsAdmin(true)
       return
     }
-
     checkAdminAccess()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pathname])
 
   const checkAdminAccess = async () => {
     try {
-      // Check for admin token in localStorage
       const adminToken = localStorage.getItem('admin_token')
-      const adminUser = localStorage.getItem('admin_user')
+      const adminUser  = localStorage.getItem('admin_user')
 
       if (!adminToken || !adminUser) {
         router.push('/admin/login')
         return
       }
 
-      // Verify token
       try {
         const tokenData = JSON.parse(atob(adminToken))
-        const tokenAge = Date.now() - tokenData.timestamp
-
-        // Token expires after 24 hours
-        if (tokenAge > 24 * 60 * 60 * 1000) {
+        if (Date.now() - tokenData.timestamp > 24 * 60 * 60 * 1000) {
           localStorage.removeItem('admin_token')
           localStorage.removeItem('admin_user')
           alert('Session expired. Please login again.')
@@ -52,14 +61,14 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         }
 
         setIsAdmin(true)
-      } catch (error) {
-        console.error('Invalid token:', error)
+      } catch (err) {
+        console.error('Invalid token:', err)
         localStorage.removeItem('admin_token')
         localStorage.removeItem('admin_user')
         router.push('/admin/login')
       }
-    } catch (error) {
-      console.error('Admin check error:', error)
+    } catch (err) {
+      console.error('Admin check error:', err)
       router.push('/admin/login')
     } finally {
       setLoading(false)
@@ -72,113 +81,116 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     router.push('/admin/login')
   }
 
+  // ── Loading ──────────────────────────────────────────────────────────────
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+      <div className="min-h-screen flex items-center justify-center" style={{ background: '#0B0D14' }}>
+        <div
+          className="h-9 w-9 rounded-full animate-spin"
+          style={{ border: '2px solid #252A3C', borderTopColor: '#6366F1' }}
+        />
       </div>
     )
   }
 
-  if (!isAdmin) {
-    return null
-  }
+  if (!isAdmin) return null
+
+  // ── Nav links ────────────────────────────────────────────────────────────
+  const navLinks = [
+    { href: '/admin/dashboard',   label: 'Dashboard'   },
+    { href: '/admin/features',    label: '⭐ Features', accent: true },
+    { href: '/admin/sellers',     label: 'Sellers'     },
+    { href: '/admin/products',    label: 'Products'    },
+    { href: '/admin/outfits',     label: 'Outfits'     },
+    { href: '/admin/users',       label: 'Users'       },
+    { href: '/admin/support',     label: 'Support'     },
+    { href: '/admin/finances',    label: 'Finances'    },
+    { href: '/admin/payouts',     label: 'Payouts'     },
+    { href: '/admin/withdrawals', label: 'Withdrawals' },
+    { href: '/admin/requests',    label: 'Requests'    },
+  ]
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-      {/* Admin Navigation */}
-      <nav className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
+    <div className="min-h-screen" style={{ background: '#0B0D14' }}>
+
+      {/* ── Navigation bar ─────────────────────────────────────────── */}
+      <nav
+        className="sticky top-0 z-30"
+        style={{ background: '#111520', borderBottom: '1px solid #1E2235' }}
+      >
         <div className="container mx-auto px-4">
-          <div className="flex items-center justify-between h-16">
-            <div className="flex items-center space-x-8">
-              <Link href="/admin/dashboard" className="text-xl font-bold text-primary">
-                Admin Panel
+          <div className="flex items-center justify-between h-[52px]">
+
+            {/* Left: brand + links */}
+            <div className="flex items-center gap-[20px]">
+              <Link
+                href="/admin/dashboard"
+                className="flex-shrink-0 text-[14px] font-extrabold tracking-tight
+                  focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 rounded-sm"
+                style={{ color: '#818CF8' }}
+              >
+                ⚡ Admin
               </Link>
-              <div className="hidden md:flex space-x-4">
-                <Link
-                  href="/admin/dashboard"
-                  className="px-3 py-2 rounded-md text-sm font-medium hover:bg-gray-100 dark:hover:bg-gray-700"
-                >
-                  Dashboard
-                </Link>
-                <Link
-                  href="/admin/features"
-                  className="px-3 py-2 rounded-md text-sm font-medium bg-primary text-primary-foreground hover:opacity-90"
-                >
-                  Features ⭐
-                </Link>
-                <Link
-                  href="/admin/sellers"
-                  className="px-3 py-2 rounded-md text-sm font-medium hover:bg-gray-100 dark:hover:bg-gray-700"
-                >
-                  Sellers
-                </Link>
-                <Link
-                  href="/admin/products"
-                  className="px-3 py-2 rounded-md text-sm font-medium hover:bg-gray-100 dark:hover:bg-gray-700"
-                >
-                  Products
-                </Link>
-                <Link
-                  href="/admin/outfits"
-                  className="px-3 py-2 rounded-md text-sm font-medium hover:bg-gray-100 dark:hover:bg-gray-700"
-                >
-                  Outfits
-                </Link>
-                <Link
-                  href="/admin/users"
-                  className="px-3 py-2 rounded-md text-sm font-medium hover:bg-gray-100 dark:hover:bg-gray-700"
-                >
-                  Users
-                </Link>
-                <Link
-                  href="/admin/support"
-                  className="px-3 py-2 rounded-md text-sm font-medium hover:bg-gray-100 dark:hover:bg-gray-700"
-                >
-                  Support
-                </Link>
-                <Link
-                  href="/admin/finances"
-                  className="px-3 py-2 rounded-md text-sm font-medium hover:bg-gray-100 dark:hover:bg-gray-700"
-                >
-                  Finances
-                </Link>
-                <Link
-                  href="/admin/withdrawals"
-                  className="px-3 py-2 rounded-md text-sm font-medium hover:bg-gray-100 dark:hover:bg-gray-700"
-                >
-                  Withdrawals
-                </Link>
-                <Link
-                  href="/admin/requests"
-                  className="px-3 py-2 rounded-md text-sm font-medium hover:bg-gray-100 dark:hover:bg-gray-700"
-                >
-                  Requests
-                </Link>
+
+              {/* Desktop nav */}
+              <div className="hidden md:flex items-center gap-[2px]">
+                {navLinks.map(({ href, label, accent }) => {
+                  const active = pathname === href || pathname.startsWith(href + '/')
+                  return (
+                    <Link
+                      key={href}
+                      href={href}
+                      className={[
+                        'px-[9px] py-[5px] rounded-[6px] text-[11px] font-medium whitespace-nowrap',
+                        'transition-colors duration-100',
+                        'focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500',
+                        accent
+                          ? active
+                            ? 'bg-indigo-600 text-white'
+                            : 'bg-indigo-600/20 text-indigo-300 hover:bg-indigo-600/35 hover:text-indigo-100'
+                          : active
+                          ? 'bg-[#1A1E2E] text-[#F0F2F8]'
+                          : 'text-[#8B92A8] hover:text-[#F0F2F8] hover:bg-[#1A1E2E]',
+                      ].join(' ')}
+                    >
+                      {label}
+                    </Link>
+                  )
+                })}
               </div>
             </div>
-            <div className="flex items-center gap-2">
+
+            {/* Right: back + logout */}
+            <div className="flex items-center gap-[6px]">
               <Link
                 href="/"
-                className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-primary"
+                className="px-[9px] py-[5px] rounded-[6px] text-[11px] font-medium
+                  text-[#8B92A8] hover:text-[#F0F2F8] hover:bg-[#1A1E2E] transition-colors
+                  focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
               >
-                Back to Site
+                ← Site
               </Link>
               {pathname !== '/admin/login' && (
                 <button
                   onClick={handleLogout}
-                  className="px-4 py-2 text-sm font-medium bg-red-600 text-white rounded-md hover:bg-red-700"
+                  className="px-[9px] py-[5px] rounded-[6px] text-[11px] font-semibold
+                    bg-red-700 hover:bg-red-600 active:bg-red-800 text-white transition-colors
+                    focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500"
                 >
                   Logout
                 </button>
               )}
             </div>
+
           </div>
         </div>
       </nav>
 
-      {/* Main Content */}
-      <main className="container mx-auto px-4 py-8">{children}</main>
+      {/* ── Page content ───────────────────────────────────────────── */}
+      <main className="container mx-auto px-4 py-8">
+        {children}
+      </main>
+
     </div>
   )
 }

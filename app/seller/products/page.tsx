@@ -245,7 +245,7 @@ export default function SellerProductsPage() {
 
                     <div className="flex items-center gap-2">
                       <Link
-                        href={`/store/${product.id}`}
+                        href={`/products/${product.id}`}
                         className="flex-1 px-4 py-2 border border-border rounded-xl hover:bg-primary/5 transition-colors flex items-center justify-center gap-2"
                       >
                         <Eye className="w-4 h-4" />

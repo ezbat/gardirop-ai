@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import Stripe from 'stripe'
+import { stripe } from '@/lib/stripe'
 import { supabaseAdmin } from '@/lib/supabase-admin'
-
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!)
 
 export async function GET(request: NextRequest) {
   try {

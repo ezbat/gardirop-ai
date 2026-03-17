@@ -3,10 +3,14 @@
 import { useState, useEffect } from "react"
 import { useSession, signOut } from "next-auth/react"
 import { useRouter } from "next/navigation"
-import { motion, AnimatePresence } from "framer-motion"
-import { Heart, MessageCircle, Grid3x3, Bookmark, Menu, Settings, Bell, LogOut, Share2, Instagram, Shirt, X, ChevronRight, BarChart3, Lock, Users, Ban, MessageSquare, Activity, Clock, Archive, Star, Image, UserPlus, TrendingUp, Store, Package, Languages, Check, Globe } from "lucide-react"
+import { AnimatePresence } from "framer-motion"
+import {
+  Heart, MessageCircle, Grid3x3, Bookmark, Menu, Settings, Bell, LogOut,
+  Share2, Instagram, Shirt, X, ChevronRight, BarChart3, Lock, Users, Ban,
+  MessageSquare, Activity, Clock, Archive, Star, Image, UserPlus, TrendingUp,
+  Store, Package, Languages, Check, Globe,
+} from "lucide-react"
 import Link from "next/link"
-import FloatingParticles from "@/components/floating-particles"
 import PostDetailModal from "@/components/post-detail-modal"
 import { supabase } from "@/lib/supabase"
 import { useLanguage } from "@/lib/language-context"
@@ -86,16 +90,10 @@ export default function ProfilePage() {
   const checkSellerStatus = async () => {
     if (!userId) return
     try {
-      const response = await fetch('/api/seller/status', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId })
-      })
+      const response = await fetch('/api/seller/status', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ userId }) })
       const data = await response.json()
       setIsSeller(data.isSeller)
-    } catch (error) {
-      setIsSeller(false)
-    }
+    } catch { setIsSeller(false) }
   }
 
   const loadUserProfile = async () => {
@@ -104,9 +102,7 @@ export default function ProfilePage() {
       const { data, error } = await supabase.from('users').select('id, name, email, avatar_url, username, bio, instagram, style').eq('id', userId).single()
       if (error) throw error
       setUserProfile(data)
-    } catch (error) {
-      console.error('Load profile error:', error)
-    }
+    } catch (error) { console.error('Load profile error:', error) }
   }
 
   const loadUserPosts = async () => {
@@ -115,14 +111,12 @@ export default function ProfilePage() {
       const { data: postsData, error } = await supabase.from('posts').select('*').eq('user_id', userId).order('created_at', { ascending: false })
       if (error) throw error
       const postsWithStatus = await Promise.all((postsData || []).map(async (post) => {
-        const { data: likeData } = await supabase.from('likes').select('id').eq('post_id', post.id).eq('user_id', userId).single()
-        const { data: bookmarkData } = await supabase.from('bookmarks').select('id').eq('post_id', post.id).eq('user_id', userId).single()
+        const { data: likeData } = await supabase.from('likes').select('id').eq('post_id', post.id).eq('user_id', userId).maybeSingle()
+        const { data: bookmarkData } = await supabase.from('bookmarks').select('id').eq('post_id', post.id).eq('user_id', userId).maybeSingle()
         return { ...post, liked_by_user: !!likeData, bookmarked_by_user: !!bookmarkData }
       }))
       setUserPosts(postsWithStatus)
-    } catch (error) {
-      console.error('Load posts error:', error)
-    }
+    } catch (error) { console.error('Load posts error:', error) }
   }
 
   const loadSavedOutfits = async () => {
@@ -139,11 +133,8 @@ export default function ProfilePage() {
         return { ...outfit, clothes: [] }
       }))
       setSavedOutfits(outfitsWithClothes)
-    } catch (error) {
-      console.error('Error:', error)
-    } finally {
-      setLoading(false)
-    }
+    } catch (error) { console.error('Error:', error) }
+    finally { setLoading(false) }
   }
 
   const loadStats = async () => {
@@ -154,9 +145,7 @@ export default function ProfilePage() {
       const { data: postsData } = await supabase.from('posts').select('id, likes_count').eq('user_id', userId)
       const totalLikes = (postsData || []).reduce((sum, p) => sum + (p.likes_count || 0), 0)
       setStats({ posts: postsData?.length || 0, followers: followersData?.length || 0, following: followingData?.length || 0, totalLikes })
-    } catch (error) {
-      console.error('Load stats error:', error)
-    }
+    } catch (error) { console.error('Load stats error:', error) }
   }
 
   const loadPendingRequests = async () => {
@@ -165,16 +154,10 @@ export default function ProfilePage() {
       const { data, error } = await supabase.from('follow_requests').select('id').eq('requested_id', userId).eq('status', 'pending')
       if (error) throw error
       setPendingRequestsCount(data?.length || 0)
-    } catch (error) {
-      console.error('Load pending requests error:', error)
-    }
+    } catch (error) { console.error('Load pending requests error:', error) }
   }
 
-  const handlePostClick = (post: Post) => {
-    setSelectedPost(post)
-    setIsModalOpen(true)
-  }
-
+  const handlePostClick = (post: Post) => { setSelectedPost(post); setIsModalOpen(true) }
   const handleLikeToggle = (postId: string, liked: boolean) => {
     setUserPosts(prev => prev.map(post => post.id === postId ? { ...post, likes_count: liked ? post.likes_count + 1 : post.likes_count - 1, liked_by_user: liked } : post))
     loadStats()
@@ -187,20 +170,14 @@ export default function ProfilePage() {
       setUserPosts(prev => prev.filter(p => p.id !== postId))
       setIsModalOpen(false)
       loadStats()
-    } catch (error) {
-      console.error('Delete post error:', error)
-      alert('Silme başarısız!')
-    }
+    } catch (error) { console.error('Delete post error:', error); alert('Silme başarısız!') }
   }
 
   const handleShare = async () => {
     const profileUrl = `${window.location.origin}/profile/${userId}`
     if (navigator.share) {
-      try {
-        await navigator.share({ title: `${userProfile?.name}'in Profili`, text: `${userProfile?.name} - Gardırop AI`, url: profileUrl })
-      } catch (error) {
-        console.log('Share cancelled')
-      }
+      try { await navigator.share({ title: `${userProfile?.name}'in Profili`, url: profileUrl }) }
+      catch { /* cancelled */ }
     } else {
       navigator.clipboard.writeText(profileUrl)
       alert('Profil linki kopyalandı!')
@@ -209,289 +186,386 @@ export default function ProfilePage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <motion.div animate={{ rotate: 360 }} transition={{ duration: 2, repeat: Infinity, ease: "linear" }} className="w-16 h-16 rounded-full border-2 border-primary border-t-transparent" />
+      <div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--lux-bg)' }}>
+        <div className="w-8 h-8 rounded-full border-2 border-t-transparent animate-spin" style={{ borderColor: 'var(--accent-primary)', borderTopColor: 'transparent' }} />
       </div>
     )
   }
 
+  // ── Settings menu item component ───────────────────────
+  const MenuItem = ({ icon: Icon, label, href, badge, extra }: {
+    icon: any; label: string; href: string; badge?: number; extra?: string
+  }) => (
+    <button
+      onClick={() => { router.push(href); setShowMenu(false) }}
+      className="w-full px-[16px] py-[14px] flex items-center justify-between rounded-[12px]"
+      style={{ transition: 'background 200ms' }}
+      onMouseEnter={(e) => (e.currentTarget.style.background = '#1F1F23')}
+      onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+    >
+      <div className="flex items-center gap-[12px]">
+        <Icon className="w-[20px] h-[20px]" style={{ color: 'var(--text-faint)' }} />
+        <span className="text-[14px]" style={{ color: 'var(--text-primary)' }}>{label}</span>
+      </div>
+      <div className="flex items-center gap-[8px]">
+        {badge !== undefined && badge > 0 && (
+          <span className="w-[20px] h-[20px] rounded-full text-[11px] font-bold flex items-center justify-center" style={{ background: '#ef4444', color: 'white' }}>{badge}</span>
+        )}
+        {extra && <span className="text-[13px]" style={{ color: 'var(--text-faint)' }}>{extra}</span>}
+        <ChevronRight className="w-[16px] h-[16px]" style={{ color: 'var(--text-faint)' }} />
+      </div>
+    </button>
+  )
+
   return (
-    <div className="min-h-screen relative overflow-hidden">
-      <FloatingParticles />
-      <section className="relative py-4 px-4">
-        <div className="container mx-auto max-w-4xl">
-          <div className="flex items-center justify-between mb-6">
-            <h1 className="font-bold text-xl">{userProfile?.username || userProfile?.name || 'Profil'}</h1>
-            <button onClick={() => setShowMenu(!showMenu)} className="p-2 hover:bg-secondary rounded-lg transition-colors">
-              <Menu className="w-6 h-6" />
-            </button>
-          </div>
-          <div className="mb-6">
-            <div className="flex items-center gap-6 mb-4">
-              <div className="w-20 h-20 rounded-full overflow-hidden bg-primary ring-2 ring-primary/20">
-                {userProfile?.avatar_url || session?.user?.image ? (<img src={userProfile?.avatar_url || session?.user?.image || ''} alt="Avatar" className="w-full h-full object-cover" />) : (<div className="w-full h-full flex items-center justify-center text-white text-3xl font-bold">{userProfile?.name?.[0]?.toUpperCase() || 'U'}</div>)}
+    <div className="min-h-screen pb-[100px]" style={{ background: 'var(--lux-bg)' }}>
+      <div className="max-w-5xl mx-auto px-[16px] md:px-[48px] pt-[24px] md:pt-[48px]">
+
+        {/* ── Desktop: 2 columns — Left sidebar + Right content ── */}
+        <div className="md:grid md:grid-cols-[280px_1fr] md:gap-[48px]">
+
+          {/* ═══ LEFT COLUMN — Profile Info ═══════════════════ */}
+          <div className="md:sticky md:top-[120px] md:self-start">
+            {/* Header row */}
+            <div className="flex items-center justify-between mb-[24px]">
+              <h1 className="text-[20px] font-semibold" style={{ color: 'var(--text-primary)' }}>
+                {userProfile?.username || userProfile?.name || 'Profil'}
+              </h1>
+              <button
+                onClick={() => setShowMenu(!showMenu)}
+                className="p-[8px] rounded-[10px]"
+                style={{ transition: 'background 200ms' }}
+                onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--lux-layer-2)')}
+                onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+              >
+                <Menu className="w-[20px] h-[20px]" style={{ color: 'var(--text-faint)' }} />
+              </button>
+            </div>
+
+            {/* Avatar */}
+            <div className="flex flex-col items-center md:items-start mb-[24px]">
+              <div
+                className="w-[80px] h-[80px] rounded-full overflow-hidden mb-[16px]"
+                style={{ background: 'var(--accent-primary)', border: '2px solid rgba(99,102,241,0.3)' }}
+              >
+                {userProfile?.avatar_url || session?.user?.image ? (
+                  <img src={userProfile?.avatar_url || session?.user?.image || ''} alt="Avatar" className="w-full h-full object-cover" />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center text-white text-2xl font-bold">
+                    {userProfile?.name?.[0]?.toUpperCase() || 'U'}
+                  </div>
+                )}
               </div>
-              <div className="flex-1 grid grid-cols-3 gap-4 text-center">
-                <div><p className="text-xl font-bold">{stats.posts}</p><p className="text-xs text-muted-foreground">gönderi</p></div>
-                <button onClick={() => router.push('/profile/followers?tab=followers')} className="hover:opacity-70 transition-opacity"><p className="text-xl font-bold">{stats.followers}</p><p className="text-xs text-muted-foreground">takipçi</p></button>
-                <button onClick={() => router.push('/profile/followers?tab=following')} className="hover:opacity-70 transition-opacity"><p className="text-xl font-bold">{stats.following}</p><p className="text-xs text-muted-foreground">takip</p></button>
+              <p className="text-[16px] font-semibold" style={{ color: 'var(--text-primary)' }}>{userProfile?.name}</p>
+              {userProfile?.bio && <p className="text-[14px] mt-[4px]" style={{ color: 'var(--text-secondary)' }}>{userProfile.bio}</p>}
+              {userProfile?.style && (
+                <div className="flex items-center gap-[6px] mt-[8px]">
+                  <Shirt className="w-[14px] h-[14px]" style={{ color: 'var(--accent-primary)' }} />
+                  <span className="text-[13px] font-medium" style={{ color: 'var(--accent-primary)' }}>{userProfile.style}</span>
+                </div>
+              )}
+              {userProfile?.instagram && (
+                <a href={`https://instagram.com/${userProfile.instagram}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-[6px] mt-[6px] text-[13px]" style={{ color: 'var(--text-faint)', transition: 'color 200ms' }}>
+                  <Instagram className="w-[14px] h-[14px]" />@{userProfile.instagram}
+                </a>
+              )}
+            </div>
+
+            {/* Stats row */}
+            <div
+              className="grid grid-cols-3 gap-[12px] text-center p-[16px] rounded-[16px] mb-[20px]"
+              style={{ background: 'var(--lux-layer-1)', border: '1px solid rgba(255,255,255,0.06)' }}
+            >
+              <div>
+                <p className="text-[18px] font-semibold" style={{ color: 'var(--text-primary)' }}>{stats.posts}</p>
+                <p className="text-[11px]" style={{ color: 'var(--text-faint)' }}>Beiträge</p>
               </div>
+              <button onClick={() => router.push('/profile/followers?tab=followers')} style={{ transition: 'opacity 200ms' }} onMouseEnter={(e) => (e.currentTarget.style.opacity = '0.7')} onMouseLeave={(e) => (e.currentTarget.style.opacity = '1')}>
+                <p className="text-[18px] font-semibold" style={{ color: 'var(--text-primary)' }}>{stats.followers}</p>
+                <p className="text-[11px]" style={{ color: 'var(--text-faint)' }}>Follower</p>
+              </button>
+              <button onClick={() => router.push('/profile/followers?tab=following')} style={{ transition: 'opacity 200ms' }} onMouseEnter={(e) => (e.currentTarget.style.opacity = '0.7')} onMouseLeave={(e) => (e.currentTarget.style.opacity = '1')}>
+                <p className="text-[18px] font-semibold" style={{ color: 'var(--text-primary)' }}>{stats.following}</p>
+                <p className="text-[11px]" style={{ color: 'var(--text-faint)' }}>Folge ich</p>
+              </button>
             </div>
-            <div className="mb-4">
-              <p className="font-bold">{userProfile?.name}</p>
-              {userProfile?.bio && (<p className="text-sm mt-1">{userProfile.bio}</p>)}
-              {userProfile?.style && (<div className="flex items-center gap-2 mt-2"><Shirt className="w-4 h-4 text-primary" /><span className="text-sm text-primary font-semibold">{userProfile.style}</span></div>)}
-              {userProfile?.instagram && (<a href={`https://instagram.com/${userProfile.instagram}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-primary transition-colors mt-1"><Instagram className="w-4 h-4" />@{userProfile.instagram}</a>)}
+
+            {/* Action buttons */}
+            <div className="flex gap-[8px] mb-[12px]">
+              <Link
+                href="/profile/edit"
+                className="flex-1 py-[10px] text-center text-[13px] font-medium rounded-[10px]"
+                style={{ background: '#1F1F23', color: 'var(--text-primary)', border: '1px solid rgba(255,255,255,0.08)', transition: 'background 200ms' }}
+              >
+                Profil bearbeiten
+              </Link>
+              <button
+                onClick={handleShare}
+                className="flex-1 py-[10px] text-center text-[13px] font-medium rounded-[10px]"
+                style={{ background: '#1F1F23', color: 'var(--text-primary)', border: '1px solid rgba(255,255,255,0.08)', transition: 'background 200ms' }}
+              >
+                Teilen
+              </button>
             </div>
-            <div className="flex gap-2">
-              <Link href="/profile/edit" className="flex-1 px-4 py-2 glass border border-border rounded-lg font-semibold text-center text-sm hover:bg-secondary transition-colors">Profili düzenle</Link>
-              <button onClick={handleShare} className="flex-1 px-4 py-2 glass border border-border rounded-lg font-semibold text-center text-sm hover:bg-secondary transition-colors">Profili paylaş</button>
-            </div>
-            {/* Siparişlerim butonu - sadece kullanıcı kendi profilinde görür */}
             <button
               onClick={() => router.push('/orders')}
-              className="w-full mt-3 px-4 py-2.5 flex items-center justify-center gap-2 rounded-xl text-sm font-semibold transition-all hover:scale-[1.02]"
+              className="w-full py-[10px] flex items-center justify-center gap-[8px] rounded-[10px] text-[13px] font-medium"
               style={{
-                background: 'linear-gradient(135deg, oklch(0.78 0.14 85 / 0.12), oklch(0.65 0.18 50 / 0.08))',
-                border: '1px solid oklch(0.78 0.14 85 / 0.2)',
-                color: 'oklch(0.78 0.14 85)',
+                background: 'var(--accent-soft)',
+                color: 'var(--accent-primary)',
+                border: '1px solid rgba(99,102,241,0.15)',
+                transition: 'background 200ms',
               }}
             >
-              <Package className="w-4 h-4" />
-              Siparişlerim
+              <Package className="w-[16px] h-[16px]" />
+              Meine Bestellungen
             </button>
           </div>
-          <div className="border-t border-border">
-            <div className="flex">
-              <button onClick={() => setActiveTab('posts')} className={`flex-1 py-3 flex items-center justify-center gap-2 border-b-2 transition-colors ${activeTab === 'posts' ? 'border-primary' : 'border-transparent'}`}><Grid3x3 className="w-5 h-5" /></button>
-              <button onClick={() => setActiveTab('saved')} className={`flex-1 py-3 flex items-center justify-center gap-2 border-b-2 transition-colors ${activeTab === 'saved' ? 'border-primary' : 'border-transparent'}`}><Bookmark className="w-5 h-5" /></button>
+
+          {/* ═══ RIGHT COLUMN — Content Grid ══════════════════ */}
+          <div>
+            {/* Tabs */}
+            <div className="flex mb-[24px]" style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+              <button
+                onClick={() => setActiveTab('posts')}
+                className="flex-1 py-[12px] flex items-center justify-center gap-[8px]"
+                style={{
+                  color: activeTab === 'posts' ? 'var(--text-primary)' : 'var(--text-faint)',
+                  borderBottom: activeTab === 'posts' ? '2px solid var(--accent-primary)' : '2px solid transparent',
+                  transition: 'all 200ms',
+                }}
+              >
+                <Grid3x3 className="w-[18px] h-[18px]" />
+              </button>
+              <button
+                onClick={() => setActiveTab('saved')}
+                className="flex-1 py-[12px] flex items-center justify-center gap-[8px]"
+                style={{
+                  color: activeTab === 'saved' ? 'var(--text-primary)' : 'var(--text-faint)',
+                  borderBottom: activeTab === 'saved' ? '2px solid var(--accent-primary)' : '2px solid transparent',
+                  transition: 'all 200ms',
+                }}
+              >
+                <Bookmark className="w-[18px] h-[18px]" />
+              </button>
             </div>
-          </div>
-          <div className="mt-4">
-            {activeTab === 'posts' && userPosts.length === 0 && (<div className="text-center py-20"><div className="text-6xl mb-4">📷</div><h3 className="text-xl font-bold mb-2">Henüz gönderi yok</h3><p className="text-sm text-muted-foreground">İlk gönderini paylaş!</p></div>)}
-            {activeTab === 'posts' && userPosts.length > 0 && (<div className="grid grid-cols-3 gap-1">{userPosts.map((post) => (<div key={post.id} onClick={() => handlePostClick(post)} className="aspect-square bg-gradient-to-br from-primary/5 to-primary/10 cursor-pointer group relative"><img src={post.image_url} alt={post.caption} className="w-full h-full object-cover" /><div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-4"><div className="flex items-center gap-1 text-white"><Heart className="w-5 h-5" fill="white" /><span className="font-bold text-sm">{post.likes_count}</span></div><div className="flex items-center gap-1 text-white"><MessageCircle className="w-5 h-5" fill="white" /><span className="font-bold text-sm">{post.comments_count}</span></div></div></div>))}</div>)}
-            {activeTab === 'saved' && savedOutfits.length === 0 && (<div className="text-center py-20"><div className="text-6xl mb-4">💾</div><h3 className="text-xl font-bold mb-2">Henüz kayıtlı kombin yok</h3><p className="text-sm text-muted-foreground mb-4">AI kombin oluştur ve kaydet!</p><Link href="/" className="inline-block px-6 py-3 bg-primary text-primary-foreground rounded-xl font-semibold hover:opacity-90 transition-opacity">Kombin Oluştur</Link></div>)}
-            {activeTab === 'saved' && savedOutfits.length > 0 && (<div className="grid grid-cols-2 gap-4">{savedOutfits.map((outfit) => (<div key={outfit.id} className="glass border border-border rounded-xl overflow-hidden"><div className="aspect-square bg-primary/5 p-2 flex flex-col gap-1">{outfit.clothes?.slice(0, 2).map((item) => (<div key={item.id} className="flex-1 bg-white rounded-lg p-1 flex items-center justify-center"><img src={item.image_url} alt={item.name} className="w-full h-full object-contain" /></div>))}</div><div className="p-3"><p className="font-bold text-sm truncate">{outfit.name}</p><div className="flex items-center gap-2 mt-2"><span className="text-xs px-2 py-1 bg-primary/10 text-primary rounded-full">{outfit.season}</span><span className="text-xs font-bold text-primary">{outfit.color_harmony_score}/100</span></div></div></div>))}</div>)}
+
+            {/* Posts grid */}
+            {activeTab === 'posts' && userPosts.length === 0 && (
+              <div className="text-center py-[80px]">
+                <p className="text-[48px] mb-[16px]">📷</p>
+                <h3 className="text-[18px] font-semibold mb-[8px]" style={{ color: 'var(--text-primary)' }}>Noch keine Beiträge</h3>
+                <p className="text-[14px]" style={{ color: 'var(--text-faint)' }}>Teile deinen ersten Look!</p>
+              </div>
+            )}
+            {activeTab === 'posts' && userPosts.length > 0 && (
+              <div className="grid grid-cols-3 gap-[4px]">
+                {userPosts.map((post) => (
+                  <div
+                    key={post.id}
+                    onClick={() => handlePostClick(post)}
+                    className="aspect-square cursor-pointer group relative overflow-hidden"
+                    style={{ background: 'var(--lux-layer-1)' }}
+                  >
+                    <img src={post.image_url} alt={post.caption} className="w-full h-full object-cover" />
+                    <div className="absolute inset-0 opacity-0 group-hover:opacity-100 flex items-center justify-center gap-[16px]" style={{ background: 'rgba(0,0,0,0.5)', transition: 'opacity 200ms' }}>
+                      <div className="flex items-center gap-[4px]">
+                        <Heart className="w-[16px] h-[16px]" style={{ color: 'white', fill: 'white' }} />
+                        <span className="text-[13px] font-semibold" style={{ color: 'white' }}>{post.likes_count}</span>
+                      </div>
+                      <div className="flex items-center gap-[4px]">
+                        <MessageCircle className="w-[16px] h-[16px]" style={{ color: 'white', fill: 'white' }} />
+                        <span className="text-[13px] font-semibold" style={{ color: 'white' }}>{post.comments_count}</span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Saved outfits */}
+            {activeTab === 'saved' && savedOutfits.length === 0 && (
+              <div className="text-center py-[80px]">
+                <p className="text-[48px] mb-[16px]">💾</p>
+                <h3 className="text-[18px] font-semibold mb-[8px]" style={{ color: 'var(--text-primary)' }}>Keine gespeicherten Outfits</h3>
+                <p className="text-[14px] mb-[16px]" style={{ color: 'var(--text-faint)' }}>Erstelle ein Outfit mit AI!</p>
+                <Link
+                  href="/"
+                  className="inline-block px-[24px] py-[10px] rounded-[10px] text-[14px] font-medium"
+                  style={{ background: 'var(--accent-primary)', color: 'white' }}
+                >
+                  Outfit erstellen
+                </Link>
+              </div>
+            )}
+            {activeTab === 'saved' && savedOutfits.length > 0 && (
+              <div className="grid grid-cols-2 gap-[16px]">
+                {savedOutfits.map((outfit) => (
+                  <div
+                    key={outfit.id}
+                    className="rounded-[16px] overflow-hidden"
+                    style={{ background: 'var(--lux-layer-1)', border: '1px solid rgba(255,255,255,0.06)' }}
+                  >
+                    <div className="aspect-square p-[8px] flex flex-col gap-[4px]" style={{ background: 'var(--lux-layer-2)' }}>
+                      {outfit.clothes?.slice(0, 2).map((item) => (
+                        <div key={item.id} className="flex-1 rounded-[8px] p-[4px] flex items-center justify-center" style={{ background: 'rgba(255,255,255,0.05)' }}>
+                          <img src={item.image_url} alt={item.name} className="w-full h-full object-contain" />
+                        </div>
+                      ))}
+                    </div>
+                    <div className="p-[12px]">
+                      <p className="text-[14px] font-medium truncate" style={{ color: 'var(--text-primary)' }}>{outfit.name}</p>
+                      <div className="flex items-center gap-[8px] mt-[8px]">
+                        <span className="text-[11px] px-[8px] py-[3px] rounded-full" style={{ background: 'var(--accent-soft)', color: 'var(--accent-primary)' }}>{outfit.season}</span>
+                        <span className="text-[11px] font-medium" style={{ color: 'var(--accent-primary)' }}>{outfit.color_harmony_score}/100</span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
-      </section>
+      </div>
 
-      {/* MENÜ - Mobile App Style */}
+      {/* ═══ SETTINGS DRAWER ════════════════════════════════ */}
       <AnimatePresence>
         {showMenu && (
-          <motion.div
-            initial={{ x: "100%" }}
-            animate={{ x: 0 }}
-            exit={{ x: "100%" }}
-            transition={{ type: "spring", damping: 25, stiffness: 200 }}
-            className="fixed inset-0 bg-background z-50 overflow-y-auto"
+          <div
+            className="fixed inset-0 z-50 overflow-y-auto"
+            style={{ background: 'var(--lux-bg)' }}
           >
             <div className="min-h-screen">
-              <div className="sticky top-0 bg-background/95 backdrop-blur-xl border-b border-border/50 p-4 flex items-center gap-4">
-                <button onClick={() => setShowMenu(false)} className="p-2 hover:bg-secondary/50 rounded-xl transition-all active:scale-95">
-                  <X className="w-6 h-6" />
+              {/* Header */}
+              <div
+                className="sticky top-0 z-10 px-[16px] py-[12px] flex items-center gap-[12px]"
+                style={{
+                  background: 'rgba(14,14,16,0.95)',
+                  backdropFilter: 'blur(12px)',
+                  borderBottom: '1px solid rgba(255,255,255,0.06)',
+                }}
+              >
+                <button
+                  onClick={() => setShowMenu(false)}
+                  className="p-[8px] rounded-[10px]"
+                  style={{ transition: 'background 200ms' }}
+                  onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--lux-layer-2)')}
+                  onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+                >
+                  <X className="w-[20px] h-[20px]" style={{ color: 'var(--text-primary)' }} />
                 </button>
-                <h2 className="text-xl font-bold">Ayarlar</h2>
+                <h2 className="text-[18px] font-semibold" style={{ color: 'var(--text-primary)' }}>Einstellungen</h2>
               </div>
-              <div className="p-4 space-y-6 pb-24">
-                {/* Gardırop AI'ı nasıl kullanıyorsun? */}
+
+              <div className="px-[16px] py-[16px] space-y-[32px] pb-[100px]">
+
+                {/* Section: Activity */}
                 <div>
-                  <p className="text-xs text-muted-foreground font-semibold mb-3 px-4">Gardırop AI'ı nasıl kullanıyorsun?</p>
-                  <div className="space-y-1">
-                    <button onClick={() => { router.push('/saved'); setShowMenu(false) }} className="w-full px-4 py-3 flex items-center justify-between hover:bg-secondary/50 rounded-xl transition-all active:scale-[0.98]">
-                      <div className="flex items-center gap-3"><Bookmark className="w-5 h-5" /><span>Kaydedilenler</span></div>
-                      <ChevronRight className="w-5 h-5 text-muted-foreground" />
-                    </button>
-                    <button onClick={() => { router.push('/settings/archive'); setShowMenu(false) }} className="w-full px-4 py-3 flex items-center justify-between hover:bg-secondary/50 rounded-lg transition-colors">
-                      <div className="flex items-center gap-3"><Archive className="w-5 h-5" /><span>Arşiv</span></div>
-                      <ChevronRight className="w-5 h-5 text-muted-foreground" />
-                    </button>
-                    <button onClick={() => { router.push('/settings/activity'); setShowMenu(false) }} className="w-full px-4 py-3 flex items-center justify-between hover:bg-secondary/50 rounded-lg transition-colors">
-                      <div className="flex items-center gap-3"><Activity className="w-5 h-5" /><span>Hareketlerin</span></div>
-                      <ChevronRight className="w-5 h-5 text-muted-foreground" />
-                    </button>
-                    <button onClick={() => { router.push('/follow-requests'); setShowMenu(false) }} className="w-full px-4 py-3 flex items-center justify-between hover:bg-secondary/50 rounded-lg transition-colors">
-                      <div className="flex items-center gap-3"><UserPlus className="w-5 h-5" /><span>Takip İstekleri</span></div>
-                      <div className="flex items-center gap-2">
-                        {pendingRequestsCount > 0 && (<span className="w-5 h-5 rounded-full bg-red-500 text-white text-xs font-bold flex items-center justify-center">{pendingRequestsCount}</span>)}
-                        <ChevronRight className="w-5 h-5 text-muted-foreground" />
-                      </div>
-                    </button>
-                    <button onClick={() => { router.push('/notifications'); setShowMenu(false) }} className="w-full px-4 py-3 flex items-center justify-between hover:bg-secondary/50 rounded-lg transition-colors">
-                      <div className="flex items-center gap-3"><Bell className="w-5 h-5" /><span>Bildirimler</span></div>
-                      <ChevronRight className="w-5 h-5 text-muted-foreground" />
-                    </button>
-                    <button onClick={() => { router.push('/settings/time-management'); setShowMenu(false) }} className="w-full px-4 py-3 flex items-center justify-between hover:bg-secondary/50 rounded-lg transition-colors">
-                      <div className="flex items-center gap-3"><Clock className="w-5 h-5" /><span>Zaman yönetimi</span></div>
-                      <ChevronRight className="w-5 h-5 text-muted-foreground" />
-                    </button>
+                  <p className="text-[11px] font-semibold uppercase mb-[8px] px-[16px]" style={{ color: 'var(--text-faint)', letterSpacing: '0.08em' }}>Aktivitäten</p>
+                  <div className="rounded-[16px] overflow-hidden" style={{ background: 'var(--lux-layer-1)', border: '1px solid rgba(255,255,255,0.06)' }}>
+                    <MenuItem icon={Bookmark} label="Gespeichert" href="/saved" />
+                    <MenuItem icon={Archive} label="Archiv" href="/settings/archive" />
+                    <MenuItem icon={Activity} label="Aktivitäten" href="/settings/activity" />
+                    <MenuItem icon={UserPlus} label="Follower-Anfragen" href="/follow-requests" badge={pendingRequestsCount} />
+                    <MenuItem icon={Bell} label="Benachrichtigungen" href="/notifications" />
+                    <MenuItem icon={Clock} label="Zeitmanagement" href="/settings/time-management" />
                   </div>
                 </div>
 
-                {/* Profesyoneller için */}
+                {/* Section: Pro */}
                 <div>
-                  <p className="text-xs text-muted-foreground font-semibold mb-3 px-4">Profesyoneller için</p>
-                  <div className="space-y-1">
-                    <button onClick={() => { router.push('/settings/stats'); setShowMenu(false) }} className="w-full px-4 py-3 flex items-center justify-between hover:bg-secondary/50 rounded-lg transition-colors">
-                      <div className="flex items-center gap-3"><BarChart3 className="w-5 h-5" /><span>İstatistikler</span></div>
-                      <ChevronRight className="w-5 h-5 text-muted-foreground" />
-                    </button>
-                    <button onClick={() => { router.push('/wear-tracking'); setShowMenu(false) }} className="w-full px-4 py-3 flex items-center justify-between hover:bg-secondary/50 rounded-lg transition-colors">
-                      <div className="flex items-center gap-3"><TrendingUp className="w-5 h-5" /><span>Kullanım İstatistikleri</span></div>
-                      <ChevronRight className="w-5 h-5 text-muted-foreground" />
-                    </button>
-                    <button
-                      onClick={() => {
-                        const targetPath = isSeller ? '/seller/dashboard' : '/seller-application'
-                        console.log('🔘 [PROFILE] Button clicked, isSeller:', isSeller, 'navigating to:', targetPath)
-                        router.push(targetPath)
-                        setShowMenu(false)
-                      }}
-                      className="w-full px-4 py-3 flex items-center justify-between hover:bg-secondary/50 rounded-lg transition-colors"
-                    >
-                      <div className="flex items-center gap-3">
-                        <Store className="w-5 h-5" />
-                        <span>{isSeller ? 'Mağazam' : 'Satıcı Ol'}</span>
-                      </div>
-                      <ChevronRight className="w-5 h-5 text-muted-foreground" />
-                    </button>
-                    <button onClick={() => { router.push('/profile/edit'); setShowMenu(false) }} className="w-full px-4 py-3 flex items-center justify-between hover:bg-secondary/50 rounded-lg transition-colors">
-                      <div className="flex items-center gap-3"><Settings className="w-5 h-5" /><span>Profili Düzenle</span></div>
-                      <ChevronRight className="w-5 h-5 text-muted-foreground" />
-                    </button>
+                  <p className="text-[11px] font-semibold uppercase mb-[8px] px-[16px]" style={{ color: 'var(--text-faint)', letterSpacing: '0.08em' }}>Professionell</p>
+                  <div className="rounded-[16px] overflow-hidden" style={{ background: 'var(--lux-layer-1)', border: '1px solid rgba(255,255,255,0.06)' }}>
+                    <MenuItem icon={BarChart3} label="Statistiken" href="/settings/stats" />
+                    <MenuItem icon={TrendingUp} label="Nutzungsstatistiken" href="/wear-tracking" />
+                    <MenuItem icon={Store} label={isSeller ? 'Mein Shop' : 'Verkäufer werden'} href={isSeller ? '/seller/dashboard' : '/seller-application'} />
+                    <MenuItem icon={Settings} label="Profil bearbeiten" href="/profile/edit" />
                   </div>
                 </div>
 
-                {/* İçeriklerini kimler görebilir? */}
+                {/* Section: Privacy */}
                 <div>
-                  <p className="text-xs text-muted-foreground font-semibold mb-3 px-4">İçeriklerini kimler görebilir?</p>
-                  <div className="space-y-1">
-                    <button onClick={() => { router.push('/settings/privacy'); setShowMenu(false) }} className="w-full px-4 py-3 flex items-center justify-between hover:bg-secondary/50 rounded-lg transition-colors">
-                      <div className="flex items-center gap-3"><Lock className="w-5 h-5" /><span>Hesap gizliliği</span></div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm text-muted-foreground">Herkese açık</span>
-                        <ChevronRight className="w-5 h-5 text-muted-foreground" />
-                      </div>
-                    </button>
-                    <button onClick={() => { router.push('/settings/close-friends'); setShowMenu(false) }} className="w-full px-4 py-3 flex items-center justify-between hover:bg-secondary/50 rounded-lg transition-colors">
-                      <div className="flex items-center gap-3"><Users className="w-5 h-5" /><span>Yakın Arkadaşlar</span></div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm text-muted-foreground">0</span>
-                        <ChevronRight className="w-5 h-5 text-muted-foreground" />
-                      </div>
-                    </button>
-                    <button onClick={() => { router.push('/settings/blocked-users'); setShowMenu(false) }} className="w-full px-4 py-3 flex items-center justify-between hover:bg-secondary/50 rounded-lg transition-colors">
-                      <div className="flex items-center gap-3"><Ban className="w-5 h-5" /><span>Engellenenler</span></div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm text-muted-foreground">0</span>
-                        <ChevronRight className="w-5 h-5 text-muted-foreground" />
-                      </div>
-                    </button>
+                  <p className="text-[11px] font-semibold uppercase mb-[8px] px-[16px]" style={{ color: 'var(--text-faint)', letterSpacing: '0.08em' }}>Datenschutz</p>
+                  <div className="rounded-[16px] overflow-hidden" style={{ background: 'var(--lux-layer-1)', border: '1px solid rgba(255,255,255,0.06)' }}>
+                    <MenuItem icon={Lock} label="Konto-Privatsphäre" href="/settings/privacy" extra="Öffentlich" />
+                    <MenuItem icon={Users} label="Enge Freunde" href="/settings/close-friends" extra="0" />
+                    <MenuItem icon={Ban} label="Blockiert" href="/settings/blocked-users" extra="0" />
                   </div>
                 </div>
 
-                {/* Dil Seçimi */}
+                {/* Section: Language */}
                 <div>
-                  <p className="text-xs text-muted-foreground font-semibold mb-3 px-4">Dil / Language / Sprache</p>
-                  <div className="space-y-1">
-                    <button onClick={() => setLanguage('tr')} className="w-full px-4 py-3 flex items-center justify-between hover:bg-secondary/50 rounded-lg transition-colors">
-                      <div className="flex items-center gap-3">
-                        <span className="text-2xl">🇹🇷</span>
-                        <span>Türkçe</span>
-                      </div>
-                      {language === 'tr' && <Check className="w-5 h-5 text-primary" />}
-                    </button>
-                    <button onClick={() => setLanguage('en')} className="w-full px-4 py-3 flex items-center justify-between hover:bg-secondary/50 rounded-lg transition-colors">
-                      <div className="flex items-center gap-3">
-                        <span className="text-2xl">🇬🇧</span>
-                        <span>English</span>
-                      </div>
-                      {language === 'en' && <Check className="w-5 h-5 text-primary" />}
-                    </button>
-                    <button onClick={() => setLanguage('de')} className="w-full px-4 py-3 flex items-center justify-between hover:bg-secondary/50 rounded-lg transition-colors">
-                      <div className="flex items-center gap-3">
-                        <span className="text-2xl">🇩🇪</span>
-                        <span>Deutsch</span>
-                      </div>
-                      {language === 'de' && <Check className="w-5 h-5 text-primary" />}
-                    </button>
+                  <p className="text-[11px] font-semibold uppercase mb-[8px] px-[16px]" style={{ color: 'var(--text-faint)', letterSpacing: '0.08em' }}>Sprache</p>
+                  <div className="rounded-[16px] overflow-hidden" style={{ background: 'var(--lux-layer-1)', border: '1px solid rgba(255,255,255,0.06)' }}>
+                    {[
+                      { code: 'tr' as const, flag: '🇹🇷', name: 'Türkçe' },
+                      { code: 'en' as const, flag: '🇬🇧', name: 'English' },
+                      { code: 'de' as const, flag: '🇩🇪', name: 'Deutsch' },
+                    ].map((lang) => (
+                      <button
+                        key={lang.code}
+                        onClick={() => setLanguage(lang.code)}
+                        className="w-full px-[16px] py-[14px] flex items-center justify-between"
+                        style={{ transition: 'background 200ms' }}
+                        onMouseEnter={(e) => (e.currentTarget.style.background = '#1F1F23')}
+                        onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+                      >
+                        <div className="flex items-center gap-[12px]">
+                          <span className="text-[20px]">{lang.flag}</span>
+                          <span className="text-[14px]" style={{ color: 'var(--text-primary)' }}>{lang.name}</span>
+                        </div>
+                        {language === lang.code && <Check className="w-[18px] h-[18px]" style={{ color: 'var(--accent-primary)' }} />}
+                      </button>
+                    ))}
                   </div>
                 </div>
 
-                {/* Para Birimi Seçimi */}
+                {/* Section: Currency */}
                 <div>
-                  <p className="text-xs text-muted-foreground font-semibold mb-3 px-4">Currency / Währung / Para Birimi</p>
-                  <div className="px-4 py-3">
+                  <p className="text-[11px] font-semibold uppercase mb-[8px] px-[16px]" style={{ color: 'var(--text-faint)', letterSpacing: '0.08em' }}>Währung</p>
+                  <div className="rounded-[16px] p-[16px]" style={{ background: 'var(--lux-layer-1)', border: '1px solid rgba(255,255,255,0.06)' }}>
                     <CurrencySelector />
                   </div>
                 </div>
 
-                {/* Başkalarının seninle etkileşimleri */}
+                {/* Section: Interactions */}
                 <div>
-                  <p className="text-xs text-muted-foreground font-semibold mb-3 px-4">Başkalarının seninle etkileşimleri</p>
-                  <div className="space-y-1">
-                    <button onClick={() => { router.push('/messages'); setShowMenu(false) }} className="w-full px-4 py-3 flex items-center justify-between hover:bg-secondary/50 rounded-lg transition-colors">
-                      <div className="flex items-center gap-3"><MessageSquare className="w-5 h-5" /><span>Mesajlar</span></div>
-                      <ChevronRight className="w-5 h-5 text-muted-foreground" />
-                    </button>
-                    <button onClick={() => { router.push('/settings/comments'); setShowMenu(false) }} className="w-full px-4 py-3 flex items-center justify-between hover:bg-secondary/50 rounded-lg transition-colors">
-                      <div className="flex items-center gap-3"><MessageCircle className="w-5 h-5" /><span>Yorumlar</span></div>
-                      <ChevronRight className="w-5 h-5 text-muted-foreground" />
-                    </button>
+                  <p className="text-[11px] font-semibold uppercase mb-[8px] px-[16px]" style={{ color: 'var(--text-faint)', letterSpacing: '0.08em' }}>Interaktionen</p>
+                  <div className="rounded-[16px] overflow-hidden" style={{ background: 'var(--lux-layer-1)', border: '1px solid rgba(255,255,255,0.06)' }}>
+                    <MenuItem icon={MessageSquare} label="Nachrichten" href="/messages" />
+                    <MenuItem icon={MessageCircle} label="Kommentare" href="/settings/comments" />
+                    <MenuItem icon={Star} label="Favoriten" href="/settings/favorites" extra="0" />
+                    <MenuItem icon={Image} label="Inhaltseinstellungen" href="/settings/content-preferences" />
                   </div>
                 </div>
 
-                {/* Neler görüyorsun? */}
+                {/* Section: Legal */}
                 <div>
-                  <p className="text-xs text-muted-foreground font-semibold mb-3 px-4">Neler görüyorsun?</p>
-                  <div className="space-y-1">
-                    <button onClick={() => { router.push('/settings/favorites'); setShowMenu(false) }} className="w-full px-4 py-3 flex items-center justify-between hover:bg-secondary/50 rounded-lg transition-colors">
-                      <div className="flex items-center gap-3"><Star className="w-5 h-5" /><span>Favoriler</span></div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm text-muted-foreground">0</span>
-                        <ChevronRight className="w-5 h-5 text-muted-foreground" />
-                      </div>
-                    </button>
-                    <button onClick={() => { router.push('/settings/content-preferences'); setShowMenu(false) }} className="w-full px-4 py-3 flex items-center justify-between hover:bg-secondary/50 rounded-lg transition-colors">
-                      <div className="flex items-center gap-3"><Image className="w-5 h-5" /><span>İçerik tercihleri</span></div>
-                      <ChevronRight className="w-5 h-5 text-muted-foreground" />
-                    </button>
+                  <p className="text-[11px] font-semibold uppercase mb-[8px] px-[16px]" style={{ color: 'var(--text-faint)', letterSpacing: '0.08em' }}>Rechtliches</p>
+                  <div className="rounded-[16px] overflow-hidden" style={{ background: 'var(--lux-layer-1)', border: '1px solid rgba(255,255,255,0.06)' }}>
+                    <MenuItem icon={Lock} label="Datenschutz (DSGVO)" href="/legal/privacy" />
+                    <MenuItem icon={MessageCircle} label="AGB" href="/legal/agb" />
+                    <MenuItem icon={Settings} label="Impressum" href="/legal/impressum" />
+                    <MenuItem icon={Archive} label="Widerrufsrecht" href="/legal/widerrufsrecht" />
                   </div>
                 </div>
 
-                {/* Gizlilik & Yasal */}
-                <div>
-                  <p className="text-xs text-muted-foreground font-semibold mb-3 px-4">Gizlilik & Yasal</p>
-                  <div className="space-y-1">
-                    <button onClick={() => { router.push('/legal/privacy'); setShowMenu(false) }} className="w-full px-4 py-3 flex items-center justify-between hover:bg-secondary/50 rounded-lg transition-colors">
-                      <div className="flex items-center gap-3"><Lock className="w-5 h-5" /><span>Datenschutz (DSGVO)</span></div>
-                      <ChevronRight className="w-5 h-5 text-muted-foreground" />
-                    </button>
-                    <button onClick={() => { router.push('/legal/agb'); setShowMenu(false) }} className="w-full px-4 py-3 flex items-center justify-between hover:bg-secondary/50 rounded-lg transition-colors">
-                      <div className="flex items-center gap-3"><MessageCircle className="w-5 h-5" /><span>AGB (Şartlar)</span></div>
-                      <ChevronRight className="w-5 h-5 text-muted-foreground" />
-                    </button>
-                    <button onClick={() => { router.push('/legal/impressum'); setShowMenu(false) }} className="w-full px-4 py-3 flex items-center justify-between hover:bg-secondary/50 rounded-lg transition-colors">
-                      <div className="flex items-center gap-3"><Settings className="w-5 h-5" /><span>Impressum</span></div>
-                      <ChevronRight className="w-5 h-5 text-muted-foreground" />
-                    </button>
-                    <button onClick={() => { router.push('/legal/widerrufsrecht'); setShowMenu(false) }} className="w-full px-4 py-3 flex items-center justify-between hover:bg-secondary/50 rounded-lg transition-colors">
-                      <div className="flex items-center gap-3"><Archive className="w-5 h-5" /><span>Widerrufsrecht (İade Hakkı)</span></div>
-                      <ChevronRight className="w-5 h-5 text-muted-foreground" />
-                    </button>
-                  </div>
-                </div>
-
-                {/* Çıkış */}
-                <div className="pt-4">
-                  <button onClick={() => signOut()} className="w-full px-4 py-3 flex items-center gap-3 text-red-500 hover:bg-red-500/10 rounded-lg transition-colors font-semibold">
-                    <LogOut className="w-5 h-5" />
-                    <span>Çıkış Yap</span>
+                {/* Logout */}
+                <div className="pt-[8px]">
+                  <button
+                    onClick={() => signOut()}
+                    className="w-full px-[16px] py-[14px] flex items-center gap-[12px] rounded-[16px]"
+                    style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.15)', transition: 'background 200ms' }}
+                    onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(239,68,68,0.15)')}
+                    onMouseLeave={(e) => (e.currentTarget.style.background = 'rgba(239,68,68,0.08)')}
+                  >
+                    <LogOut className="w-[20px] h-[20px]" style={{ color: '#ef4444' }} />
+                    <span className="text-[14px] font-semibold" style={{ color: '#ef4444' }}>Abmelden</span>
                   </button>
                 </div>
               </div>
             </div>
-          </motion.div>
+          </div>
         )}
       </AnimatePresence>
 

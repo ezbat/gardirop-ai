@@ -11,6 +11,7 @@ interface Product {
   title: string
   description: string
   price: number
+  original_price?: number | null
   images: string[]
   seller_id: string
   category: string
@@ -257,12 +258,20 @@ export default function ProductDetailPage() {
             {/* Price */}
             <div className="flex items-baseline gap-3">
               <span className="text-5xl font-bold bg-gradient-to-r from-purple-600 via-pink-600 to-purple-600 bg-clip-text text-transparent">
-                €{product.price}
+                €{Number(product.price).toFixed(2)}
               </span>
-              <span className="text-xl text-gray-400 line-through">€{(product.price * 1.4).toFixed(2)}</span>
-              <div className="px-3 py-1 bg-gradient-to-r from-red-500 to-pink-500 rounded-full">
-                <span className="text-sm font-bold text-white">-30%</span>
-              </div>
+              {product.original_price != null && product.original_price > product.price && (
+                <>
+                  <span className="text-xl text-gray-400 line-through">
+                    €{Number(product.original_price).toFixed(2)}
+                  </span>
+                  <div className="px-3 py-1 bg-gradient-to-r from-red-500 to-pink-500 rounded-full">
+                    <span className="text-sm font-bold text-white">
+                      -{Math.round((1 - product.price / product.original_price) * 100)}%
+                    </span>
+                  </div>
+                </>
+              )}
             </div>
 
             {/* Divider */}

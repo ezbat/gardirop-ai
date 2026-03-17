@@ -192,28 +192,35 @@ export default function ProductDetailPage() {
 
   const addToCart = useCallback(() => {
     if (!product) return
-    if (product.sizes.length > 0 && !selectedSize) return
+    if (product.sizes && product.sizes.length > 0 && !selectedSize) return
 
-    const cart = JSON.parse(localStorage.getItem('wearo-cart') || '[]')
+    const cart = JSON.parse(localStorage.getItem('cart') || '[]')
+    const cartItemId = `${product.id}_${selectedSize || 'default'}`
     const existIdx = cart.findIndex(
-      (item: any) => item.productId === product.id && item.size === selectedSize
+      (item: any) => item.id === cartItemId
     )
 
     if (existIdx > -1) {
       cart[existIdx].quantity += 1
     } else {
+      // Store in format expected by cart page and checkout page
       cart.push({
-        productId: product.id,
-        title: product.title,
-        price: product.price,
-        image: product.images[0],
-        size: selectedSize,
+        id: cartItemId,
+        product: {
+          id: product.id,
+          title: product.title,
+          price: product.price,
+          images: product.images || [],
+          stock_quantity: product.stock_quantity || 99,
+          brand: (product as any).brand || '',
+          seller_id: product.seller_id,
+        },
         quantity: 1,
-        sellerId: product.seller_id,
+        selectedSize: selectedSize || null,
       })
     }
 
-    localStorage.setItem('wearo-cart', JSON.stringify(cart))
+    localStorage.setItem('cart', JSON.stringify(cart))
     setAddedToCart(true)
     setTimeout(() => setAddedToCart(false), 2000)
   }, [product, selectedSize])

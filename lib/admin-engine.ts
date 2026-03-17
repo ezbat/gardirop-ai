@@ -1002,48 +1002,33 @@ export async function processWithdrawal(
   const newStatus = action === 'approve' ? 'completed' : 'rejected'
 
   if (action === 'approve') {
-    // Verify seller has sufficient balance
-    const { data: balance } = await supabaseAdmin
-      .from('seller_balances')
-      .select('available_balance, total_withdrawn')
-      .eq('seller_id', request.seller_id)
-      .single()
-
-    if (!balance) {
-      return { success: false, error: 'Seller balance record not found' }
-    }
-
     const amount = parseFloat(request.amount || '0')
 
-    if (parseFloat(balance.available_balance || '0') < amount) {
-      return { success: false, error: 'Insufficient seller balance' }
+    // Atomic balance deduction via RPC with idempotency
+    const { data: rpcResult, error: rpcError } = await supabaseAdmin.rpc('balance_deduct', {
+      p_seller_id: request.seller_id,
+      p_amount: amount,
+      p_ref_type: 'withdrawal',
+      p_ref_id: withdrawalId,
+      p_description: `Withdrawal approved - ${request.method}`,
+      p_idempotency_key: `withdrawal_${withdrawalId}`,
+    })
+
+    if (rpcError) {
+      return { success: false, error: `Balance deduction failed: ${rpcError.message}` }
     }
 
-    // Deduct from balance
-    const { error: balanceError } = await supabaseAdmin
-      .from('seller_balances')
-      .update({
-        available_balance: parseFloat(balance.available_balance) - amount,
-        total_withdrawn: parseFloat(balance.total_withdrawn) + amount,
-      })
-      .eq('seller_id', request.seller_id)
+    const result = rpcResult as { success: boolean; error?: string; duplicate?: boolean }
 
-    if (balanceError) {
-      return { success: false, error: `Balance update failed: ${balanceError.message}` }
+    if (!result.success) {
+      if (result.error === 'INSUFFICIENT_BALANCE') {
+        return { success: false, error: 'Insufficient seller balance' }
+      }
+      if (result.error === 'SELLER_NOT_FOUND') {
+        return { success: false, error: 'Seller balance record not found' }
+      }
+      return { success: false, error: result.error || 'Balance deduction failed' }
     }
-
-    // Record transaction
-    await supabaseAdmin
-      .from('seller_transactions')
-      .insert({
-        seller_id: request.seller_id,
-        type: 'withdrawal',
-        amount: amount,
-        commission_amount: 0,
-        net_amount: -amount,
-        status: 'completed',
-        description: `Withdrawal approved - ${request.method}`,
-      })
   }
 
   // Update the withdrawal request

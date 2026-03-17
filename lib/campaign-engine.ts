@@ -646,16 +646,22 @@ export async function applyCoupon(
     return { success: false, error: 'Kein Rabatt anwendbar.' }
   }
 
-  // Increment coupon usage
-  const { error: updateCouponError } = await supabaseAdmin
-    .from('coupon_codes')
-    .update({
-      current_uses: validation.coupon.currentUses + 1,
-    })
-    .eq('id', validation.coupon.id)
+  // Atomic coupon usage increment via RPC
+  const { data: redeemResult, error: redeemError } = await supabaseAdmin.rpc('coupon_redeem', {
+    p_coupon_id: validation.coupon.id,
+    p_max_uses: validation.coupon.maxUses || null,
+  })
 
-  if (updateCouponError) {
-    console.error('[CampaignEngine] Coupon-Nutzung aktualisieren fehlgeschlagen:', updateCouponError)
+  if (redeemError) {
+    console.error('[CampaignEngine] coupon_redeem RPC failed:', redeemError)
+    return { success: false, error: 'Gutschein konnte nicht eingeloest werden.' }
+  }
+
+  const redemption = redeemResult as { success: boolean; error?: string }
+  if (!redemption.success) {
+    if (redemption.error === 'COUPON_EXHAUSTED') {
+      return { success: false, error: 'Gutschein ist bereits aufgebraucht.' }
+    }
     return { success: false, error: 'Gutschein konnte nicht eingeloest werden.' }
   }
 

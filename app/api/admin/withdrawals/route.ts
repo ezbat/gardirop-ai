@@ -1,7 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
+import { supabaseAdmin } from '@/lib/supabase-admin'
+import { createRequestLogger } from '@/lib/logger'
+
+async function verifyAdmin(userId: string): Promise<boolean> {
+  const { data: user } = await supabaseAdmin
+    .from('users')
+    .select('role')
+    .eq('id', userId)
+    .single()
+
+  return user?.role === 'admin'
+}
 
 export async function GET(request: NextRequest) {
+  const reqLog = createRequestLogger(request)
+
   try {
     const userId = request.headers.get('x-user-id')
     const { searchParams } = new URL(request.url)
@@ -11,17 +25,8 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Admin check (simplified for m3000)
-    if (userId !== 'm3000') {
-      const { data: user } = await supabase
-        .from('users')
-        .select('role')
-        .eq('id', userId)
-        .single()
-
-      if (user?.role !== 'admin') {
-        return NextResponse.json({ error: 'Forbidden: Admin access required' }, { status: 403 })
-      }
+    if (!(await verifyAdmin(userId))) {
+      return NextResponse.json({ error: 'Forbidden: Admin access required' }, { status: 403 })
     }
 
     let query = supabase
@@ -42,12 +47,16 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ requests: requests || [] })
   } catch (error) {
-    console.error('Get withdrawal requests error:', error)
+    reqLog.error('Get withdrawal requests error', {
+      error: error instanceof Error ? error.message : String(error),
+    })
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
 
 export async function PATCH(request: NextRequest) {
+  const reqLog = createRequestLogger(request)
+
   try {
     const userId = request.headers.get('x-user-id')
     const { requestId, status, adminNotes } = await request.json()
@@ -56,17 +65,8 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Admin check (simplified for m3000)
-    if (userId !== 'm3000') {
-      const { data: user } = await supabase
-        .from('users')
-        .select('role')
-        .eq('id', userId)
-        .single()
-
-      if (user?.role !== 'admin') {
-        return NextResponse.json({ error: 'Forbidden: Admin access required' }, { status: 403 })
-      }
+    if (!(await verifyAdmin(userId))) {
+      return NextResponse.json({ error: 'Forbidden: Admin access required' }, { status: 403 })
     }
 
     if (!requestId || !status) {
@@ -84,37 +84,32 @@ export async function PATCH(request: NextRequest) {
     }
 
     if (status === 'completed') {
-      const { data: currentBalance } = await supabase
-        .from('seller_balances')
-        .select('available_balance, total_withdrawn')
-        .eq('seller_id', withdrawalRequest.seller_id)
-        .single()
+      // Atomic balance deduction via RPC with idempotency
+      const { data: rpcResult, error: rpcError } = await supabaseAdmin.rpc('balance_deduct', {
+        p_seller_id: withdrawalRequest.seller_id,
+        p_amount: withdrawalRequest.amount,
+        p_ref_type: 'withdrawal',
+        p_ref_id: requestId,
+        p_description: `Withdrawal approved by admin - ${withdrawalRequest.method}`,
+        p_idempotency_key: `admin_withdrawal_${requestId}`,
+      })
 
-      if (!currentBalance) {
-        return NextResponse.json({ error: 'Balance not found' }, { status: 404 })
+      if (rpcError) {
+        return NextResponse.json({ error: `Balance deduction failed: ${rpcError.message}` }, { status: 500 })
       }
 
-      const { error: balanceError } = await supabase
-        .from('seller_balances')
-        .update({
-          available_balance: currentBalance.available_balance - withdrawalRequest.amount,
-          total_withdrawn: currentBalance.total_withdrawn + withdrawalRequest.amount
-        })
-        .eq('seller_id', withdrawalRequest.seller_id)
+      const result = rpcResult as { success: boolean; error?: string; duplicate?: boolean }
 
-      if (balanceError) throw balanceError
+      if (!result.success) {
+        if (result.error === 'INSUFFICIENT_BALANCE') {
+          return NextResponse.json({ error: 'Insufficient seller balance' }, { status: 400 })
+        }
+        return NextResponse.json({ error: result.error || 'Balance deduction failed' }, { status: 400 })
+      }
 
-      await supabase
-        .from('seller_transactions')
-        .insert([{
-          seller_id: withdrawalRequest.seller_id,
-          type: 'withdrawal',
-          amount: withdrawalRequest.amount,
-          commission_amount: 0,
-          net_amount: -withdrawalRequest.amount,
-          status: 'completed',
-          description: `Para çekme talebi onaylandı - ${withdrawalRequest.method}`
-        }])
+      if (result.duplicate) {
+        reqLog.warn('Duplicate withdrawal processing detected', { requestId })
+      }
     }
 
     const { data: updatedRequest, error: updateError } = await supabase
@@ -131,9 +126,25 @@ export async function PATCH(request: NextRequest) {
 
     if (updateError) throw updateError
 
+    reqLog.audit({
+      actor_id: userId,
+      actor_type: 'admin',
+      action: `withdrawal.${status}`,
+      resource_type: 'withdrawal_request',
+      resource_id: requestId,
+      severity: 'info',
+      details: {
+        amount: withdrawalRequest.amount,
+        seller_id: withdrawalRequest.seller_id,
+        admin_notes: adminNotes,
+      },
+    })
+
     return NextResponse.json({ success: true, request: updatedRequest })
   } catch (error) {
-    console.error('Update withdrawal request error:', error)
+    reqLog.error('Update withdrawal request error', {
+      error: error instanceof Error ? error.message : String(error),
+    })
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

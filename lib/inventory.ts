@@ -1,9 +1,11 @@
 import { supabaseAdmin } from './supabase-admin'
+import { logger } from './logger'
 
 // ═══════════════════════════════════════════════════════════
 // WEARO Inventory System
 // Real stock tracking with movement history.
-// Every stock change is recorded in inventory_movements.
+// All operations use PostgreSQL RPC for atomic execution
+// with SELECT ... FOR UPDATE row-level locking.
 // ═══════════════════════════════════════════════════════════
 
 export type MovementType = 'sale' | 'restock' | 'return' | 'adjustment' | 'reservation' | 'cancellation' | 'damaged' | 'transfer'
@@ -27,66 +29,76 @@ export interface StockAlert {
   image: string | null
 }
 
-// ─── CORE: Record Inventory Movement ────────────────────────
+// ─── CORE: Record Inventory Movement (Atomic via RPC) ───────
 /**
  * Record a stock movement and update product stock_quantity atomically.
- * Every stock change goes through this function.
+ * Uses PostgreSQL RPC with SELECT ... FOR UPDATE to prevent race conditions.
  */
 export async function recordMovement(movement: InventoryMovement): Promise<{
   success: boolean
   newStock: number
   error?: string
 }> {
-  // Get current stock
-  const { data: product, error: fetchError } = await supabaseAdmin
-    .from('products')
-    .select('stock_quantity, title, seller_id')
-    .eq('id', movement.product_id)
-    .single()
-
-  if (fetchError || !product) {
-    return { success: false, newStock: 0, error: 'Product not found' }
-  }
-
-  const currentStock = product.stock_quantity || 0
-  const newStock = currentStock + movement.quantity
-
-  // Prevent negative stock (except for adjustments)
-  if (newStock < 0 && movement.type !== 'adjustment') {
-    return {
-      success: false,
-      newStock: currentStock,
-      error: `Insufficient stock. Available: ${currentStock}, Requested: ${Math.abs(movement.quantity)}`,
-    }
-  }
-
-  const finalStock = Math.max(0, newStock)
-
-  // Update stock
-  const { error: updateError } = await supabaseAdmin
-    .from('products')
-    .update({ stock_quantity: finalStock })
-    .eq('id', movement.product_id)
-
-  if (updateError) {
-    return { success: false, newStock: currentStock, error: 'Failed to update stock' }
-  }
-
-  // Record movement
-  await supabaseAdmin
-    .from('inventory_movements')
-    .insert({
-      product_id: movement.product_id,
-      quantity: movement.quantity,
-      type: movement.type,
-      reference_id: movement.reference_id || null,
-      notes: movement.notes || null,
-      previous_stock: currentStock,
-      new_stock: finalStock,
-      performed_by: movement.performed_by || null,
+  if (movement.quantity < 0) {
+    // Deduction — use stock_deduct RPC
+    const { data, error } = await supabaseAdmin.rpc('stock_deduct', {
+      p_product_id: movement.product_id,
+      p_quantity: Math.abs(movement.quantity),
+      p_ref_type: movement.type,
+      p_ref_id: movement.reference_id || null,
+      p_performed_by: movement.performed_by || null,
     })
 
-  return { success: true, newStock: finalStock }
+    if (error) {
+      logger.error('stock_deduct RPC failed', {
+        productId: movement.product_id,
+        error: error.message,
+      })
+      return { success: false, newStock: 0, error: `RPC error: ${error.message}` }
+    }
+
+    const result = data as { success: boolean; error?: string; new_stock?: number; available?: number; requested?: number }
+
+    if (!result.success) {
+      return {
+        success: false,
+        newStock: result.available || 0,
+        error: result.error === 'INSUFFICIENT_STOCK'
+          ? `Insufficient stock. Available: ${result.available}, Requested: ${result.requested}`
+          : result.error || 'Stock deduction failed',
+      }
+    }
+
+    return { success: true, newStock: result.new_stock || 0 }
+  } else if (movement.quantity > 0) {
+    // Addition — use stock_restore RPC
+    const { data, error } = await supabaseAdmin.rpc('stock_restore', {
+      p_product_id: movement.product_id,
+      p_quantity: movement.quantity,
+      p_ref_type: movement.type,
+      p_ref_id: movement.reference_id || null,
+      p_performed_by: movement.performed_by || null,
+    })
+
+    if (error) {
+      logger.error('stock_restore RPC failed', {
+        productId: movement.product_id,
+        error: error.message,
+      })
+      return { success: false, newStock: 0, error: `RPC error: ${error.message}` }
+    }
+
+    const result = data as { success: boolean; error?: string; new_stock?: number }
+
+    if (!result.success) {
+      return { success: false, newStock: 0, error: result.error || 'Stock restore failed' }
+    }
+
+    return { success: true, newStock: result.new_stock || 0 }
+  } else {
+    // Zero quantity — no-op
+    return { success: true, newStock: 0 }
+  }
 }
 
 // ─── SALE: Deduct stock on order placement ──────────────────

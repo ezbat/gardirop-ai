@@ -43,13 +43,29 @@ interface Order {
   order_items: OrderItem[]
 }
 
-const statusConfig: any = {
-  pending: { label: 'Beklemede', color: 'bg-yellow-500', icon: Clock },
-  processing: { label: 'Hazırlanıyor', color: 'bg-blue-500', icon: Package },
-  shipped: { label: 'Kargoda', color: 'bg-purple-500', icon: Truck },
-  delivered: { label: 'Teslim Edildi', color: 'bg-green-500', icon: CheckCircle },
-  cancelled: { label: 'İptal Edildi', color: 'bg-red-500', icon: XCircle }
+const statusConfig: Record<string, { label: string; color: string; icon: any }> = {
+  // lowercase legacy values
+  pending:            { label: 'Beklemede',        color: 'bg-yellow-500',  icon: Clock },
+  processing:         { label: 'Hazırlanıyor',      color: 'bg-blue-500',    icon: Package },
+  shipped:            { label: 'Kargoda',            color: 'bg-purple-500',  icon: Truck },
+  delivered:          { label: 'Teslim Edildi',      color: 'bg-green-500',   icon: CheckCircle },
+  cancelled:          { label: 'İptal Edildi',       color: 'bg-red-500',     icon: XCircle },
+  // state-machine uppercase values
+  CREATED:            { label: 'Oluşturuldu',        color: 'bg-gray-500',    icon: Clock },
+  PAYMENT_PENDING:    { label: 'Ödeme Bekleniyor',   color: 'bg-yellow-500',  icon: Clock },
+  PAID:               { label: 'Ödendi',             color: 'bg-green-600',   icon: CheckCircle },
+  SHIPPED:            { label: 'Kargoda',            color: 'bg-purple-500',  icon: Truck },
+  DELIVERED:          { label: 'Teslim Edildi',      color: 'bg-green-500',   icon: CheckCircle },
+  RETURN_REQUESTED:   { label: 'İade Talebi',        color: 'bg-orange-500',  icon: ArrowLeft },
+  RETURN_APPROVED:    { label: 'İade Onaylandı',     color: 'bg-orange-600',  icon: ArrowLeft },
+  DISPUTE_OPENED:     { label: 'Anlaşmazlık',        color: 'bg-red-600',     icon: XCircle },
+  COMPLETED:          { label: 'Tamamlandı',         color: 'bg-green-700',   icon: CheckCircle },
+  REFUNDED:           { label: 'İade Edildi',        color: 'bg-gray-600',    icon: XCircle },
+  CANCELLED:          { label: 'İptal Edildi',       color: 'bg-red-500',     icon: XCircle },
 }
+
+const getStatusConfig = (status: string) =>
+  statusConfig[status] ?? { label: status, color: 'bg-gray-500', icon: Clock }
 
 export default function SellerOrdersPage() {
   const { data: session } = useSession()
@@ -296,7 +312,8 @@ export default function SellerOrdersPage() {
           ) : (
             <div className="space-y-4">
               {filteredOrders.map(order => {
-                const StatusIcon = statusConfig[order.status].icon
+                const sc = getStatusConfig(order.status)
+                const StatusIcon = sc.icon
                 return (
                   <div key={order.id} className="glass border border-border rounded-2xl p-6">
                     <div className="flex items-start justify-between mb-4">
@@ -317,8 +334,8 @@ export default function SellerOrdersPage() {
                       </div>
                       <div className="flex items-center gap-2">
                         <StatusIcon className="w-5 h-5" />
-                        <span className={`px-3 py-1 rounded-full text-xs font-semibold text-white ${statusConfig[order.status].color}`}>
-                          {statusConfig[order.status].label}
+                        <span className={`px-3 py-1 rounded-full text-xs font-semibold text-white ${sc.color}`}>
+                          {sc.label}
                         </span>
                       </div>
                     </div>

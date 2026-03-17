@@ -1,289 +1,287 @@
-"use client"
+'use client'
 
-import { useState, useEffect } from "react"
-import { useSession } from "next-auth/react"
-import { motion } from "framer-motion"
-import { Users, FileText, ShoppingBag, Loader2 } from "lucide-react"
-import Link from "next/link"
-import FloatingParticles from "@/components/floating-particles"
-import SearchBar from "@/components/search-bar"
-import { supabase } from "@/lib/supabase"
+import { useState, useEffect, useCallback, Suspense } from 'react'
+import { useSearchParams, useRouter } from 'next/navigation'
+import { motion, useReducedMotion } from 'framer-motion'
+import { Search, SlidersHorizontal, ChevronDown, X } from 'lucide-react'
+import { ProductCard, type ProductCardDTO } from '@/components/storefront/ProductCard'
+import { SkeletonRow } from '@/components/storefront/SkeletonCard'
 
-type TabType = "users" | "posts" | "products"
+// ─── Types ───────────────────────────────────────────────────────────────────
 
-interface User {
-  id: string
-  name: string
-  username: string
-  avatar_url: string | null
-}
+type SortKey = 'relevance' | 'new' | 'price_asc' | 'price_desc'
 
-interface Post {
-  id: string
-  content: string
-  image_url: string | null
-  created_at: string
-  user: {
-    id: string
-    name: string
-    username: string
-    avatar_url: string | null
-  }
-}
+const SORT_OPTIONS: { key: SortKey; label: string }[] = [
+  { key: 'relevance',  label: 'Relevanz'           },
+  { key: 'new',        label: 'Neueste zuerst'     },
+  { key: 'price_asc',  label: 'Preis: günstigste'  },
+  { key: 'price_desc', label: 'Preis: teuerste'    },
+]
 
-interface Product {
-  id: string
-  name: string
-  price: number
-  image_url: string
-  category: string
-}
+// ─── Inner component (requires Suspense boundary for useSearchParams) ─────────
 
-export default function SearchPage() {
-  const { data: session } = useSession()
-  const [activeTab, setActiveTab] = useState<TabType>("users")
-  const [query, setQuery] = useState("")
-  const [loading, setLoading] = useState(false)
-  
-  const [users, setUsers] = useState<User[]>([])
-  const [posts, setPosts] = useState<Post[]>([])
-  const [products, setProducts] = useState<Product[]>([])
+function SearchPageInner() {
+  const searchParams = useSearchParams()
+  const router = useRouter()
+  const prefersReduced = useReducedMotion()
 
-  useEffect(() => {
-    if (query) {
-      handleSearch(query)
-    } else {
-      setUsers([])
-      setPosts([])
-      setProducts([])
-    }
-  }, [query, activeTab])
+  const q = searchParams.get('q') ?? ''
+  const [inputValue, setInputValue] = useState(q)
+  const [sort, setSort]             = useState<SortKey>('relevance')
+  const [products, setProducts]     = useState<ProductCardDTO[]>([])
+  const [suggestions, setSuggestions] = useState<string[]>([])
+  const [loading, setLoading]       = useState(false)
+  const [sortOpen, setSortOpen]     = useState(false)
 
-  const handleSearch = async (searchQuery: string) => {
-    if (!searchQuery.trim()) return
-    
+  useEffect(() => { setInputValue(q) }, [q])
+
+  const fetchResults = useCallback(async (query: string, sortKey: SortKey) => {
+    if (!query.trim()) return
     setLoading(true)
     try {
-      if (activeTab === "users") {
-        const { data, error } = await supabase
-          .from('users')
-          .select('id,name,username,avatar_url')
-          .or(`name.ilike.%${searchQuery}%,username.ilike.%${searchQuery}%`)
-          .limit(20)
-
-        if (error) throw error
-        setUsers(data || [])
-      } 
-      else if (activeTab === "posts") {
-        const { data, error } = await supabase
-          .from('posts')
-          .select(`
-            id,
-            content,
-            image_url,
-            created_at,
-            user:users(id, name, username, avatar_url)
-          `)
-          .ilike('content', `%${searchQuery}%`)
-          .order('created_at', { ascending: false })
-          .limit(20)
-
-        if (error) throw error
-        setPosts(data as any || [])
-      } 
-      else if (activeTab === "products") {
-        const { data, error } = await supabase
-          .from('store_products')
-          .select('id, name, price, image_url, category')
-          .or(`name.ilike.%${searchQuery}%,category.ilike.%${searchQuery}%`)
-          .limit(20)
-
-        if (error) throw error
-        setProducts(data || [])
+      const res = await fetch(
+        `/api/storefront/search?q=${encodeURIComponent(query)}&limit=24&sort=${sortKey}`,
+        { cache: 'no-store' },
+      )
+      const data = await res.json()
+      if (data.success) {
+        setProducts(data.products ?? [])
+        setSuggestions((data.suggestions ?? []).map((s: { text: string }) => s.text))
       }
-    } catch (error) {
-      console.error('Search error:', error)
-    } finally {
-      setLoading(false)
-    }
+    } catch { /* silent */ }
+    setLoading(false)
+  }, [])
+
+  useEffect(() => {
+    if (q) fetchResults(q, sort)
+    else { setProducts([]); setSuggestions([]) }
+  }, [q, sort, fetchResults])
+
+  function handleSearch(e: React.FormEvent) {
+    e.preventDefault()
+    const v = inputValue.trim()
+    if (!v) return
+    router.push(`/search?q=${encodeURIComponent(v)}`)
   }
 
-  if (!session) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <h2 className="text-2xl font-bold mb-4">Giriş Yapmalısınız</h2>
-          <a href="/api/auth/signin" className="px-6 py-3 bg-primary text-primary-foreground rounded-xl font-semibold inline-block">Giriş Yap</a>
-        </div>
-      </div>
-    )
-  }
+  const sortLabel = SORT_OPTIONS.find((o) => o.key === sort)?.label ?? 'Relevanz'
 
   return (
-    <div className="min-h-screen relative overflow-hidden">
-      <FloatingParticles />
-      
-      <section className="relative py-8 px-4">
-        <div className="container mx-auto max-w-4xl">
-          
-          {/* Header */}
-          <div className="text-center mb-8">
-            <h1 className="font-serif text-4xl font-bold mb-4">Ara</h1>
-            <p className="text-muted-foreground">Kullanıcılar, gönderiler ve ürünleri keşfet</p>
-          </div>
+    <div className="min-h-screen" style={{ background: '#FAFAFA' }}>
 
-          {/* Search Bar */}
-          <div className="mb-8 flex justify-center">
-            <SearchBar onSearch={setQuery} placeholder="Ara..." />
-          </div>
-
-          {/* Tabs */}
-          <div className="flex gap-4 mb-8 justify-center">
-            <button
-              onClick={() => setActiveTab("users")}
-              className={`px-6 py-3 rounded-xl font-semibold flex items-center gap-2 ${
-                activeTab === "users" ? "bg-primary text-primary-foreground" : "glass border border-border"
-              }`}
+      {/* ── Sticky search bar ────────────────────────────── */}
+      <div
+        className="sticky top-0 z-30 py-[12px]"
+        style={{ background: '#FFFFFF', borderBottom: '1px solid #F0F0F0' }}
+      >
+        <div className="max-w-4xl mx-auto px-4 md:px-8">
+          <form onSubmit={handleSearch}>
+            <div
+              className="flex items-stretch h-[44px] rounded-[8px] overflow-hidden"
+              style={{ border: '2px solid #D97706' }}
             >
-              <Users className="w-5 h-5" />
-              Kullanıcılar
-            </button>
-            <button
-              onClick={() => setActiveTab("posts")}
-              className={`px-6 py-3 rounded-xl font-semibold flex items-center gap-2 ${
-                activeTab === "posts" ? "bg-primary text-primary-foreground" : "glass border border-border"
-              }`}
-            >
-              <FileText className="w-5 h-5" />
-              Gönderiler
-            </button>
-            <button
-              onClick={() => setActiveTab("products")}
-              className={`px-6 py-3 rounded-xl font-semibold flex items-center gap-2 ${
-                activeTab === "products" ? "bg-primary text-primary-foreground" : "glass border border-border"
-              }`}
-            >
-              <ShoppingBag className="w-5 h-5" />
-              Ürünler
-            </button>
-          </div>
-
-          {/* Results */}
-          {loading ? (
-            <div className="flex justify-center py-20">
-              <Loader2 className="w-12 h-12 animate-spin text-primary" />
-            </div>
-          ) : !query ? (
-            <div className="text-center py-20 text-muted-foreground">
-              <p>Aramaya başlamak için bir şeyler yazın</p>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {/* Users Results */}
-              {activeTab === "users" && (
-                users.length === 0 ? (
-                  <div className="text-center py-20 text-muted-foreground">
-                    <p>Kullanıcı bulunamadı</p>
-                  </div>
-                ) : (
-                  users.map((user, idx) => (
-                    <motion.div
-                      key={user.id}
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: idx * 0.05 }}
-                    >
-                      <Link href={`/profile/${user.id}`} className="block glass border border-border rounded-xl p-4 hover:border-primary transition-colors">
-                        <div className="flex items-center gap-4">
-                          <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center overflow-hidden">
-                            {user.avatar_url ? (
-                              <img src={user.avatar_url} alt={user.name} className="w-full h-full object-cover" />
-                            ) : (
-                              <span className="text-xl">👤</span>
-                            )}
-                          </div>
-                          <div>
-                            <p className="font-bold">{user.name}</p>
-                            <p className="text-sm text-muted-foreground">@{user.username}</p>
-                          </div>
-                        </div>
-                      </Link>
-                    </motion.div>
-                  ))
-                )
+              <input
+                type="text"
+                value={inputValue}
+                onChange={(e) => setInputValue(e.target.value)}
+                placeholder="Produkte suchen…"
+                className="flex-1 h-full outline-none text-[14px] px-[14px]"
+                style={{ background: '#FFFFFF', color: '#1A1A1A', border: 'none' }}
+                autoFocus={!q}
+              />
+              {inputValue && (
+                <button
+                  type="button"
+                  onClick={() => setInputValue('')}
+                  className="flex-shrink-0 h-full px-[10px] flex items-center"
+                  style={{ background: '#FFFFFF' }}
+                  aria-label="Suche löschen"
+                >
+                  <X className="w-[14px] h-[14px]" style={{ color: '#AAA' }} />
+                </button>
               )}
+              <button
+                type="submit"
+                className="flex-shrink-0 h-full w-[50px] flex items-center justify-center"
+                style={{ background: '#D97706' }}
+                aria-label="Suchen"
+              >
+                <Search className="w-[18px] h-[18px]" style={{ color: '#FFFFFF' }} />
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
 
-              {/* Posts Results */}
-              {activeTab === "posts" && (
-                posts.length === 0 ? (
-                  <div className="text-center py-20 text-muted-foreground">
-                    <p>Gönderi bulunamadı</p>
-                  </div>
-                ) : (
-                  posts.map((post, idx) => (
-                    <motion.div
-                      key={post.id}
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: idx * 0.05 }}
-                      className="glass border border-border rounded-xl p-4"
-                    >
-                      <div className="flex items-start gap-4">
-                        <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center overflow-hidden flex-shrink-0">
-                          {post.user.avatar_url ? (
-                            <img src={post.user.avatar_url} alt={post.user.name} className="w-full h-full object-cover" />
-                          ) : (
-                            <span>👤</span>
-                          )}
-                        </div>
-                        <div className="flex-1">
-                          <p className="font-semibold">{post.user.name}</p>
-                          <p className="text-muted-foreground mt-2">{post.content}</p>
-                          {post.image_url && (
-                            <img src={post.image_url} alt="Post" className="mt-4 rounded-xl w-full max-h-96 object-cover" />
-                          )}
-                        </div>
-                      </div>
-                    </motion.div>
-                  ))
-                )
-              )}
+      <div className="max-w-7xl mx-auto px-4 md:px-8 py-[24px]">
 
-              {/* Products Results */}
-              {activeTab === "products" && (
-                products.length === 0 ? (
-                  <div className="text-center py-20 text-muted-foreground">
-                    <p>Ürün bulunamadı</p>
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                    {products.map((product, idx) => (
-                      <motion.div
-                        key={product.id}
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: idx * 0.05 }}
+        {/* ── Header ──────────────────────────────────────── */}
+        <div className="flex items-center justify-between mb-[20px] flex-wrap gap-[10px]">
+          <div>
+            {q ? (
+              <>
+                <h1 className="text-[18px] font-bold" style={{ color: '#1A1A1A' }}>
+                  Suchergebnisse für &ldquo;{q}&rdquo;
+                </h1>
+                {!loading && (
+                  <p className="text-[12px] mt-[2px]" style={{ color: '#999' }}>
+                    {products.length} Produkte gefunden
+                  </p>
+                )}
+              </>
+            ) : (
+              <h1 className="text-[18px] font-bold" style={{ color: '#1A1A1A' }}>
+                Suche
+              </h1>
+            )}
+          </div>
+
+          {/* Sort */}
+          {q && (
+            <div className="relative">
+              <button
+                onClick={() => setSortOpen((o) => !o)}
+                className="flex items-center gap-[6px] px-[12px] py-[8px] rounded-[8px]
+                  text-[12px] font-medium"
+                style={{ background: '#FFFFFF', border: '1px solid #E5E5E5', color: '#555' }}
+              >
+                <SlidersHorizontal className="w-[13px] h-[13px]" />
+                {sortLabel}
+                <ChevronDown className="w-[12px] h-[12px]" />
+              </button>
+              {sortOpen && (
+                <>
+                  <div className="fixed inset-0 z-10" onClick={() => setSortOpen(false)} />
+                  <div
+                    className="absolute right-0 top-[calc(100%+4px)] z-20 rounded-[8px]
+                      py-[4px] min-w-[180px]"
+                    style={{
+                      background: '#FFFFFF',
+                      border: '1px solid #E5E5E5',
+                      boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
+                    }}
+                  >
+                    {SORT_OPTIONS.map((o) => (
+                      <button
+                        key={o.key}
+                        onClick={() => { setSort(o.key); setSortOpen(false) }}
+                        className="block w-full text-left px-[12px] py-[8px] text-[12px]"
+                        style={{
+                          color:      sort === o.key ? '#D97706' : '#333',
+                          background: sort === o.key ? '#FFFBEB' : 'transparent',
+                          fontWeight: sort === o.key ? 700 : 400,
+                        }}
+                        onMouseEnter={(e) => { if (sort !== o.key) e.currentTarget.style.background = '#F8F8F8' }}
+                        onMouseLeave={(e) => { if (sort !== o.key) e.currentTarget.style.background = 'transparent' }}
                       >
-                        <Link href={`/store/${product.id}`} className="block glass border border-border rounded-xl overflow-hidden hover:border-primary transition-colors">
-                          <div className="aspect-square bg-primary/5">
-                            <img src={product.image_url} alt={product.name} className="w-full h-full object-cover" />
-                          </div>
-                          <div className="p-3">
-                            <p className="text-xs text-primary font-semibold">{product.category}</p>
-                            <h3 className="font-bold truncate">{product.name}</h3>
-                            <p className="text-lg font-bold text-primary">€{product.price.toFixed(2)}</p>
-                          </div>
-                        </Link>
-                      </motion.div>
+                        {o.label}
+                      </button>
                     ))}
                   </div>
-                )
+                </>
               )}
             </div>
           )}
-
         </div>
-      </section>
+
+        {/* ── Suggestion pills ─────────────────────────────── */}
+        {!loading && suggestions.length > 0 && (
+          <div className="flex flex-wrap gap-[6px] mb-[20px]">
+            {suggestions.slice(0, 6).map((s) => (
+              <button
+                key={s}
+                onClick={() => router.push(`/search?q=${encodeURIComponent(s)}`)}
+                className="px-[10px] py-[5px] rounded-full text-[11px] font-medium"
+                style={{ background: '#FFFFFF', border: '1px solid #E5E5E5', color: '#555' }}
+                onMouseEnter={(e) => { e.currentTarget.style.borderColor = '#D97706'; e.currentTarget.style.color = '#D97706' }}
+                onMouseLeave={(e) => { e.currentTarget.style.borderColor = '#E5E5E5'; e.currentTarget.style.color = '#555' }}
+              >
+                {s}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* ── Loading ──────────────────────────────────────── */}
+        {loading && <SkeletonRow count={8} />}
+
+        {/* ── Results grid ─────────────────────────────────── */}
+        {!loading && products.length > 0 && (
+          <motion.div
+            initial={prefersReduced ? {} : { opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.25 }}
+            className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-[12px]"
+          >
+            {products.map((p, i) => (
+              <ProductCard key={p.id} product={p} animate={!prefersReduced} index={i} />
+            ))}
+          </motion.div>
+        )}
+
+        {/* ── Empty results ─────────────────────────────────── */}
+        {!loading && q && !products.length && (
+          <div className="py-[80px] text-center">
+            <div
+              className="w-[56px] h-[56px] rounded-full flex items-center justify-center mx-auto mb-[16px]"
+              style={{ background: '#F5F5F5' }}
+            >
+              <Search className="w-[24px] h-[24px]" style={{ color: '#DDD' }} />
+            </div>
+            <h2 className="text-[16px] font-bold mb-[8px]" style={{ color: '#1A1A1A' }}>
+              Keine Ergebnisse für &ldquo;{q}&rdquo;
+            </h2>
+            <p className="text-[13px] mb-[20px]" style={{ color: '#999' }}>
+              Versuche andere Suchbegriffe oder durchstöbere unsere Kategorien
+            </p>
+            <button
+              onClick={() => router.push('/store')}
+              className="inline-flex items-center px-[20px] py-[10px] rounded-[8px]
+                text-[13px] font-bold"
+              style={{ background: '#D97706', color: '#FFF' }}
+            >
+              Alle Produkte ansehen
+            </button>
+          </div>
+        )}
+
+        {/* ── No query placeholder ─────────────────────────── */}
+        {!q && !loading && (
+          <div className="py-[80px] text-center">
+            <Search className="w-[32px] h-[32px] mx-auto mb-[12px]" style={{ color: '#DDD' }} />
+            <p className="text-[15px] font-medium mb-[4px]" style={{ color: '#555' }}>
+              Was suchst du?
+            </p>
+            <p className="text-[13px]" style={{ color: '#AAA' }}>
+              Gib einen Suchbegriff ein, um Produkte zu finden
+            </p>
+          </div>
+        )}
+      </div>
     </div>
+  )
+}
+
+// ─── Page (Suspense boundary required for useSearchParams) ───────────────────
+
+export default function SearchPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen flex items-center justify-center" style={{ background: '#FAFAFA' }}>
+          <div className="flex gap-[5px]">
+            {[0, 1, 2].map((i) => (
+              <div
+                key={i}
+                className="w-[7px] h-[7px] rounded-full animate-pulse"
+                style={{ background: '#D97706', animationDelay: `${i * 0.15}s` }}
+              />
+            ))}
+          </div>
+        </div>
+      }
+    >
+      <SearchPageInner />
+    </Suspense>
   )
 }

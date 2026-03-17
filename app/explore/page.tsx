@@ -275,9 +275,9 @@ export default function ExplorePage() {
         let liked_by_user = false
         let bookmarked_by_user = false
         if (userId) {
-          const { data: likeData } = await supabase.from('likes').select('id').eq('post_id', post.id).eq('user_id', userId).single()
+          const { data: likeData } = await supabase.from('likes').select('id').eq('post_id', post.id).eq('user_id', userId).maybeSingle()
           liked_by_user = !!likeData
-          const { data: bookmarkData } = await supabase.from('bookmarks').select('id').eq('post_id', post.id).eq('user_id', userId).single()
+          const { data: bookmarkData } = await supabase.from('bookmarks').select('id').eq('post_id', post.id).eq('user_id', userId).maybeSingle()
           bookmarked_by_user = !!bookmarkData
         }
         return { ...post, user: userData || { id: post.user_id, name: 'Unknown', avatar_url: null }, liked_by_user, bookmarked_by_user }

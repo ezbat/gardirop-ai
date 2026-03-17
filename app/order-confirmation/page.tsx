@@ -13,61 +13,62 @@ function OrderConfirmationContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const sessionId = searchParams.get('session_id')
+  const orderId = searchParams.get('order_id')
 
   const [loading, setLoading] = useState(true)
   const [order, setOrder] = useState<any>(null)
   const [error, setError] = useState<string | null>(null)
-  const [pollingAttempt, setPollingAttempt] = useState(0)
+
 
   useEffect(() => {
-    if (sessionId) {
-      pollForOrder(sessionId)
+    if (orderId) {
+      fetchOrderById(orderId)
+    } else if (sessionId) {
+      fetchOrderBySession(sessionId)
     } else {
-      setError('Invalid confirmation link - missing session ID')
+      setError('Invalid confirmation link')
       setLoading(false)
     }
-  }, [sessionId])
+  }, [orderId, sessionId])
 
-  const pollForOrder = async (sessionId: string) => {
-    const maxAttempts = 10
-    const delayMs = 1000
-
+  const fetchOrderById = async (id: string) => {
     try {
-      for (let i = 0; i < maxAttempts; i++) {
-        setPollingAttempt(i + 1)
+      const { data, error: fetchError } = await supabase
+        .from('orders')
+        .select('*')
+        .eq('id', id)
+        .maybeSingle()
 
-        console.log(`🔄 Polling for order (attempt ${i + 1}/${maxAttempts})...`)
-
-        // Query order by stripe_checkout_session_id
-        const { data: orderData, error: orderError } = await supabase
-          .from('orders')
-          .select('*')
-          .eq('stripe_checkout_session_id', sessionId)
-          .single()
-
-        if (orderData) {
-          console.log('✅ Order found:', orderData.id)
-          setOrder(orderData)
-          setLoading(false)
-
-          // Clear cart on successful order
-          localStorage.removeItem('cart')
-          return
-        }
-
-        // If not found yet, wait and retry
-        if (i < maxAttempts - 1) {
-          await new Promise(resolve => setTimeout(resolve, delayMs))
-        }
+      if (data) {
+        setOrder(data)
+        localStorage.removeItem('cart')
+      } else {
+        setError('Order not found. Please contact support with order ID: ' + id.slice(0, 8).toUpperCase())
       }
-
-      // Timeout after max attempts
-      console.error('⏱️ Order creation timeout')
-      setError('Order creation is taking longer than expected. Please check your email or contact support with session ID: ' + sessionId.slice(-8))
-      setLoading(false)
     } catch (err: any) {
-      console.error('❌ Polling error:', err)
       setError(err.message || 'Failed to verify payment')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const fetchOrderBySession = async (sessionId: string) => {
+    try {
+      const { data, error: fetchError } = await supabase
+        .from('orders')
+        .select('*')
+        .eq('stripe_checkout_session_id', sessionId)
+        .maybeSingle()
+
+      if (data) {
+        setOrder(data)
+        localStorage.removeItem('cart')
+      } else {
+        setError('Order not found. Please check your email or contact support with session ID: ' + sessionId.slice(-8))
+      }
+    } catch (err: any) {
+      setError(err.message || 'Failed to verify payment')
+    } finally {
       setLoading(false)
     }
   }
@@ -78,28 +79,7 @@ function OrderConfirmationContent() {
         <div className="text-center max-w-md">
           <Loader2 className="w-16 h-16 animate-spin text-primary mb-6 mx-auto" />
           <h2 className="text-2xl font-bold mb-3">Processing your order...</h2>
-          <p className="text-muted-foreground mb-2">
-            This usually takes a few seconds
-          </p>
-          {pollingAttempt > 0 && (
-            <div className="mt-4">
-              <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
-                <div className="flex gap-1">
-                  {Array.from({ length: 10 }).map((_, i) => (
-                    <div
-                      key={i}
-                      className={`w-2 h-2 rounded-full transition-colors ${
-                        i < pollingAttempt ? 'bg-primary' : 'bg-muted'
-                      }`}
-                    />
-                  ))}
-                </div>
-              </div>
-              <p className="text-xs text-muted-foreground mt-2">
-                Attempt {pollingAttempt} of 10
-              </p>
-            </div>
-          )}
+          <p className="text-muted-foreground">This usually takes a few seconds</p>
         </div>
       </div>
     )

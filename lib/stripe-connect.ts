@@ -1,9 +1,8 @@
-import Stripe from 'stripe'
+import type Stripe from 'stripe'
+import { stripe } from '@/lib/stripe'
 import { supabase } from './supabase'
-
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: '2025-12-15.clover',
-})
+import { supabaseAdmin } from './supabase-admin'
+import { logger } from './logger'
 
 /**
  * Create a Stripe Connect Express account for a seller
@@ -312,21 +311,27 @@ export async function processOrderPayout(orderId: string) {
           })
           .in('id', items.map(i => i.id))
 
-        // Update seller balance
-        const { data: balance } = await supabase
-          .from('seller_balances')
-          .select('pending_balance, total_withdrawn')
-          .eq('seller_id', sellerId)
-          .single()
+        // Atomic balance deduction via RPC
+        const { data: rpcResult, error: rpcError } = await supabaseAdmin.rpc('balance_deduct', {
+          p_seller_id: sellerId,
+          p_amount: totalAmount,
+          p_ref_type: 'payout',
+          p_ref_id: orderId,
+          p_description: `Order payout - transfer ${transfer.id}`,
+          p_idempotency_key: `payout_${orderId}_${sellerId}`,
+        })
 
-        if (balance) {
-          await supabase
-            .from('seller_balances')
-            .update({
-              pending_balance: (balance.pending_balance || 0) - totalAmount,
-              total_withdrawn: (balance.total_withdrawn || 0) + totalAmount,
+        if (rpcError) {
+          logger.error('balance_deduct RPC failed in processOrderPayout', {
+            sellerId, orderId, error: rpcError.message,
+          })
+        } else {
+          const result = rpcResult as { success: boolean; error?: string }
+          if (!result.success) {
+            logger.warn('Balance deduction failed in processOrderPayout', {
+              sellerId, orderId, error: result.error,
             })
-            .eq('seller_id', sellerId)
+          }
         }
 
         payouts.push(payout)

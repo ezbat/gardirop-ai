@@ -26,7 +26,8 @@
       "Bash(echo:*)",
       "Bash(timeout:*)",
       "Bash(test:*)",
-      "Bash(npx eslint:*)"
+      "Bash(npx eslint:*)",
+      "Bash(if not exist \"C:\\\\Users\\\\Ezbat\\\\Documents\\\\projeler\\\\kombin\\\\my-app\\\\app\\\\admin\" mkdir \"C:\\\\Users\\\\Ezbat\\\\Documents\\\\projeler\\\\kombin\\\\my-app\\\\app\\\\admin\")"
     ]
   }
 }

@@ -829,7 +829,7 @@ export default function BrandStagePage() {
                   return (
                     <Link
                       key={product.id}
-                      href={`/store/${product.id}`}
+                      href={`/products/${product.id}`}
                       style={{
                         textDecoration: 'none',
                         gridColumn: isFeature ? '1 / -1' : undefined,
@@ -1032,7 +1032,7 @@ export default function BrandStagePage() {
                         {catProducts.slice(0, 8).map(product => (
                           <Link
                             key={product.id}
-                            href={`/store/${product.id}`}
+                            href={`/products/${product.id}`}
                             style={{ textDecoration: 'none', flexShrink: 0, scrollSnapAlign: 'start' }}
                           >
                             <div style={{

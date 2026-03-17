@@ -1,8 +1,11 @@
 "use client"
 
 import { useState, useEffect, useRef, useCallback } from 'react'
+import { motion } from 'framer-motion'
 import { supabase } from '@/lib/supabase'
-import ReelItem from './reel-item'
+import ReelCard from './reel-card'
+import ReelSkeleton from './reel-skeleton'
+import { Play, Loader2 } from 'lucide-react'
 
 interface Reel {
   id: string
@@ -23,24 +26,24 @@ interface Reel {
   product_tags?: any[]
 }
 
-export default function ReelsFeed() {
+interface ReelsFeedProps {
+  sortBy?: 'recent' | 'trending'
+  limit?: number
+  /** "single" = one column, 120px gap (reels page). "grid" = 1col mobile / 2col desktop (homepage). Default: "grid" */
+  layout?: 'single' | 'grid'
+}
+
+export default function ReelsFeed({ sortBy = 'recent', limit, layout = 'grid' }: ReelsFeedProps) {
   const [reels, setReels] = useState<Reel[]>([])
-  const [currentIndex, setCurrentIndex] = useState(0)
   const [isLoading, setIsLoading] = useState(true)
   const [hasMore, setHasMore] = useState(true)
-  const containerRef = useRef<HTMLDivElement>(null)
-  const observerRef = useRef<IntersectionObserver | null>(null)
+  const [isLoadingMore, setIsLoadingMore] = useState(false)
+  const sentinelRef = useRef<HTMLDivElement>(null)
+  const PAGE_SIZE = limit || 6
 
-  // Load initial reels
-  useEffect(() => {
-    loadReels()
-  }, [])
-
-  const loadReels = async () => {
+  const loadReels = useCallback(async (cursor?: string) => {
     try {
-      setIsLoading(true)
-
-      const { data, error } = await supabase
+      let query = supabase
         .from('posts')
         .select(`
           id,
@@ -73,215 +76,173 @@ export default function ReelsFeed() {
           )
         `)
         .eq('is_video', true)
-        .order('created_at', { ascending: false })
-        .limit(10)
 
+      if (sortBy === 'trending') {
+        query = query.order('view_count', { ascending: false })
+      } else {
+        query = query.order('created_at', { ascending: false })
+      }
+
+      if (cursor) {
+        query = query.lt('created_at', cursor)
+      }
+
+      query = query.limit(PAGE_SIZE)
+
+      const { data, error } = await query
       if (error) throw error
 
-      setReels((data || []) as any)
-      setHasMore((data?.length || 0) >= 10)
+      return (data || []) as any as Reel[]
     } catch (error) {
       console.error('Error loading reels:', error)
-    } finally {
-      setIsLoading(false)
+      return []
     }
-  }
+  }, [sortBy, PAGE_SIZE])
 
-  const loadMoreReels = async () => {
-    if (!hasMore || isLoading) return
-
-    try {
-      setIsLoading(true)
-
-      const lastReel = reels[reels.length - 1]
-      const { data, error } = await supabase
-        .from('posts')
-        .select(`
-          id,
-          video_url,
-          thumbnail_url,
-          caption,
-          user_id,
-          likes_count,
-          comments_count,
-          view_count,
-          created_at,
-          user:users!user_id (
-            id,
-            name,
-            username,
-            avatar_url
-          ),
-          product_tags:post_product_tags (
-            id,
-            product_id,
-            position_x,
-            position_y,
-            timestamp_seconds,
-            product:products!product_id (
-              id,
-              title,
-              price,
-              images
-            )
-          )
-        `)
-        .eq('is_video', true)
-        .lt('created_at', lastReel.created_at)
-        .order('created_at', { ascending: false })
-        .limit(10)
-
-      if (error) throw error
-
-      setReels(prev => [...prev, ...((data || []) as any)])
-      setHasMore((data?.length || 0) >= 10)
-    } catch (error) {
-      console.error('Error loading more reels:', error)
-    } finally {
-      setIsLoading(false)
-    }
-  }
-
-  // Intersection Observer for current reel detection
+  // Initial load
   useEffect(() => {
-    observerRef.current = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          if (entry.isIntersecting) {
-            const index = parseInt(entry.target.getAttribute('data-index') || '0')
-            setCurrentIndex(index)
+    setIsLoading(true)
+    setReels([])
+    setHasMore(true)
+    loadReels().then(data => {
+      setReels(data)
+      setHasMore(!limit && data.length >= PAGE_SIZE)
+      setIsLoading(false)
+    })
+  }, [loadReels, limit, PAGE_SIZE])
 
-            // Load more when near end
-            if (index >= reels.length - 3) {
-              loadMoreReels()
-            }
+  // Infinite scroll (disabled when limit is set)
+  useEffect(() => {
+    if (limit || !sentinelRef.current || !hasMore || isLoading) return
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting && !isLoadingMore && hasMore) {
+          setIsLoadingMore(true)
+          const lastReel = reels[reels.length - 1]
+          if (lastReel) {
+            loadReels(lastReel.created_at).then(data => {
+              setReels(prev => [...prev, ...data])
+              setHasMore(data.length >= PAGE_SIZE)
+              setIsLoadingMore(false)
+            })
           }
-        })
+        }
       },
-      {
-        threshold: 0.5,
-        rootMargin: '0px'
-      }
+      { rootMargin: '300px' }
     )
 
-    return () => {
-      observerRef.current?.disconnect()
+    observer.observe(sentinelRef.current)
+    return () => observer.disconnect()
+  }, [reels, hasMore, isLoading, isLoadingMore, loadReels, limit, PAGE_SIZE])
+
+  // ── Loading state ─────────────────────────────────────
+  if (isLoading) {
+    if (layout === 'single') {
+      return (
+        <div className="flex flex-col items-center">
+          <ReelSkeleton />
+          <div className="h-[120px]" />
+          <ReelSkeleton />
+        </div>
+      )
     }
-  }, [reels.length])
-
-  // Attach observer to reel items
-  useEffect(() => {
-    if (!containerRef.current) return
-
-    const reelElements = containerRef.current.querySelectorAll('.reel-item')
-    reelElements.forEach((element) => {
-      observerRef.current?.observe(element)
-    })
-
-    return () => {
-      reelElements.forEach((element) => {
-        observerRef.current?.unobserve(element)
-      })
-    }
-  }, [reels])
-
-  const handleLike = async (reelId: string) => {
-    // Like logic here
-    console.log('Like reel:', reelId)
-  }
-
-  const handleComment = (reelId: string) => {
-    // Comment logic here
-    console.log('Comment on reel:', reelId)
-  }
-
-  const handleShare = (reelId: string) => {
-    // Share logic here
-    console.log('Share reel:', reelId)
-  }
-
-  const handleBookmark = (reelId: string) => {
-    // Bookmark logic here
-    console.log('Bookmark reel:', reelId)
-  }
-
-  if (isLoading && reels.length === 0) {
     return (
-      <div className="h-screen flex items-center justify-center bg-background">
-        <div className="w-12 h-12 rounded-full border-4 border-primary/20 border-t-primary animate-spin" />
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8 place-items-center">
+        <ReelSkeleton />
+        <ReelSkeleton />
       </div>
     )
   }
 
+  // ── Empty state ───────────────────────────────────────
   if (reels.length === 0) {
     return (
-      <div className="h-screen flex items-center justify-center bg-gradient-to-br from-purple-600 to-pink-500 p-8">
-        <div className="text-center text-white space-y-6">
-          {/* Large emoji icon */}
-          <div className="text-8xl mb-4 animate-bounce">🎬</div>
-
-          {/* Title */}
-          <h2 className="text-3xl font-bold">Start Creating!</h2>
-
-          {/* Subtitle */}
-          <p className="text-lg text-white/90 max-w-sm mx-auto">
-            Be the first to share videos with products and start earning
-          </p>
-
-          {/* Coming soon badge */}
-          <div className="inline-flex items-center gap-2 px-6 py-3 bg-white/20 backdrop-blur-sm rounded-full">
-            <span className="text-sm font-semibold">Video Upload Coming Soon</span>
-            <span className="text-2xl">🚀</span>
-          </div>
-
-          {/* Features preview */}
-          <div className="mt-8 space-y-3 text-sm text-white/80">
-            <div className="flex items-center justify-center gap-2">
-              <span>📹</span>
-              <span>Record or upload videos</span>
-            </div>
-            <div className="flex items-center justify-center gap-2">
-              <span>🏷️</span>
-              <span>Tag products in your videos</span>
-            </div>
-            <div className="flex items-center justify-center gap-2">
-              <span>💰</span>
-              <span>Earn from sales</span>
-            </div>
-          </div>
+      <div className="max-w-[400px] mx-auto rounded-[20px] p-12 text-center"
+        style={{
+          background: 'var(--reels-layer)',
+          border: '1px solid var(--reels-border)',
+        }}
+      >
+        <div
+          className="w-14 h-14 rounded-full mx-auto mb-5 flex items-center justify-center"
+          style={{ background: 'var(--reels-accent-soft)' }}
+        >
+          <Play className="w-6 h-6 ml-0.5" style={{ color: 'var(--text-faint)' }} />
         </div>
+        <h3 className="text-[15px] font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>
+          Noch keine Videos
+        </h3>
+        <p className="text-[13px]" style={{ color: 'var(--text-faint)' }}>
+          Sei der Erste, der ein Video teilt
+        </p>
       </div>
     )
   }
 
-  return (
-    <div
-      ref={containerRef}
-      className="snap-scroll-y hide-scrollbar h-screen overflow-y-scroll bg-black"
-    >
-      {reels.map((reel, index) => (
-        <div
-          key={reel.id}
-          data-index={index}
-          className="reel-item snap-item h-screen"
-        >
-          <ReelItem
-            post={reel}
-            isActive={index === currentIndex}
-            onLike={() => handleLike(reel.id)}
-            onComment={() => handleComment(reel.id)}
-            onShare={() => handleShare(reel.id)}
-            onBookmark={() => handleBookmark(reel.id)}
-          />
-        </div>
-      ))}
+  // ── Single column layout (reels page) ─────────────────
+  if (layout === 'single') {
+    return (
+      <div className="flex flex-col items-center">
+        {reels.map((reel, i) => (
+          <motion.div
+            key={reel.id}
+            initial={{ opacity: 0, y: 30 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: i * 0.1, ease: [0.25, 0.46, 0.45, 0.94] }}
+            className="w-full"
+          >
+            <ReelCard post={reel} />
+            {/* 120px breathing room between cards */}
+            {i < reels.length - 1 && <div className="h-[120px]" />}
+          </motion.div>
+        ))}
 
-      {/* Loading indicator */}
-      {isLoading && reels.length > 0 && (
-        <div className="h-screen flex items-center justify-center">
-          <div className="w-8 h-8 rounded-full border-4 border-white/20 border-t-white animate-spin" />
+        {isLoadingMore && (
+          <>
+            <div className="h-[120px]" />
+            <div className="flex justify-center py-4">
+              <Loader2 className="w-5 h-5 animate-spin text-white/15" />
+            </div>
+          </>
+        )}
+
+        {hasMore && !limit && <div ref={sentinelRef} className="h-1" />}
+
+        {!hasMore && reels.length > 0 && (
+          <>
+            <div className="h-[60px]" />
+            <p className="text-[11px] text-white/15 text-center pb-4">Das war&apos;s erst mal</p>
+          </>
+        )}
+      </div>
+    )
+  }
+
+  // ── Grid layout (homepage) ────────────────────────────
+  return (
+    <div>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8 place-items-center">
+        {reels.map((reel, i) => (
+          <motion.div
+            key={reel.id}
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.4, delay: i * 0.08 }}
+            className="w-full"
+          >
+            <ReelCard post={reel} />
+          </motion.div>
+        ))}
+      </div>
+
+      {isLoadingMore && (
+        <div className="flex justify-center py-8">
+          <Loader2 className="w-5 h-5 animate-spin text-white/20" />
         </div>
       )}
+
+      {hasMore && !limit && <div ref={sentinelRef} className="h-1" />}
     </div>
   )
 }

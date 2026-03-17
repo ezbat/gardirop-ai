@@ -1,21 +1,19 @@
 import type { Metadata } from "next"
-import { Inter } from "next/font/google"
+import "@fontsource-variable/inter"
 import "./globals.css"
 import { ThemeProvider } from "@/components/theme-provider"
 import CookieConsent from "@/components/cookie-consent"
 import SupportChat from "@/components/support-chat"
-import SwipeNavigationProvider from "@/components/swipe-navigation/SwipeNavigationProvider"
-import SwipeNavigator from "@/components/swipe-navigation/SwipeNavigator"
-import EdgeIndicators from "@/components/swipe-navigation/EdgeIndicators"
-import SwipeTutorialOverlay from "@/components/swipe-navigation/SwipeTutorialOverlay"
-import CreateGestureButton from "@/components/swipe-navigation/CreateGestureButton"
 import OnboardingGuard from "@/components/onboarding-guard"
+import { PageTransitionProvider } from "@/lib/page-transition-context"
+import TransitionWrapper from "@/components/transition-wrapper"
+import NavHeader from "@/components/nav-header"
+import MobileBottomNav from "@/components/mobile-bottom-nav"
 import Footer from "@/components/footer"
 import { LanguageProvider } from '@/lib/language-context'
 import { CurrencyProvider } from '@/lib/currency-context'
 import SessionWrapper from "@/components/session-wrapper"
 
-const inter = Inter({ subsets: ["latin"], variable: "--font-inter" })
 
 export const metadata: Metadata = {
   title: {
@@ -73,22 +71,19 @@ export default function RootLayout({
 }) {
   return (
     <html lang="de" suppressHydrationWarning>
-      <body className={`${inter.variable} font-sans antialiased`}>
+      <body className="font-sans antialiased" style={{ background: 'var(--lux-bg)' }}>
         <SessionWrapper>
           <ThemeProvider attribute="class" defaultTheme="dark">
             <LanguageProvider>
               <CurrencyProvider>
                 <OnboardingGuard>
-                  <div className="relative min-h-screen bg-background flex flex-col">
-                    <SwipeNavigationProvider>
-                      <SwipeNavigator>
-                        <main className="flex-1">{children}</main>
-                        <Footer />
-                      </SwipeNavigator>
-                      <EdgeIndicators />
-                      <SwipeTutorialOverlay />
-                      <CreateGestureButton />
-                    </SwipeNavigationProvider>
+                  <div className="relative min-h-screen flex flex-col" style={{ background: 'var(--lux-bg)', color: 'var(--text-primary)' }}>
+                    <PageTransitionProvider>
+                      <NavHeader />
+                      <TransitionWrapper>{children}</TransitionWrapper>
+                      <Footer />
+                      <MobileBottomNav />
+                    </PageTransitionProvider>
                     <CookieConsent />
                     <SupportChat />
                   </div>

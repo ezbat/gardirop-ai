@@ -29,6 +29,16 @@ export default function CreatePostModal({ isOpen, onClose, onSuccess }: CreatePo
   const [selectedOutfit, setSelectedOutfit] = useState<string>("")
   const [showHashtagSuggestions, setShowHashtagSuggestions] = useState(false)
   const [showMentionSuggestions, setShowMentionSuggestions] = useState(false)
+  const [isSeller, setIsSeller] = useState<boolean | null>(null)
+
+  // Check if user is a seller
+  useEffect(() => {
+    if (!userId) { setIsSeller(false); return }
+    fetch('/api/seller/onboarding-status')
+      .then(r => r.json())
+      .then(d => setIsSeller(d.isSeller === true))
+      .catch(() => setIsSeller(false))
+  }, [userId])
 
   const hashtagSuggestions = ['moda', 'stil', 'kombin', 'fashion', 'ootd', 'style', 'gardirop', 'kıyafet', 'trend', 'lookbook']
 
@@ -113,12 +123,12 @@ export default function CreatePostModal({ isOpen, onClose, onSuccess }: CreatePo
 
       if (postError) throw postError
 
-      alert('Gönderi paylaşıldı! ✨')
+      alert('Beitrag veröffentlicht!')
       handleClose()
       if (onSuccess) onSuccess()
     } catch (error) {
       console.error('Post error:', error)
-      alert('Paylaşım başarısız! Lütfen tekrar deneyin.')
+      alert('Veröffentlichung fehlgeschlagen. Bitte erneut versuchen.')
     } finally {
       setUploading(false)
     }
@@ -133,6 +143,33 @@ export default function CreatePostModal({ isOpen, onClose, onSuccess }: CreatePo
   }
 
   if (!isOpen) return null
+
+  // Gate: only sellers can post
+  if (isSeller === false) {
+    return (
+      <AnimatePresence>
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={handleClose}
+          className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <motion.div initial={{ scale: 0.9 }} animate={{ scale: 1 }} exit={{ scale: 0.9 }}
+            onClick={e => e.stopPropagation()}
+            className="w-full max-w-md glass border border-border rounded-2xl p-8 text-center">
+            <ImageIcon className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
+            <h2 className="text-xl font-bold mb-2">Nur für Verkäufer</h2>
+            <p className="text-sm text-muted-foreground mb-6">
+              Nur verifizierte Verkäufer können Beiträge erstellen. Werde Verkäufer, um deine Produkte zu bewerben.
+            </p>
+            <a href="/sell/apply" className="inline-block px-6 py-2.5 rounded-xl font-semibold text-sm text-white"
+              style={{ background: '#D97706' }}>
+              Verkäufer werden
+            </a>
+            <button onClick={handleClose} className="block mx-auto mt-3 text-sm text-muted-foreground hover:underline">
+              Schließen
+            </button>
+          </motion.div>
+        </motion.div>
+      </AnimatePresence>
+    )
+  }
 
   return (
     <AnimatePresence>
@@ -152,7 +189,7 @@ export default function CreatePostModal({ isOpen, onClose, onSuccess }: CreatePo
         >
           {/* Header */}
           <div className="p-6 border-b border-border flex items-center justify-between sticky top-0 glass z-10">
-            <h2 className="text-2xl font-bold">Yeni Gönderi</h2>
+            <h2 className="text-2xl font-bold">Neuer Beitrag</h2>
             <button
               onClick={handleClose}
               className="w-10 h-10 rounded-full hover:bg-secondary flex items-center justify-center transition-colors"
@@ -168,8 +205,8 @@ export default function CreatePostModal({ isOpen, onClose, onSuccess }: CreatePo
               <label className="block aspect-video glass border-2 border-dashed border-border rounded-2xl cursor-pointer hover:border-primary transition-colors">
                 <div className="h-full flex flex-col items-center justify-center">
                   <Upload className="w-16 h-16 text-muted-foreground mb-4" />
-                  <p className="text-lg font-semibold mb-2">Fotoğraf Seç</p>
-                  <p className="text-sm text-muted-foreground">Kombininizi paylaşın (En fazla 5 resim)</p>
+                  <p className="text-lg font-semibold mb-2">Bild auswählen</p>
+                  <p className="text-sm text-muted-foreground">Teile dein Outfit (max. 5 Bilder)</p>
                 </div>
                 <input
                   type="file"
@@ -226,7 +263,7 @@ export default function CreatePostModal({ isOpen, onClose, onSuccess }: CreatePo
                   <textarea
                     value={caption}
                     onChange={(e) => setCaption(e.target.value)}
-                    placeholder="Açıklama yaz... (#hashtag veya @mention kullanabilirsin)"
+                    placeholder="Beschreibung... (#Hashtag oder @Erwähnung möglich)"
                     className="w-full px-4 py-3 glass border border-border rounded-xl outline-none focus:border-primary resize-none"
                     rows={4}
                     disabled={uploading}
@@ -294,12 +331,12 @@ export default function CreatePostModal({ isOpen, onClose, onSuccess }: CreatePo
                 {uploading ? (
                   <>
                     <Loader2 className="w-5 h-5 animate-spin" />
-                    Paylaşılıyor...
+                    Wird veröffentlicht...
                   </>
                 ) : (
                   <>
                     <Send className="w-5 h-5" />
-                    Paylaş
+                    Veröffentlichen
                   </>
                 )}
               </button>

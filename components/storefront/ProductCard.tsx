@@ -52,13 +52,13 @@ function StarRow({ rating, count }: { rating: number; count?: number | null }) {
           width="9"
           height="9"
           viewBox="0 0 24 24"
-          fill={i < Math.round(rating) ? '#D97706' : '#E5E5E5'}
+          fill={i < Math.round(rating) ? '#D97706' : '#CCCCCC'}
         >
           <path d="M12 2l3.09 6.26L22 9.27l-5 4.87L18.18 21 12 17.77 5.82 21 7 14.14 2 9.27l6.91-1.01L12 2z" />
         </svg>
       ))}
       {count != null && (
-        <span className="text-[9px] leading-none" style={{ color: '#999' }}>
+        <span className="text-[9px] leading-none" style={{ color: '#777' }}>
           ({count})
         </span>
       )}
@@ -231,7 +231,7 @@ export function ProductCard({
         {product.brand && (
           <span
             className="text-[9px] font-semibold uppercase tracking-wider truncate"
-            style={{ color: '#BBBBBB' }}
+            style={{ color: '#777777' }}
           >
             {product.brand}
           </span>
@@ -244,14 +244,14 @@ export function ProductCard({
 
         {/* Seller */}
         {product.sellerName && (
-          <span className="text-[9px] truncate" style={{ color: '#AAAAAA' }}>
+          <span className="text-[9px] truncate" style={{ color: '#777777' }}>
             von {product.sellerName}
           </span>
         )}
 
         {/* Color/variant count */}
         {product.colorCount != null && product.colorCount > 1 && (
-          <span className="text-[9px]" style={{ color: '#AAAAAA' }}>
+          <span className="text-[9px]" style={{ color: '#777777' }}>
             {product.colorCount} Farben
           </span>
         )}
@@ -265,11 +265,11 @@ export function ProductCard({
 
         {/* Price */}
         <div className="flex items-baseline gap-[5px] mt-[3px]">
-          <span className={`text-[13px] font-bold ${outOfStock ? 'text-[#CCCCCC]' : 'text-[#1A1A1A]'}`}>
+          <span className={`text-[13px] font-bold ${outOfStock ? 'text-[#999999]' : 'text-[#1A1A1A]'}`}>
             {fmtPrice(product.price, product.currency)}
           </span>
           {product.compareAtPrice != null && product.compareAtPrice > product.price && (
-            <span className="text-[11px] line-through" style={{ color: '#CCCCCC' }}>
+            <span className="text-[11px] line-through" style={{ color: '#999999' }}>
               {fmtPrice(product.compareAtPrice, product.currency)}
             </span>
           )}

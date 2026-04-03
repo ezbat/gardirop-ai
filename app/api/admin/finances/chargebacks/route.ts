@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { getActiveChargebacks, getChargebackRate } from '@/lib/reconciliation-engine'
+import { requireAdmin } from '@/lib/admin-auth'
 
 /**
  * GET /api/admin/finances/chargebacks
@@ -11,21 +12,8 @@ import { getActiveChargebacks, getChargebackRate } from '@/lib/reconciliation-en
  */
 export async function GET(request: NextRequest) {
   try {
-    const userId = request.headers.get('x-user-id')
-    if (!userId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
-    if (userId !== 'm3000') {
-      const { data: user } = await supabaseAdmin
-        .from('users')
-        .select('role')
-        .eq('id', userId)
-        .single()
-      if (user?.role !== 'admin') {
-        return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-      }
-    }
+    const auth = requireAdmin(request)
+    if (auth.error) return auth.error
 
     const [chargebacks, rate] = await Promise.all([
       getActiveChargebacks(30),
@@ -44,21 +32,8 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const userId = request.headers.get('x-user-id')
-    if (!userId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
-    if (userId !== 'm3000') {
-      const { data: user } = await supabaseAdmin
-        .from('users')
-        .select('role')
-        .eq('id', userId)
-        .single()
-      if (user?.role !== 'admin') {
-        return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-      }
-    }
+    const auth = requireAdmin(request)
+    if (auth.error) return auth.error
 
     const body = await request.json()
     const { chargebackId, action, notes } = body
@@ -139,7 +114,7 @@ export async function POST(request: NextRequest) {
 
     // Audit log
     await supabaseAdmin.from('audit_logs').insert({
-      actor_id: userId,
+      actor_id: 'admin',
       actor_type: 'admin',
       action: `chargeback_${action}`,
       resource_type: 'chargeback',

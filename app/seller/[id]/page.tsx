@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { useSession } from 'next-auth/react'
+import { useAuthModal } from '@/components/auth-modal'
 import { useLanguage } from '@/lib/language-context'
 import { supabase } from '@/lib/supabase'
 import Link from 'next/link'
@@ -109,11 +110,94 @@ function getSellerTier(productCount: number, followerCount: number): { name: str
   return { name: 'Rising', color: GREEN, bg: 'oklch(0.72 0.19 145 / 0.12)' }
 }
 
+// ── Seller Posts Tab Component ──────────────────────────────────────
+function SellerPostsTab({ sellerId }: { sellerId: string }) {
+  const [posts, setPosts] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    fetch(`/api/feed?seller=${sellerId}&filter=new&limit=30`)
+      .then(r => r.json())
+      .then(d => { if (d.success) setPosts(d.posts || []) })
+      .catch(() => {})
+      .finally(() => setLoading(false))
+  }, [sellerId])
+
+  if (loading) {
+    return (
+      <div style={{ display: 'flex', justifyContent: 'center', padding: 60 }}>
+        <div style={{
+          width: 28, height: 28, borderRadius: '50%', border: `2px solid ${BORDER}`,
+          borderTopColor: GOLD, animation: 'spin 1s linear infinite',
+        }} />
+      </div>
+    )
+  }
+
+  if (posts.length === 0) {
+    return (
+      <div style={{
+        textAlign: 'center', padding: '60px 20px',
+        background: SURFACE_ELEVATED, borderRadius: 16,
+        border: `1px solid ${BORDER}`,
+      }}>
+        <Eye style={{ width: 40, height: 40, color: TEXT_MUTED, margin: '0 auto 12px' }} />
+        <p style={{ color: TEXT_SECONDARY, fontSize: 14 }}>Dieser Verkäufer hat noch keine Beiträge.</p>
+      </div>
+    )
+  }
+
+  return (
+    <div style={{
+      display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))',
+      gap: 12,
+    }}>
+      {posts.map(post => (
+        <div key={post.id} style={{
+          borderRadius: 12, overflow: 'hidden', position: 'relative',
+          background: SURFACE_ELEVATED, border: `1px solid ${BORDER}`,
+          aspectRatio: '3/4',
+        }}>
+          <img
+            src={post.image_url}
+            alt={post.caption || ''}
+            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+            loading="lazy"
+          />
+          <div style={{
+            position: 'absolute', bottom: 0, left: 0, right: 0, padding: '8px 10px',
+            background: 'linear-gradient(to top, rgba(0,0,0,0.7), transparent)',
+          }}>
+            <div style={{ display: 'flex', gap: 10, color: '#fff', fontSize: 11 }}>
+              <span style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
+                <Heart size={12} /> {post.likes_count || 0}
+              </span>
+              <span style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
+                <MessageCircle size={12} /> {post.comments_count || 0}
+              </span>
+            </div>
+          </div>
+          {post.is_promoted && (
+            <div style={{
+              position: 'absolute', top: 6, right: 6,
+              background: GOLD, color: '#000', fontSize: 9, fontWeight: 800,
+              padding: '2px 6px', borderRadius: 4,
+            }}>
+              AD
+            </div>
+          )}
+        </div>
+      ))}
+    </div>
+  )
+}
+
 // ── Main Component ──────────────────────────────────────────────────
 export default function BrandStagePage() {
   const params = useParams()
   const router = useRouter()
   const { data: session } = useSession()
+  const { requireAuth } = useAuthModal()
   const { t } = useLanguage()
   const sellerId = params.id as string
   const userId = session?.user?.id
@@ -125,7 +209,9 @@ export default function BrandStagePage() {
   const [isFollowing, setIsFollowing] = useState(false)
   const [followLoading, setFollowLoading] = useState(false)
   const [followerCount, setFollowerCount] = useState(0)
-  const [activeTab, setActiveTab] = useState<'discover' | 'collections' | 'about'>('discover')
+  const [activeTab, setActiveTab] = useState<'discover' | 'posts' | 'collections' | 'about'>('discover')
+  const [sellerPosts, setSellerPosts] = useState<any[]>([])
+  const [postsLoading, setPostsLoading] = useState(false)
   const [selectedCategory, setSelectedCategory] = useState('all')
   const [heroVisible, setHeroVisible] = useState(true)
   const [scrollY, setScrollY] = useState(0)
@@ -173,12 +259,15 @@ export default function BrandStagePage() {
 
       setProducts(productsData || [])
 
-      const { count } = await supabase
+      const { count, error: countErr } = await supabase
         .from('store_followers')
         .select('*', { count: 'exact', head: true })
         .eq('seller_id', sellerId)
 
-      setFollowerCount(count || 0)
+      if (countErr) {
+        console.warn('[seller page] store_followers count:', countErr.message)
+      }
+      setFollowerCount(count ?? 0)
     } catch (error) {
       console.error('Load shop error:', error)
       router.push('/store')
@@ -188,19 +277,22 @@ export default function BrandStagePage() {
   }
 
   const checkFollowStatus = async () => {
-    try {
-      const { data } = await supabase
-        .from('store_followers')
-        .select('id')
-        .eq('user_id', userId!)
-        .eq('seller_id', sellerId)
-        .single()
-      setIsFollowing(!!data)
-    } catch { /* not following */ }
+    const { data, error } = await supabase
+      .from('store_followers')
+      .select('id')
+      .eq('user_id', userId!)
+      .eq('seller_id', sellerId)
+      .maybeSingle()
+    if (error) {
+      // Table may not exist yet or RLS blocked — treat as not following
+      console.warn('[seller page] store_followers check:', error.message)
+      return
+    }
+    setIsFollowing(!!data)
   }
 
   const handleFollow = async () => {
-    if (!userId) { router.push('/auth/signin'); return }
+    if (!requireAuth('Melde dich an, um diesem Shop zu folgen.')) return
     setFollowLoading(true)
     try {
       if (isFollowing) {
@@ -220,7 +312,7 @@ export default function BrandStagePage() {
   }
 
   const handleMessage = async () => {
-    if (!userId) { router.push('/auth/signin'); return }
+    if (!requireAuth('Melde dich an, um eine Nachricht zu senden.')) return
     try {
       const res = await fetch('/api/conversations', {
         method: 'POST',
@@ -707,6 +799,7 @@ export default function BrandStagePage() {
         }}>
           {[
             { id: 'discover' as const, label: (t as any)('storeDiscover') || 'Discover', icon: <Sparkles size={14} /> },
+            { id: 'posts' as const, label: 'Beiträge', icon: <Eye size={14} /> },
             { id: 'collections' as const, label: (t as any)('storeCollections') || 'Collections', icon: <Package size={14} /> },
             { id: 'about' as const, label: (t as any)('storeAbout') || 'About', icon: <Globe size={14} /> },
           ].map(tab => (
@@ -963,6 +1056,11 @@ export default function BrandStagePage() {
               </div>
             )}
           </div>
+        )}
+
+        {/* ── POSTS TAB ───────────────────────────────────────── */}
+        {activeTab === 'posts' && (
+          <SellerPostsTab sellerId={sellerId} />
         )}
 
         {/* ── COLLECTIONS TAB ─────────────────────────────────── */}

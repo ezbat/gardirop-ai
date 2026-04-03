@@ -30,7 +30,7 @@ export async function POST(req: NextRequest) {
         .select('id')
         .eq('user_id', session.user.id)
         .eq('id', sellerId)
-        .single()
+        .maybeSingle()
 
       if (!seller) {
         return NextResponse.json({ error: 'Not authorized for this seller' }, { status: 403 })
@@ -105,7 +105,7 @@ export async function POST(req: NextRequest) {
         display_order: 0
       })
       .select()
-      .single()
+      .maybeSingle()
 
     if (outfitError) {
       console.error('Outfit creation error:', outfitError)

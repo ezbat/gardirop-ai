@@ -1,192 +1,274 @@
 'use client'
 
+/**
+ * Order Confirmation Page
+ *
+ * Displays after successful Stripe checkout.
+ * Fetches order via API route (not direct Supabase) to avoid RLS issues.
+ *
+ * Accepts:
+ *  - ?session_id=... (Stripe session ID)
+ *  - ?order_id=... (direct order ID)
+ */
+
 import { useEffect, useState, Suspense } from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
-import { CheckCircle2, Package, Truck, Loader2 } from 'lucide-react'
-import { supabase } from '@/lib/supabase'
-import { useLanguage } from '@/lib/language-context'
-import FloatingParticles from '@/components/floating-particles'
+import { useSearchParams } from 'next/navigation'
+import { CheckCircle2, Truck, Loader2, XCircle } from 'lucide-react'
 import Link from 'next/link'
+import { track } from '@/lib/tracking'
+import { OrderSuccessAnimation } from '@/components/motion/order-success'
+import { CargoPlaneLoading } from '@/components/motion/cargo-plane'
+import dynamic from 'next/dynamic'
+
+const OrderSuccessTransition = dynamic(
+  () => import('@/components/cargo-scene/OrderSuccessTransition'),
+  { ssr: false },
+)
+
+interface OrderData {
+  id: string
+  order_number?: string
+  status: string
+  payment_status: string
+  total_amount: number
+}
 
 function OrderConfirmationContent() {
-  const { t } = useLanguage()
-  const router = useRouter()
   const searchParams = useSearchParams()
   const sessionId = searchParams.get('session_id')
   const orderId = searchParams.get('order_id')
 
   const [loading, setLoading] = useState(true)
-  const [order, setOrder] = useState<any>(null)
+  const [order, setOrder] = useState<OrderData | null>(null)
   const [error, setError] = useState<string | null>(null)
-
+  const [showAnimation, setShowAnimation] = useState(true)
+  const [showCargoTransition, setShowCargoTransition] = useState(true)
 
   useEffect(() => {
     if (orderId) {
-      fetchOrderById(orderId)
+      fetchOrder(orderId)
     } else if (sessionId) {
       fetchOrderBySession(sessionId)
     } else {
-      setError('Invalid confirmation link')
+      setError('Ungültiger Bestätigungslink.')
       setLoading(false)
     }
   }, [orderId, sessionId])
 
-  const fetchOrderById = async (id: string) => {
+  async function fetchOrder(id: string) {
     try {
-      const { data, error: fetchError } = await supabase
-        .from('orders')
-        .select('*')
-        .eq('id', id)
-        .maybeSingle()
-
-      if (data) {
-        setOrder(data)
-        localStorage.removeItem('cart')
-      } else {
-        setError('Order not found. Please contact support with order ID: ' + id.slice(0, 8).toUpperCase())
+      // Pass session_id as query param for guest access proof
+      const qs = sessionId ? `?session_id=${sessionId}` : ''
+      const res = await fetch(`/api/orders/${id}${qs}`)
+      if (!res.ok) {
+        if (res.status === 401 || res.status === 404) {
+          // Retry once after 2s — webhook may not have fired yet
+          await new Promise(r => setTimeout(r, 2000))
+          const retry = await fetch(`/api/orders/${id}${qs}`)
+          if (retry.ok) {
+            const data = await retry.json()
+            handleOrderSuccess(data.order)
+            return
+          }
+        }
+        setError(`Bestellung wird verarbeitet. Bestell-ID: ${id.slice(0, 8).toUpperCase()}. Du erhältst eine E-Mail-Bestätigung.`)
+        return
       }
-    } catch (err: any) {
-      setError(err.message || 'Failed to verify payment')
+      const data = await res.json()
+      handleOrderSuccess(data.order)
+    } catch {
+      setError('Bestellung wird verarbeitet. Du erhältst eine E-Mail-Bestätigung.')
     } finally {
       setLoading(false)
     }
   }
 
-  const fetchOrderBySession = async (sessionId: string) => {
+  async function fetchOrderBySession(sid: string) {
+    // The API doesn't support session_id lookup directly.
+    // Try the order_id from URL first, then show a processing message.
+    // The webhook will handle order update — user can check their orders page.
     try {
-      const { data, error: fetchError } = await supabase
-        .from('orders')
-        .select('*')
-        .eq('stripe_checkout_session_id', sessionId)
-        .maybeSingle()
+      // Wait a moment for webhook to process
+      await new Promise(r => setTimeout(r, 2000))
 
-      if (data) {
-        setOrder(data)
-        localStorage.removeItem('cart')
-      } else {
-        setError('Order not found. Please check your email or contact support with session ID: ' + sessionId.slice(-8))
+      // Try fetching orders list to find the one with this session
+      const res = await fetch('/api/orders')
+      if (res.ok) {
+        const data = await res.json()
+        // The most recent order is likely the one we want
+        if (data.orders && data.orders.length > 0) {
+          const latestOrder = data.orders[0]
+          handleOrderSuccess(latestOrder)
+          return
+        }
       }
-    } catch (err: any) {
-      setError(err.message || 'Failed to verify payment')
+
+      // If we can't find it, show a success message anyway
+      // (Stripe already confirmed payment)
+      setOrder({
+        id: 'processing',
+        status: 'PAID',
+        payment_status: 'paid',
+        total_amount: 0,
+      })
+    } catch {
+      // Stripe session exists so payment succeeded — show optimistic success
+      setOrder({
+        id: 'processing',
+        status: 'PAID',
+        payment_status: 'paid',
+        total_amount: 0,
+      })
     } finally {
       setLoading(false)
     }
+  }
+
+  function handleOrderSuccess(orderData: OrderData) {
+    setOrder(orderData)
+    localStorage.removeItem('cart')
+    track('purchase', {
+      order_id: orderData.id,
+      value: orderData.total_amount || undefined,
+    })
   }
 
   if (loading) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center p-4">
-        <div className="text-center max-w-md">
-          <Loader2 className="w-16 h-16 animate-spin text-primary mb-6 mx-auto" />
-          <h2 className="text-2xl font-bold mb-3">Processing your order...</h2>
-          <p className="text-muted-foreground">This usually takes a few seconds</p>
-        </div>
+        <CargoPlaneLoading text="Bestellung wird verarbeitet…" />
       </div>
     )
   }
 
-  if (error) {
+  if (error && !order) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center p-4">
-        <div className="text-center max-w-md">
-          <div className="w-20 h-20 rounded-full bg-red-100 dark:bg-red-900/20 flex items-center justify-center mx-auto mb-4">
-            <Package className="w-10 h-10 text-red-500" />
+        <div className="text-center max-w-md glass border border-border rounded-2xl p-8">
+          <div className="w-16 h-16 rounded-full bg-amber-500/15 flex items-center justify-center mx-auto mb-4">
+            <CheckCircle2 className="w-9 h-9 text-amber-500 dark:text-amber-400" />
           </div>
-          <h1 className="text-2xl font-bold mb-2">{t('error')}</h1>
-          <p className="text-muted-foreground mb-6">{error}</p>
-          <Link
-            href="/store"
-            className="px-6 py-3 bg-primary text-primary-foreground rounded-xl font-semibold hover:opacity-90 inline-block"
-          >
-            {t('continueShopping')}
-          </Link>
+          <h1 className="text-xl font-bold mb-2 text-foreground">Zahlung eingegangen</h1>
+          <p className="text-muted-foreground text-sm mb-6">{error}</p>
+          <div className="flex flex-col sm:flex-row gap-3">
+            <Link
+              href="/orders"
+              className="flex-1 px-6 py-3 bg-primary text-primary-foreground rounded-xl text-sm font-semibold hover:opacity-90 inline-block text-center"
+            >
+              Meine Bestellungen
+            </Link>
+            <Link
+              href="/"
+              className="flex-1 px-6 py-3 glass border border-border rounded-xl text-sm font-semibold hover:border-primary transition-colors text-center"
+            >
+              Weiter einkaufen
+            </Link>
+          </div>
         </div>
       </div>
     )
   }
 
-  const isPaid = order?.payment_status === 'paid' || sessionId // If redirected from Stripe, consider it paid
+  if (!order) return null
+
+  const isPaid = order.payment_status === 'paid' || Boolean(sessionId)
+  const ordNum = order.order_number || (order.id !== 'processing' ? order.id.slice(0, 8).toUpperCase() : '')
+  const ordAmt = order.total_amount > 0 ? order.total_amount.toFixed(2) : null
 
   return (
-    <div className="min-h-screen relative overflow-hidden">
-      <FloatingParticles />
-      <section className="relative py-12 px-4">
-        <div className="container mx-auto max-w-2xl">
-          <div className="glass border border-border rounded-2xl p-8 text-center">
-            {/* Success Icon */}
-            <div className={`w-20 h-20 rounded-full ${isPaid ? 'bg-green-100 dark:bg-green-900/20' : 'bg-yellow-100 dark:bg-yellow-900/20'} flex items-center justify-center mx-auto mb-6`}>
-              <CheckCircle2 className={`w-12 h-12 ${isPaid ? 'text-green-500' : 'text-yellow-500'}`} />
-            </div>
+    <div className="min-h-screen bg-background">
+      {/* Branded cargo transition overlay */}
+      {isPaid && (
+        <OrderSuccessTransition
+          active={showCargoTransition}
+          onComplete={() => setShowCargoTransition(false)}
+          orderId={order.id !== 'processing' ? order.id : undefined}
+        />
+      )}
 
-            {/* Title */}
-            <h1 className="font-serif text-3xl font-bold mb-3">
-              {t('orderSuccess')}
-            </h1>
+      <div className="max-w-2xl mx-auto px-4 py-12">
+        <div className="glass border border-border rounded-2xl p-8 text-center">
 
-            {/* Order Number */}
-            <p className="text-muted-foreground mb-2">
-              {t('orderNumber')}: <span className="font-mono font-semibold">{order?.id?.slice(0, 8).toUpperCase()}</span>
+          {/* Animation or static icon */}
+          {showCargoTransition ? null : isPaid && showAnimation ? (
+            <OrderSuccessAnimation onComplete={() => setShowAnimation(false)} />
+          ) : (
+            <>
+              <div className={`w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6
+                ${isPaid ? 'bg-green-500/15' : 'bg-amber-500/15'}`}>
+                <CheckCircle2 className={`w-12 h-12 ${isPaid ? 'text-green-600 dark:text-green-400' : 'text-amber-600 dark:text-amber-400'}`} />
+              </div>
+              <h1 className="text-2xl font-bold mb-2 text-foreground">
+                {isPaid ? 'Bestellung erfolgreich!' : 'Bestellung eingegangen'}
+              </h1>
+            </>
+          )}
+
+          {ordNum && (
+            <p className="text-muted-foreground text-sm mb-1">
+              Bestellnummer: <span className="font-mono font-semibold text-foreground">{ordNum}</span>
             </p>
+          )}
 
-            {/* Payment Status */}
-            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-green-100 dark:bg-green-900/20 text-green-600 dark:text-green-400 mb-8">
-              <div className="w-2 h-2 rounded-full bg-green-600 dark:bg-green-400" />
-              <span className="text-sm font-semibold">
-                {t('orderSuccess')}
-              </span>
-            </div>
+          <div className={`inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-sm font-semibold mt-3 mb-8
+            ${isPaid ? 'bg-green-500/15 text-green-600 dark:text-green-400' : 'bg-amber-500/15 text-amber-600 dark:text-amber-400'}`}>
+            <div className={`w-1.5 h-1.5 rounded-full ${isPaid ? 'bg-green-500' : 'bg-amber-500'}`} />
+            {isPaid ? 'Bezahlt' : 'Zahlung wird verarbeitet'}
+          </div>
 
-            {/* Order Details */}
-            <div className="glass border border-border rounded-xl p-6 mb-6 text-left">
-              <h3 className="font-bold mb-4">{t('orderDetails')}</h3>
+          {/* Details */}
+          {ordAmt && (
+            <div className="glass border border-border rounded-xl p-5 mb-5 text-left">
+              <h3 className="font-bold text-sm mb-3 text-foreground">Bestelldetails</h3>
               <div className="space-y-2 text-sm">
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">{t('total')}</span>
-                  <span className="font-semibold">€{order?.total_amount?.toFixed(2)}</span>
+                  <span className="text-muted-foreground">Gesamtbetrag</span>
+                  <span className="font-semibold text-foreground">&euro;{ordAmt}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">{t('orderStatus')}</span>
-                  <span className="font-semibold capitalize">{order?.status}</span>
+                  <span className="text-muted-foreground">Status</span>
+                  <span className="font-semibold text-foreground capitalize">{order.status}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">{t('paymentMethod')}</span>
-                  <span className="font-semibold">Stripe</span>
+                  <span className="text-muted-foreground">Zahlungsmethode</span>
+                  <span className="font-semibold text-foreground">Stripe</span>
                 </div>
               </div>
             </div>
+          )}
 
-            {/* Next Steps */}
-            <div className="glass border border-border rounded-xl p-6 mb-6 text-left">
-              <h3 className="font-bold mb-4 flex items-center gap-2">
-                <Truck className="w-5 h-5 text-primary" />
-                {t('trackOrder')}
-              </h3>
-              <p className="text-sm text-muted-foreground">
-                {isPaid
-                  ? 'Siparişiniz hazırlanıyor. Kargoya verildiğinde e-posta ile bilgilendirileceksiniz.'
-                  : 'Ödemeniz işleniyor. Onaylandığında siparişiniz hazırlanmaya başlanacak.'
-                }
-              </p>
-            </div>
+          {/* Next steps */}
+          <div className="glass border border-border rounded-xl p-5 mb-8 text-left">
+            <h3 className="font-bold text-sm mb-2 flex items-center gap-2">
+              <Truck className="w-4 h-4 text-primary" />
+              Nächste Schritte
+            </h3>
+            <p className="text-sm text-muted-foreground">
+              {isPaid
+                ? 'Deine Bestellung wird vorbereitet. Du erhältst eine E-Mail, sobald sie versendet wurde.'
+                : 'Deine Zahlung wird verarbeitet. Sobald sie bestätigt ist, wird deine Bestellung vorbereitet.'}
+            </p>
+          </div>
 
-            {/* Action Buttons */}
-            <div className="flex flex-col sm:flex-row gap-3">
+          {/* Actions */}
+          <div className="flex flex-col sm:flex-row gap-3">
+            {order.id !== 'processing' && (
               <Link
-                href={`/orders/${order?.id}`}
-                className="flex-1 px-6 py-3 bg-primary text-primary-foreground rounded-xl font-semibold hover:opacity-90 transition-opacity"
+                href="/orders"
+                className="flex-1 px-6 py-3 bg-primary text-primary-foreground rounded-xl text-sm font-semibold hover:opacity-90 transition-opacity text-center"
               >
-                {t('orderDetails')}
+                Meine Bestellungen
               </Link>
-              <Link
-                href="/store"
-                className="flex-1 px-6 py-3 glass border border-border rounded-xl font-semibold hover:border-primary transition-colors"
-              >
-                {t('continueShopping')}
-              </Link>
-            </div>
+            )}
+            <Link
+              href="/"
+              className="flex-1 px-6 py-3 glass border border-border rounded-xl text-sm font-semibold hover:border-primary transition-colors text-center"
+            >
+              Weiter einkaufen
+            </Link>
           </div>
         </div>
-      </section>
+      </div>
     </div>
   )
 }
@@ -195,7 +277,7 @@ export default function OrderConfirmationPage() {
   return (
     <Suspense fallback={
       <div className="min-h-screen flex items-center justify-center">
-        <Loader2 className="w-12 h-12 animate-spin text-primary" />
+        <Loader2 className="w-10 h-10 animate-spin text-primary" />
       </div>
     }>
       <OrderConfirmationContent />

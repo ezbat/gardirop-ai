@@ -12,47 +12,18 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
-import crypto                         from 'crypto'
 import { supabaseAdmin }              from '@/lib/supabase-admin'
 import { recordPayoutProcessed }      from '@/lib/ledger-engine'
-
-// ─── Auth ────────────────────────────────────────────────────────────────────
-
-function verifyAdmin(request: NextRequest): { ok: boolean; status?: number; error?: string } {
-  const token    = request.headers.get('x-admin-token') ?? ''
-  const expected = process.env.ADMIN_TOKEN
-
-  if (!expected) {
-    console.error('[admin/payouts] ADMIN_TOKEN not configured')
-    return { ok: false, status: 500, error: 'ADMIN_TOKEN not configured' }
-  }
-
-  // Constant-length buffers to prevent timing attacks
-  const tokenBuf    = Buffer.alloc(256)
-  const expectedBuf = Buffer.alloc(256)
-  tokenBuf.write(token)
-  expectedBuf.write(expected)
-
-  // Reject if too short (also runs a dummy compare to avoid branch prediction)
-  if (token.length === 0) {
-    crypto.timingSafeEqual(Buffer.alloc(expectedBuf.length), expectedBuf)
-    return { ok: false, status: 401, error: 'Unauthorized' }
-  }
-
-  if (!crypto.timingSafeEqual(tokenBuf, expectedBuf)) {
-    return { ok: false, status: 401, error: 'Unauthorized' }
-  }
-
-  return { ok: true }
-}
+import { sendEmail }                  from '@/lib/email'
+import { getPayoutPaidEmail, getPayoutFailedEmail } from '@/lib/email-templates'
+import { createSellerNotification }   from '@/lib/notifications'
+import { requireAdmin }               from '@/lib/admin-auth'
 
 // ─── GET — list payouts ───────────────────────────────────────────────────────
 
 export async function GET(request: NextRequest) {
-  const auth = verifyAdmin(request)
-  if (!auth.ok) {
-    return NextResponse.json({ error: auth.error }, { status: auth.status })
-  }
+  const auth = requireAdmin(request)
+  if (auth.error) return auth.error
 
   const { searchParams } = new URL(request.url)
   const statusFilter = searchParams.get('status') // optional: e.g. 'requested'
@@ -98,10 +69,8 @@ export async function GET(request: NextRequest) {
 // ─── POST — actions ───────────────────────────────────────────────────────────
 
 export async function POST(request: NextRequest) {
-  const auth = verifyAdmin(request)
-  if (!auth.ok) {
-    return NextResponse.json({ error: auth.error }, { status: auth.status })
-  }
+  const auth = requireAdmin(request)
+  if (auth.error) return auth.error
 
   let body: {
     action?: string
@@ -180,6 +149,36 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Failed to reject payout' }, { status: 500 })
     }
 
+    // Best-effort notifications + email
+    void (async () => {
+      try {
+        createSellerNotification(payout.seller_id, 'payout_failed', {
+          body: reason || 'Deine Auszahlung wurde abgelehnt.',
+          link: '/seller/dashboard',
+        })
+
+        const { data: seller } = await supabaseAdmin
+          .from('sellers')
+          .select('shop_name, user_id')
+          .eq('id', payout.seller_id)
+          .maybeSingle()
+        if (!seller?.user_id) return
+        const { data: user } = await supabaseAdmin
+          .from('users')
+          .select('email')
+          .eq('id', seller.user_id)
+          .maybeSingle()
+        if (!user?.email) return
+
+        const tpl = getPayoutFailedEmail({
+          shopName: seller.shop_name || 'Shop',
+          amount: Number(payout.amount),
+          reason: reason || undefined,
+        })
+        await sendEmail({ to: user.email, subject: tpl.subject, html: tpl.html, tag: 'payout_rejected' })
+      } catch {}
+    })()
+
     return NextResponse.json({ success: true, action: 'reject', payoutId })
   }
 
@@ -212,7 +211,7 @@ export async function POST(request: NextRequest) {
       payout.currency || 'EUR',
     )
 
-    if (!ledgerResult.success && !ledgerResult.duplicate) {
+    if (!ledgerResult.success && !(ledgerResult as any).duplicate) {
       // Roll back to approved
       await supabaseAdmin
         .from('seller_payouts')
@@ -245,12 +244,43 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // Best-effort notifications + email
+    void (async () => {
+      try {
+        createSellerNotification(payout.seller_id, 'payout_paid', {
+          body: `Deine Auszahlung über ${new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(Number(payout.amount))} wurde überwiesen.`,
+          link: '/seller/dashboard',
+        })
+
+        const { data: seller } = await supabaseAdmin
+          .from('sellers')
+          .select('shop_name, user_id')
+          .eq('id', payout.seller_id)
+          .maybeSingle()
+        if (!seller?.user_id) return
+        const { data: user } = await supabaseAdmin
+          .from('users')
+          .select('email')
+          .eq('id', seller.user_id)
+          .maybeSingle()
+        if (!user?.email) return
+
+        const tpl = getPayoutPaidEmail({
+          shopName: seller.shop_name || 'Shop',
+          amount: Number(payout.amount),
+          currency: payout.currency || 'EUR',
+          payoutId: payoutId,
+        })
+        await sendEmail({ to: user.email, subject: tpl.subject, html: tpl.html, tag: 'payout_paid' })
+      } catch {}
+    })()
+
     return NextResponse.json({
       success: true,
       action: 'mark_paid',
       payoutId,
       ledgerTxId: ledgerResult.transactionId,
-      duplicate: ledgerResult.duplicate,
+      duplicate: (ledgerResult as any).duplicate,
     })
   }
 

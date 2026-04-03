@@ -100,7 +100,7 @@ export function ProductQuickPreviewCard({
               {product.brand && (
                 <p
                   className="text-[8px] font-bold uppercase tracking-widest truncate"
-                  style={{ color: '#CCCCCC' }}
+                  style={{ color: '#777777' }}
                 >
                   {product.brand}
                 </p>
@@ -118,7 +118,7 @@ export function ProductQuickPreviewCard({
                       width="8"
                       height="8"
                       viewBox="0 0 24 24"
-                      fill={i < Math.round(product.rating!) ? '#D97706' : '#E5E5E5'}
+                      fill={i < Math.round(product.rating!) ? '#D97706' : '#CCCCCC'}
                     >
                       <path d="M12 2l3.09 6.26L22 9.27l-5 4.87L18.18 21 12 17.77 5.82 21 7 14.14 2 9.27l6.91-1.01L12 2z" />
                     </svg>
@@ -128,12 +128,12 @@ export function ProductQuickPreviewCard({
 
               <div className="flex items-baseline gap-[4px] mt-[2px]">
                 <span
-                  className={`text-[13px] font-bold ${outOfStock ? 'text-[#CCCCCC]' : 'text-[#1A1A1A]'}`}
+                  className={`text-[13px] font-bold ${outOfStock ? 'text-[#999999]' : 'text-[#1A1A1A]'}`}
                 >
                   {fmtPrice(product.price, product.currency)}
                 </span>
                 {product.compareAtPrice != null && product.compareAtPrice > product.price && (
-                  <span className="text-[10px] line-through" style={{ color: '#CCCCCC' }}>
+                  <span className="text-[10px] line-through" style={{ color: '#777777' }}>
                     {fmtPrice(product.compareAtPrice, product.currency)}
                   </span>
                 )}

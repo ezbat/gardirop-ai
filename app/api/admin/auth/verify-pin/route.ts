@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { supabaseAdmin } from '@/lib/supabase-admin'
 
-const ADMIN_PIN = process.env.ADMIN_PIN || '9876'
+const ADMIN_PIN = process.env.ADMIN_PIN
 const pinAttempts = new Map<string, number>()
 const MAX_PIN_ATTEMPTS = 3
 
@@ -8,7 +9,20 @@ export async function POST(request: NextRequest) {
   try {
     const { username, pin } = await request.json()
 
-    if (username !== 'm3000') {
+    if (!ADMIN_PIN) {
+      return NextResponse.json({ error: 'PIN auth not configured' }, { status: 500 })
+    }
+
+    // Verify admin user exists in DB
+    const { data: adminUser } = await supabaseAdmin
+      .from('users')
+      .select('id, role')
+      .eq('name', username)
+      .eq('role', 'admin')
+      .maybeSingle()
+
+    if (!adminUser) {
+      await new Promise(r => setTimeout(r, 200 + Math.random() * 300))
       return NextResponse.json({ error: 'Invalid user' }, { status: 401 })
     }
 

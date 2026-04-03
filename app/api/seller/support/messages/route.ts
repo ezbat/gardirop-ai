@@ -15,7 +15,7 @@ export async function GET(request: NextRequest) {
       .from('sellers')
       .select('id')
       .eq('user_id', userId)
-      .single()
+      .maybeSingle()
 
     if (sellerError || !seller) {
       return NextResponse.json({ error: 'Seller not found' }, { status: 404 })
@@ -60,7 +60,7 @@ export async function POST(request: NextRequest) {
       .from('sellers')
       .select('id')
       .eq('user_id', userId)
-      .single()
+      .maybeSingle()
 
     if (sellerError || !seller) {
       return NextResponse.json({ error: 'Seller not found' }, { status: 404 })
@@ -76,7 +76,7 @@ export async function POST(request: NextRequest) {
         status: 'pending'
       }])
       .select()
-      .single()
+      .maybeSingle()
 
     if (error) {
       // Tablo yoksa veya başka bir hata varsa kullanıcıya bildir

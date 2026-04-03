@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { getAdminToken } from '@/lib/admin-fetch'
 import Link from 'next/link'
 import {
   LineChart, Line, PieChart, Pie, Cell,
@@ -135,7 +136,7 @@ export default function AdminDashboard() {
   const fetchStats = async () => {
     try {
       const res = await fetch('/api/admin/stats', {
-        headers: { 'x-user-id': 'm3000' },
+        headers: { 'x-admin-token': getAdminToken() },
       })
       if (!res.ok) throw new Error('Failed to fetch stats')
       const data = await res.json()

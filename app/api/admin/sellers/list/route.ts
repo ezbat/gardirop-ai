@@ -1,20 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { supabase } from '@/lib/supabase'
+import { supabaseAdmin } from '@/lib/supabase-admin'
+import { requireAdmin } from '@/lib/admin-auth'
 
 export async function POST(request: NextRequest) {
+  // ── Auth: require admin token ──────────────────────────────────────────────
+  const auth = requireAdmin(request)
+  if (auth.error) return auth.error
+
   try {
-    const { adminId, status } = await request.json()
-    
-    if (!adminId) {
-      return NextResponse.json({ error: 'Admin ID required' }, { status: 400 })
-    }
+    const { status } = await request.json().catch(() => ({})) as { status?: string }
 
-    // TODO: Check if user is admin (şimdilik skip, sonra role system ekleriz)
-
-    let query = supabase
+    let query = supabaseAdmin
       .from('seller_applications')
-      .select('*')
-      .order('applied_at', { ascending: false })
+      .select('id, user_id, shop_name, shop_description, business_type, status, city, country, created_at, reviewed_at, reviewed_by, rejection_reason')
+      .order('created_at', { ascending: false })
 
     if (status) {
       query = query.eq('status', status)
@@ -24,21 +23,9 @@ export async function POST(request: NextRequest) {
 
     if (error) throw error
 
-    // Get user details for each application
-    const userIds = [...new Set(applications?.map(a => a.user_id) || [])]
-    const { data: usersData } = await supabase
-      .from('users')
-      .select('id, name, email, avatar_url')
-      .in('id', userIds)
-
-    const applicationsWithUsers = applications?.map(app => ({
-      ...app,
-      user: usersData?.find(u => u.id === app.user_id)
-    })) || []
-
-    return NextResponse.json({ success: true, applications: applicationsWithUsers })
+    return NextResponse.json({ success: true, applications: applications ?? [] })
   } catch (error) {
-    console.error('List applications error:', error)
+    console.error('[admin/sellers/list] Error:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { useSession } from "next-auth/react"
+import { getAdminToken } from '@/lib/admin-fetch'
 import { motion } from "framer-motion"
 import { CheckCircle, XCircle, Loader2, Store, User, Phone, MapPin } from "lucide-react"
 import FloatingParticles from "@/components/floating-particles"
@@ -26,7 +27,7 @@ export default function AdminSellersPage() {
     try {
       const response = await fetch('/api/admin/sellers/list', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'x-admin-token': getAdminToken() },
         body: JSON.stringify({ 
           adminId, 
           status: filter === 'all' ? null : filter 
@@ -48,7 +49,7 @@ export default function AdminSellersPage() {
     try {
       const response = await fetch('/api/admin/sellers/approve', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'x-admin-token': getAdminToken() },
         body: JSON.stringify({ applicationId, adminId, action: 'approve' })
       })
 
@@ -58,7 +59,7 @@ export default function AdminSellersPage() {
       loadApplications()
     } catch (error) {
       console.error('Approve error:', error)
-      alert('Onaylama başarısız!')
+      alert('Genehmigung fehlgeschlagen!')
     } finally {
       setProcessingId(null)
     }
@@ -74,10 +75,10 @@ export default function AdminSellersPage() {
     try {
       const response = await fetch('/api/admin/sellers/approve', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          applicationId, 
-          adminId, 
+        headers: { 'Content-Type': 'application/json', 'x-admin-token': getAdminToken() },
+        body: JSON.stringify({
+          applicationId,
+          adminId,
           action: 'reject',
           rejectionReason 
         })
@@ -163,7 +164,7 @@ export default function AdminSellersPage() {
                         <Store className="w-5 h-5 text-primary" />
                         <h3 className="text-xl font-bold">{app.shop_name}</h3>
                         {app.status === 'pending' && <span className="px-2 py-1 bg-yellow-500/10 text-yellow-500 text-xs font-semibold rounded-full">Bekliyor</span>}
-                        {app.status === 'approved' && <span className="px-2 py-1 bg-green-500/10 text-green-500 text-xs font-semibold rounded-full">Onaylandı</span>}
+                        {app.status === 'approved' && <span className="px-2 py-1 bg-green-500/10 text-green-500 text-xs font-semibold rounded-full">Genehmigt</span>}
                         {app.status === 'rejected' && <span className="px-2 py-1 bg-red-500/10 text-red-500 text-xs font-semibold rounded-full">Reddedildi</span>}
                       </div>
 
@@ -209,7 +210,7 @@ export default function AdminSellersPage() {
                             className="flex-1 px-4 py-2 bg-green-500 text-white rounded-xl font-semibold hover:opacity-90 transition-opacity disabled:opacity-50 flex items-center justify-center gap-2"
                           >
                             {processingId === app.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
-                            Onayla
+                            Genehmigen
                           </button>
                           <button
                             onClick={() => setShowRejectModal(app.id)}
@@ -244,7 +245,7 @@ export default function AdminSellersPage() {
             />
             <div className="flex gap-2">
               <button onClick={() => setShowRejectModal(null)} className="flex-1 px-4 py-2 glass border border-border rounded-xl font-semibold hover:bg-secondary transition-colors">
-                İptal
+                Ablehnen
               </button>
               <button onClick={() => handleReject(showRejectModal)} disabled={!rejectionReason.trim()} className="flex-1 px-4 py-2 bg-red-500 text-white rounded-xl font-semibold hover:opacity-90 transition-opacity disabled:opacity-50">
                 Reddet

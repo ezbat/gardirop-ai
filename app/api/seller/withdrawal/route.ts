@@ -13,7 +13,7 @@ export async function GET(request: NextRequest) {
       .from('sellers')
       .select('id')
       .eq('user_id', userId)
-      .single()
+      .maybeSingle()
 
     if (!seller) {
       return NextResponse.json({ error: 'Seller not found' }, { status: 404 })
@@ -51,7 +51,7 @@ export async function POST(request: NextRequest) {
       .from('sellers')
       .select('id')
       .eq('user_id', userId)
-      .single()
+      .maybeSingle()
 
     if (!seller) {
       return NextResponse.json({ error: 'Seller not found' }, { status: 404 })
@@ -61,7 +61,7 @@ export async function POST(request: NextRequest) {
       .from('seller_balances')
       .select('available_balance, commission_rate')
       .eq('seller_id', seller.id)
-      .single()
+      .maybeSingle()
 
     if (!balance || balance.available_balance < amount) {
       return NextResponse.json({ error: 'Insufficient balance' }, { status: 400 })
@@ -87,7 +87,7 @@ export async function POST(request: NextRequest) {
         net_amount: netAmount
       }])
       .select()
-      .single()
+      .maybeSingle()
 
     if (error) throw error
 

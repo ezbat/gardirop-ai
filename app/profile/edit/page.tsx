@@ -9,7 +9,7 @@ import FloatingParticles from "@/components/floating-particles"
 import { supabase } from "@/lib/supabase"
 
 const STYLE_OPTIONS = [
-  "Klasik", "Spor", "Casual", "Şık", "Vintage", "Streetwear", 
+  "Klassisch", "Sportlich", "Casual", "Schick", "Vintage", "Streetwear",
   "Minimal", "Bohemian", "Rock", "Elegant", "Business", "Retro"
 ]
 
@@ -90,18 +90,18 @@ export default function ProfileEditPage() {
       const { error: updateError } = await supabase.from('users').update({ name, username: username || null, bio: bio || null, instagram: instagram || null, style: style || null, avatar_url: avatarUrl }).eq('id', userId)
       if (updateError) {
         if (updateError.code === '23505') {
-          alert('Bu kullanıcı adı zaten kullanılıyor!')
+          alert('Dieser Benutzername ist bereits vergeben!')
           setUploading(false)
           return
         }
         throw updateError
       }
       await updateSession({ ...session, user: { ...session?.user, name, image: avatarUrl } })
-      alert('Profil güncellendi! ✨')
+      alert('Profil aktualisiert! ✨')
       router.push('/profile')
     } catch (error: any) {
       console.error('Update profile error:', error)
-      alert(`Güncelleme başarısız: ${error.message || 'Bilinmeyen hata'}`)
+      alert(`Aktualisierung fehlgeschlagen: ${error.message || 'Unbekannter Fehler'}`)
     } finally {
       setUploading(false)
     }
@@ -122,8 +122,8 @@ export default function ProfileEditPage() {
         <div className="container mx-auto max-w-4xl">
           <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="mb-8 flex items-center justify-between">
             <div>
-              <h1 className="font-serif text-4xl font-bold mb-2 bg-gradient-to-r from-primary via-purple-500 to-pink-500 bg-clip-text text-transparent">Profili Düzenle</h1>
-              <p className="text-muted-foreground">Kişiselleştir, öne çık ✨</p>
+              <h1 className="font-serif text-4xl font-bold mb-2 bg-gradient-to-r from-primary via-purple-500 to-pink-500 bg-clip-text text-transparent">Profil bearbeiten</h1>
+              <p className="text-muted-foreground">Personalisiere dein Profil ✨</p>
             </div>
             <button onClick={() => router.push('/profile')} className="p-3 glass border border-border rounded-xl hover:border-primary transition-colors"><X className="w-5 h-5" /></button>
           </motion.div>
@@ -139,30 +139,30 @@ export default function ProfileEditPage() {
                   </div>
                   <label className="absolute bottom-2 right-2 p-3 bg-gradient-to-br from-primary to-purple-500 text-white rounded-full cursor-pointer hover:scale-110 transition-transform shadow-lg"><Camera className="w-5 h-5" /><input type="file" accept="image/*" onChange={handleFileChange} className="hidden" disabled={uploading} /></label>
                 </div>
-                <div className="text-center"><p className="text-sm text-muted-foreground">Profil fotoğrafını değiştir</p><p className="text-xs text-muted-foreground mt-1">Önerilen: 400x400px, Max 5MB</p></div>
+                <div className="text-center"><p className="text-sm text-muted-foreground">Profilbild ändern</p><p className="text-xs text-muted-foreground mt-1">Empfohlen: 400x400px, Max 5MB</p></div>
               </div>
             </motion.div>
             <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.2 }} className="glass border border-border rounded-2xl p-6">
-              <div className="flex items-center gap-3 mb-4"><div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center"><User className="w-5 h-5 text-primary" /></div><h3 className="text-xl font-bold">Temel Bilgiler</h3></div>
+              <div className="flex items-center gap-3 mb-4"><div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center"><User className="w-5 h-5 text-primary" /></div><h3 className="text-xl font-bold">Grundinformationen</h3></div>
               <div className="space-y-4">
-                <div><label className="block text-sm font-semibold mb-2 flex items-center gap-2"><Type className="w-4 h-4" />İsim *</label><input type="text" value={name} onChange={(e) => setName(e.target.value)} className="w-full px-4 py-3 glass border border-border rounded-xl outline-none focus:border-primary transition-colors" required disabled={uploading} /></div>
-                <div><label className="block text-sm font-semibold mb-2 flex items-center gap-2"><Sparkles className="w-4 h-4" />Kullanıcı Adı</label><input type="text" value={username} onChange={(e) => setUsername(e.target.value.toLowerCase().replace(/\s/g, ''))} placeholder="kullaniciadi" className="w-full px-4 py-3 glass border border-border rounded-xl outline-none focus:border-primary transition-colors" disabled={uploading} /><p className="text-xs text-muted-foreground mt-1">Boşluksuz, küçük harflerle</p></div>
+                <div><label className="block text-sm font-semibold mb-2 flex items-center gap-2"><Type className="w-4 h-4" />Name *</label><input type="text" value={name} onChange={(e) => setName(e.target.value)} className="w-full px-4 py-3 glass border border-border rounded-xl outline-none focus:border-primary transition-colors" required disabled={uploading} /></div>
+                <div><label className="block text-sm font-semibold mb-2 flex items-center gap-2"><Sparkles className="w-4 h-4" />Benutzername</label><input type="text" value={username} onChange={(e) => setUsername(e.target.value.toLowerCase().replace(/\s/g, ''))} placeholder="benutzername" className="w-full px-4 py-3 glass border border-border rounded-xl outline-none focus:border-primary transition-colors" disabled={uploading} /><p className="text-xs text-muted-foreground mt-1">Ohne Leerzeichen, in Kleinbuchstaben</p></div>
               </div>
             </motion.div>
             <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.3 }} className="glass border border-border rounded-2xl p-6">
-              <div className="flex items-center gap-3 mb-4"><div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-500/20 to-pink-500/5 flex items-center justify-center"><MessageSquare className="w-5 h-5 text-purple-500" /></div><h3 className="text-xl font-bold">Hakkında</h3></div>
-              <div><label className="block text-sm font-semibold mb-2">Bio</label><textarea value={bio} onChange={(e) => setBio(e.target.value)} placeholder="Kendini tanıt..." className="w-full px-4 py-3 glass border border-border rounded-xl outline-none focus:border-primary transition-colors resize-none" rows={4} maxLength={200} disabled={uploading} /><p className="text-xs text-muted-foreground text-right mt-1">{bio.length}/200</p></div>
+              <div className="flex items-center gap-3 mb-4"><div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-500/20 to-pink-500/5 flex items-center justify-center"><MessageSquare className="w-5 h-5 text-purple-500" /></div><h3 className="text-xl font-bold">Über mich</h3></div>
+              <div><label className="block text-sm font-semibold mb-2">Bio</label><textarea value={bio} onChange={(e) => setBio(e.target.value)} placeholder="Stelle dich vor..." className="w-full px-4 py-3 glass border border-border rounded-xl outline-none focus:border-primary transition-colors resize-none" rows={4} maxLength={200} disabled={uploading} /><p className="text-xs text-muted-foreground text-right mt-1">{bio.length}/200</p></div>
             </motion.div>
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }} className="glass border border-border rounded-2xl p-6">
-              <div className="flex items-center gap-3 mb-4"><div className="w-10 h-10 rounded-full bg-gradient-to-br from-pink-500/20 to-pink-500/5 flex items-center justify-center"><Shirt className="w-5 h-5 text-pink-500" /></div><h3 className="text-xl font-bold">Stil & Sosyal</h3></div>
+              <div className="flex items-center gap-3 mb-4"><div className="w-10 h-10 rounded-full bg-gradient-to-br from-pink-500/20 to-pink-500/5 flex items-center justify-center"><Shirt className="w-5 h-5 text-pink-500" /></div><h3 className="text-xl font-bold">Stil & Soziales</h3></div>
               <div className="space-y-4">
-                <div><label className="block text-sm font-semibold mb-2 flex items-center gap-2"><Instagram className="w-4 h-4" />Instagram</label><input type="text" value={instagram} onChange={(e) => setInstagram(e.target.value.replace('@', ''))} placeholder="kullaniciadi" className="w-full px-4 py-3 glass border border-border rounded-xl outline-none focus:border-primary transition-colors" disabled={uploading} /><p className="text-xs text-muted-foreground mt-1">@ olmadan sadece kullanıcı adı</p></div>
-                <div><label className="block text-sm font-semibold mb-2">Giyim Tarzı</label><div className="grid grid-cols-3 md:grid-cols-4 gap-2">{STYLE_OPTIONS.map(s => (<button key={s} type="button" onClick={() => setStyle(s)} disabled={uploading} className={`px-4 py-2 rounded-xl font-semibold text-sm transition-all ${style === s ? "bg-gradient-to-r from-primary to-purple-500 text-white" : "glass border border-border hover:border-primary"}`}>{s}</button>))}</div></div>
+                <div><label className="block text-sm font-semibold mb-2 flex items-center gap-2"><Instagram className="w-4 h-4" />Instagram</label><input type="text" value={instagram} onChange={(e) => setInstagram(e.target.value.replace('@', ''))} placeholder="benutzername" className="w-full px-4 py-3 glass border border-border rounded-xl outline-none focus:border-primary transition-colors" disabled={uploading} /><p className="text-xs text-muted-foreground mt-1">Nur Benutzername ohne @</p></div>
+                <div><label className="block text-sm font-semibold mb-2">Kleidungsstil</label><div className="grid grid-cols-3 md:grid-cols-4 gap-2">{STYLE_OPTIONS.map(s => (<button key={s} type="button" onClick={() => setStyle(s)} disabled={uploading} className={`px-4 py-2 rounded-xl font-semibold text-sm transition-all ${style === s ? "bg-gradient-to-r from-primary to-purple-500 text-white" : "glass border border-border hover:border-primary text-foreground"}`}>{s}</button>))}</div></div>
               </div>
             </motion.div>
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.5 }} className="flex gap-4">
-              <button type="button" onClick={() => router.push('/profile')} className="flex-1 px-6 py-4 glass border border-border rounded-xl font-semibold hover:border-primary transition-colors" disabled={uploading}>İptal</button>
-              <button type="submit" disabled={uploading || !name.trim()} className="flex-1 px-6 py-4 bg-gradient-to-r from-primary to-purple-500 text-white rounded-xl font-semibold hover:scale-105 disabled:opacity-50 disabled:hover:scale-100 transition-transform flex items-center justify-center gap-2 shadow-lg">{uploading ? (<><Loader2 className="w-5 h-5 animate-spin" />Kaydediliyor...</>) : (<><Save className="w-5 h-5" />Kaydet</>)}</button>
+              <button type="button" onClick={() => router.push('/profile')} className="flex-1 px-6 py-4 glass border border-border rounded-xl font-semibold hover:border-primary transition-colors text-foreground" disabled={uploading}>Abbrechen</button>
+              <button type="submit" disabled={uploading || !name.trim()} className="flex-1 px-6 py-4 bg-gradient-to-r from-primary to-purple-500 text-white rounded-xl font-semibold hover:scale-105 disabled:opacity-50 disabled:hover:scale-100 transition-transform flex items-center justify-center gap-2 shadow-lg">{uploading ? (<><Loader2 className="w-5 h-5 animate-spin" />Wird gespeichert...</>) : (<><Save className="w-5 h-5" />Speichern</>)}</button>
             </motion.div>
           </form>
         </div>

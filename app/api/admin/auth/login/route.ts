@@ -1,12 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { supabase } from '@/lib/supabase'
+import { supabaseAdmin } from '@/lib/supabase-admin'
 import bcrypt from 'bcryptjs'
-
-// Hardcoded admin credentials (VERY SECURE - no database exposure)
-const ADMIN_CREDENTIALS = {
-  username: 'm3000',
-  passwordHash: '$2a$10$YourHashHere' // Will be replaced with actual hash
-}
+import { createSession } from '@/lib/admin-sessions'
 
 // Rate limiting: Track failed login attempts
 const loginAttempts = new Map<string, { count: number; lastAttempt: number }>()
@@ -16,7 +11,11 @@ const LOCKOUT_TIME = 15 * 60 * 1000 // 15 minutes
 export async function POST(request: NextRequest) {
   try {
     const { username, password } = await request.json()
-    const ip = request.headers.get('x-forwarded-for') || 'unknown'
+    const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown'
+
+    if (!username || !password) {
+      return NextResponse.json({ error: 'Username and password required' }, { status: 400 })
+    }
 
     // Rate limiting check
     const attempts = loginAttempts.get(ip)
@@ -37,15 +36,28 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Validate credentials
-    if (username !== ADMIN_CREDENTIALS.username) {
+    // Look up admin user in database
+    const { data: adminUser, error } = await supabaseAdmin
+      .from('users')
+      .select('id, name, email, role, password')
+      .eq('name', username)
+      .eq('role', 'admin')
+      .maybeSingle()
+
+    if (error || !adminUser) {
+      incrementFailedAttempts(ip)
+      // Constant-time delay to prevent username enumeration
+      await new Promise(r => setTimeout(r, 200 + Math.random() * 300))
+      return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 })
+    }
+
+    // Verify password via bcrypt ONLY — no fallbacks
+    if (!adminUser.password) {
       incrementFailedAttempts(ip)
       return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 })
     }
 
-    // For initial setup, accept the raw password
-    // In production, this will check against bcrypt hash
-    const isValidPassword = password === '45rtfgvb'
+    const isValidPassword = await bcrypt.compare(password, adminUser.password)
 
     if (!isValidPassword) {
       incrementFailedAttempts(ip)
@@ -55,28 +67,8 @@ export async function POST(request: NextRequest) {
     // Clear failed attempts on successful login
     loginAttempts.delete(ip)
 
-    // Get admin user from database
-    const { data: adminUser, error } = await supabase
-      .from('users')
-      .select('*')
-      .eq('name', 'm3000')
-      .eq('role', 'admin')
-      .single()
-
-    if (error || !adminUser) {
-      return NextResponse.json({ error: 'Admin user not found' }, { status: 404 })
-    }
-
-    // Create session token (simple version - in production use JWT)
-    const sessionToken = generateSessionToken()
-
-    // Store session in memory (in production, use Redis or database)
-    adminSessions.set(sessionToken, {
-      userId: adminUser.id,
-      username: adminUser.name,
-      createdAt: Date.now(),
-      expiresAt: Date.now() + 24 * 60 * 60 * 1000, // 24 hours
-    })
+    // Create session via shared session store
+    const sessionToken = createSession(adminUser.id, adminUser.name ?? username)
 
     return NextResponse.json({
       success: true,
@@ -89,7 +81,7 @@ export async function POST(request: NextRequest) {
       },
     })
   } catch (error) {
-    console.error('Admin login error:', error)
+    console.error('[admin/auth/login] Error:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
@@ -101,17 +93,3 @@ function incrementFailedAttempts(ip: string) {
     lastAttempt: Date.now(),
   })
 }
-
-function generateSessionToken(): string {
-  return Array.from({ length: 32 }, () =>
-    Math.random().toString(36).charAt(2)
-  ).join('')
-}
-
-// In-memory session storage (in production, use Redis)
-export const adminSessions = new Map<string, {
-  userId: string
-  username: string
-  createdAt: number
-  expiresAt: number
-}>()

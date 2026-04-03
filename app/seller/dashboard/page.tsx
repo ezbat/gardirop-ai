@@ -4,16 +4,11 @@ import { useState, useEffect, useCallback, useRef } from "react"
 import { useSession } from "next-auth/react"
 import Link from "next/link"
 import {
-  Banknote, Clock, ShoppingCart, TrendingUp,
-  Package, AlertTriangle, RefreshCw, Zap,
-  ChevronRight, ExternalLink, ShoppingBag, BarChart3,
-  Loader2, AlertCircle,
+  Banknote, ShoppingCart, TrendingUp, Package,
+  RefreshCw, ExternalLink, Loader2, AlertCircle,
+  Store, Copy, Check, Share2, Plus, FileText,
+  Palette, Eye, ChevronRight, CheckCircle2, Circle,
 } from "lucide-react"
-import {
-  AreaChart, Area, BarChart, Bar,
-  XAxis, YAxis, CartesianGrid, Tooltip,
-  ResponsiveContainer,
-} from "recharts"
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -50,9 +45,23 @@ interface SellerMetrics {
     }>
     lowStockProducts: Array<{
       id: string; title: string; stock_quantity: number
-      low_stock_threshold: number; price: number; image: string | null
+      low_stock_threshold: number
+      price: number; image: string | null
     }>
   }
+  analytics: {
+    productViews: number
+    addToCarts: number
+    checkouts: number
+    conversionRate: number | null
+    addToCartRate: number | null
+    uniqueSessions: number
+    refundTotal: number
+    forecastRevenue: number | null
+  } | null
+  bestSellers: Array<{
+    productId: string; title: string; qty: number; revenue: number
+  }>
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -60,79 +69,30 @@ interface SellerMetrics {
 const fmt = (v: number) =>
   `€${v.toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 
-function shortDate(iso: string) {
-  return new Date(iso).toLocaleDateString("de-DE", { month: "short", day: "numeric" })
-}
-
-const STATE_BADGE: Record<string, { bg: string; color: string; label: string }> = {
-  PAID:            { bg: "#DCFCE7", color: "#16A34A", label: "Bezahlt"       },
-  DELIVERED:       { bg: "#DCFCE7", color: "#16A34A", label: "Geliefert"     },
-  COMPLETED:       { bg: "#DCFCE7", color: "#16A34A", label: "Abgeschlossen" },
-  SHIPPED:         { bg: "#DBEAFE", color: "#2563EB", label: "Versandt"      },
-  PAYMENT_PENDING: { bg: "#FEF3C7", color: "#D97706", label: "Ausstehend"    },
-  CREATED:         { bg: "#F3F4F6", color: "#6B7280", label: "Erstellt"      },
-  REFUNDED:        { bg: "#FEE2E2", color: "#DC2626", label: "Erstattet"     },
-  CANCELLED:       { bg: "#FEE2E2", color: "#DC2626", label: "Storniert"     },
-}
-
-function StateBadge({ state }: { state: string }) {
-  const s = STATE_BADGE[state] ?? { bg: "#F3F4F6", color: "#6B7280", label: state }
-  return (
-    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full"
-      style={{ background: s.bg, color: s.color }}>
-      {s.label}
-    </span>
-  )
-}
-
-function ChartTooltip({ active, payload, label }: any) {
-  if (!active || !payload?.length) return null
-  return (
-    <div className="rounded-lg p-2 text-[11px]"
-      style={{ background: "#FFF", border: "1px solid #E5E5E5", boxShadow: "0 4px 12px rgba(0,0,0,0.08)" }}>
-      <p className="mb-1" style={{ color: "#999" }}>{shortDate(label)}</p>
-      {payload.map((p: any) => (
-        <p key={p.dataKey} className="font-medium" style={{ color: p.color }}>
-          {p.name}: {p.dataKey === "revenue" ? fmt(p.value) : p.value}
-        </p>
-      ))}
-    </div>
-  )
-}
-
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function SellerDashboardPage() {
-  // ── Auth ───────────────────────────────────────────────────────────────────
-  // Use status to distinguish loading / authenticated / unauthenticated.
-  // Do NOT use router.push inside fetch callbacks — that causes redirect loops
-  // when the API returns 401 transiently (session race condition on cold start).
   const { data: session, status: sessionStatus } = useSession()
   const userId = session?.user?.id
 
-  // ── State ──────────────────────────────────────────────────────────────────
-  // `loading` starts true; goes to false exactly once (after first fetch).
-  // `refreshing` = true during subsequent period-change or manual refresh.
-  const [loading, setLoading]       = useState(true)
+  const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
-  const [metrics, setMetrics]       = useState<SellerMetrics | null>(null)
-  const [period, setPeriod]         = useState<7 | 30 | 90>(30)
-  const [error, setError]           = useState<string | null>(null)
+  const [metrics, setMetrics] = useState<SellerMetrics | null>(null)
+  const [period] = useState<7 | 30 | 90>(30)
+  const [error, setError] = useState<string | null>(null)
+  const [shopSlug, setShopSlug] = useState<string | null>(null)
+  const [copied, setCopied] = useState(false)
+  const [onboarding, setOnboarding] = useState<{
+    profileComplete: boolean
+    hasProducts: boolean
+    paymentsConnected: boolean
+  } | null>(null)
 
-  // Ref tracks whether we've received data at least once.
-  // Used to decide between "initial loading skeleton" vs "refresh spinner".
   const hasDataRef = useRef(false)
 
-  // ── Fetch ──────────────────────────────────────────────────────────────────
-  // Single unified effect — watches sessionStatus + userId + period.
-  // Returns an AbortController cleanup so React Strict Mode double-invocation
-  // (dev only) doesn't result in two concurrent inflight requests.
+  // ── Fetch metrics ──────────────────────────────────────────────────────────
   useEffect(() => {
-    // Wait for NextAuth to finish loading before attempting any fetch.
     if (sessionStatus === "loading") return
-
-    // If the user is not logged in at all, show an error (do NOT router.push
-    // here because it can interact badly with middleware redirects).
     if (sessionStatus === "unauthenticated" || !userId) {
       setLoading(false)
       setError("Nicht eingeloggt. Bitte melde dich an.")
@@ -141,450 +101,426 @@ export default function SellerDashboardPage() {
 
     const controller = new AbortController()
     const isRefresh = hasDataRef.current
-
     setError(null)
     if (isRefresh) setRefreshing(true)
 
-    fetch(`/api/seller/metrics?period=${period}`, {
-      cache: "no-store",
-      signal: controller.signal,
-    })
+    fetch(`/api/seller/metrics?period=${period}`, { cache: "no-store", signal: controller.signal })
       .then(async (res) => {
         if (controller.signal.aborted) return
-
         if (res.status === 401 || res.status === 403) {
-          // Session exists but no seller account or not authorized.
-          // Show inline error — do NOT navigate (avoids redirect loops).
-          setError("Kein Seller-Account gefunden. Bitte bewerbe dich als Seller.")
+          if (!hasDataRef.current) {
+            await new Promise(resolve => setTimeout(resolve, 1500))
+            try {
+              const retry = await fetch(`/api/seller/metrics?period=${period}`, { cache: "no-store" })
+              if (retry.ok) {
+                const retryData = await retry.json()
+                if (retryData.success) {
+                  setMetrics(retryData)
+                  hasDataRef.current = true
+                  setError(null)
+                  return
+                }
+              }
+            } catch { /* fall through */ }
+          }
+          setError("Authentifizierungsfehler. Bitte Seite neu laden.")
           return
         }
-        if (res.status === 404) {
-          setError("Seller-Profil nicht gefunden.")
-          return
-        }
-        if (!res.ok) {
-          setError(`Serverfehler (${res.status})`)
-          return
-        }
-
+        if (!res.ok) { setError(`Serverfehler (${res.status})`); return }
         const data = await res.json()
         if (data.success) {
           setMetrics(data)
           hasDataRef.current = true
           setError(null)
+          setOnboarding(prev => ({
+            profileComplete: prev?.profileComplete ?? false,
+            hasProducts: (data.kpis?.totalProducts ?? 0) > 0,
+            paymentsConnected: prev?.paymentsConnected ?? false,
+          }))
         } else {
           setError(data.error ?? "Unbekannter Fehler")
         }
       })
-      .catch((e: Error) => {
-        // AbortError is expected (cleanup on period change / Strict Mode) — ignore it.
-        if (e.name !== "AbortError") {
-          setError(e.message || "Netzwerkfehler")
-        }
-      })
-      .finally(() => {
-        if (!controller.signal.aborted) {
-          setLoading(false)
-          setRefreshing(false)
-        }
-      })
+      .catch((e: Error) => { if (e.name !== "AbortError") setError(e.message || "Netzwerkfehler") })
+      .finally(() => { if (!controller.signal.aborted) { setLoading(false); setRefreshing(false) } })
 
-    // Cleanup: abort the fetch when:
-    //   - period changes (new fetch will start)
-    //   - component unmounts
-    //   - React Strict Mode double-fires (aborts the first run so second starts fresh)
     return () => controller.abort()
-
-  // Deliberately exclude `metrics` and `hasDataRef` — adding metrics would
-  // create an infinite loop (fetch sets metrics → metrics changes → fetch again).
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionStatus, userId, period])
 
-  // ── Manual refresh ─────────────────────────────────────────────────────────
-  // Separate from the effect; does not change `period` (avoids effect re-run).
+  // ── Fetch seller settings ─────────────────────────────────────────────────
+  useEffect(() => {
+    if (sessionStatus !== "authenticated" || !userId) return
+    fetch("/api/seller/settings")
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (!data?.seller) return
+        setShopSlug(data.seller.shop_slug || null)
+        const profileComplete = !!(data.seller.shop_name && data.seller.shop_description)
+        const paymentsConnected = !!(data.seller.stripe_account_id)
+        setOnboarding(prev => ({
+          profileComplete,
+          hasProducts: prev?.hasProducts ?? false,
+          paymentsConnected,
+        }))
+      })
+      .catch(() => {})
+  }, [sessionStatus, userId])
+
+  // ── Manual refresh ────────────────────────────────────────────────────────
   const handleRefresh = useCallback(() => {
     if (!userId || refreshing) return
     setRefreshing(true)
     setError(null)
-
     fetch(`/api/seller/metrics?period=${period}`, { cache: "no-store" })
       .then(async (res) => {
         if (!res.ok) return
         const data = await res.json()
-        if (data.success) {
-          setMetrics(data)
-          setError(null)
-        }
+        if (data.success) { setMetrics(data); setError(null) }
       })
-      .catch(() => { /* silent on manual refresh */ })
+      .catch(() => {})
       .finally(() => setRefreshing(false))
   }, [userId, period, refreshing])
 
-  // ── Derived ────────────────────────────────────────────────────────────────
+  // ── Derived ───────────────────────────────────────────────────────────────
   const k = metrics?.kpis
-  const b = metrics?.balance
+  const storeUrl = shopSlug
+    ? `${typeof window !== "undefined" ? window.location.origin : ""}/${shopSlug}`
+    : null
+  const storeHref = shopSlug ? `/${shopSlug}` : `/seller/${metrics?.seller.id ?? ""}`
 
-  const kpiCards = k ? [
-    {
-      label: "Heute Umsatz",
-      value: fmt(k.todayRevenue),
-      sub: `${k.todayOrders} Bestellungen heute`,
-      icon: Banknote, color: "#22C55E", live: true,
-    },
-    {
-      label: `${period}T Umsatz`,
-      value: fmt(k.revenue),
-      sub: `${k.paidOrders} bezahlte Bestellungen`,
-      icon: BarChart3, color: "#3B82F6",
-    },
-    {
-      label: "Meine Einnahmen",
-      value: fmt(k.sellerEarnings),
-      sub: `nach ${metrics!.seller.commissionRate}% Provision`,
-      icon: TrendingUp, color: "#D97706",
-    },
-    {
-      label: "Ø Warenkorbwert",
-      value: fmt(k.avgOrderValue),
-      sub: `aus ${k.paidOrders} Bestellungen`,
-      icon: ShoppingBag, color: "#8B5CF6",
-    },
-    {
-      label: "Ausstehend",
-      value: String(k.pendingOrders),
-      sub: "Bestellungen in Bearbeitung",
-      icon: Clock, color: "#F59E0B",
-    },
+  const handleCopyStoreLink = () => {
+    if (!storeUrl) return
+    navigator.clipboard.writeText(storeUrl).then(() => {
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    }).catch(() => {})
+  }
+
+  const handleShareStoreLink = () => {
+    if (!storeUrl) return
+    if (navigator.share) {
+      navigator.share({ title: metrics?.seller.shopName ?? "Mein Shop", url: storeUrl }).catch(() => {})
+    } else {
+      handleCopyStoreLink()
+    }
+  }
+
+  // ── Onboarding checklist ──────────────────────────────────────────────────
+  const checklistItems = onboarding ? [
+    { label: "Profil vervollständigen", done: onboarding.profileComplete, href: "/seller/settings" },
+    { label: "Erstes Produkt erstellen", done: onboarding.hasProducts, href: "/seller/products/create" },
+    { label: "Zahlungen verbinden", done: onboarding.paymentsConnected, href: "/seller/payouts" },
   ] : []
+  const checklistDone = checklistItems.filter(i => i.done).length
+  const showOnboarding = onboarding && checklistDone < 3
 
-  const chartData = (metrics?.charts.revenueByDay ?? []).map(d => ({
-    ...d,
-    label: shortDate(d.date),
-  }))
-
-  // ── Render: Session loading ────────────────────────────────────────────────
-  // Stable skeleton — does NOT flicker or re-mount.
+  // ── Loading state ─────────────────────────────────────────────────────────
   if (sessionStatus === "loading" || loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center" style={{ background: "#F5F5F5" }}>
+      <div className="min-h-screen flex items-center justify-center" style={{ background: "#0E0E10" }}>
         <div className="flex flex-col items-center gap-4">
           <Loader2 className="w-8 h-8 animate-spin" style={{ color: "#D97706" }} />
-          <p className="text-sm" style={{ color: "#999" }}>Dashboard wird geladen...</p>
+          <p className="text-sm" style={{ color: "rgba(255,255,255,0.4)" }}>Dashboard wird geladen...</p>
         </div>
       </div>
     )
   }
 
-  // ── Render: Error ─────────────────────────────────────────────────────────
+  // ── Error state ───────────────────────────────────────────────────────────
   if (error && !metrics) {
     return (
-      <div className="min-h-screen flex items-center justify-center" style={{ background: "#F5F5F5" }}>
+      <div className="min-h-screen flex items-center justify-center" style={{ background: "#0E0E10" }}>
         <div className="text-center max-w-sm">
-          <AlertCircle className="w-10 h-10 mx-auto mb-3" style={{ color: "#DC2626" }} />
-          <p className="text-[14px] font-medium mb-1" style={{ color: "#DC2626" }}>{error}</p>
-          {error.includes("Seller") && (
-            <Link href="/seller-application"
-              className="inline-block mt-3 px-5 py-2 rounded-lg text-[13px] font-semibold"
-              style={{ background: "#D97706", color: "#FFF" }}>
-              Als Seller bewerben
-            </Link>
-          )}
+          <AlertCircle className="w-10 h-10 mx-auto mb-3" style={{ color: "#EF4444" }} />
+          <p className="text-[15px] font-semibold mb-1 text-white">Dashboard konnte nicht geladen werden</p>
+          <p className="text-[13px] mb-4" style={{ color: "rgba(255,255,255,0.4)" }}>{error}</p>
           <button onClick={handleRefresh}
-            className="block mx-auto mt-2 px-4 py-2 rounded-lg text-[12px]"
-            style={{ color: "#999" }}>
-            Erneut versuchen
+            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-[13px] font-semibold"
+            style={{ background: "#D97706", color: "#FFF" }}>
+            <RefreshCw className="w-4 h-4" /> Erneut versuchen
           </button>
         </div>
       </div>
     )
   }
 
-  // ── Render: Dashboard ─────────────────────────────────────────────────────
+  // ── Dashboard ─────────────────────────────────────────────────────────────
   return (
-    <div className="min-h-screen p-6" style={{ background: "#F5F5F5" }}>
-      <div className="max-w-[1400px] mx-auto">
+    <div className="min-h-screen p-4 sm:p-6 lg:p-8" style={{ background: "#0E0E10" }}>
+      <div className="max-w-[1200px] mx-auto">
 
-        {/* ── HEADER ──────────────────────────────────────────────────── */}
-        <div className="flex items-center justify-between mb-6">
+        {/* ── HEADER ─────────────────────────────────────────────────── */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
           <div>
-            <h1 className="text-[24px] font-bold" style={{ color: "#1A1A1A" }}>
+            <h1 className="text-xl md:text-2xl font-bold text-white">
               {metrics?.seller.shopName ?? "Dashboard"}
             </h1>
-            <p className="text-[13px] mt-1" style={{ color: "#999" }}>
-              Ihr Business auf einen Blick — alle Daten in Echtzeit
+            <p className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.4)" }}>
+              Willkommen zurück — hier ist dein Store-Überblick
             </p>
           </div>
-          <div className="flex items-center gap-3">
-            {/* Non-blocking error banner (after data is loaded) */}
-            {error && (
-              <span className="text-[11px] px-3 py-1.5 rounded-lg" style={{ background: "#FEE2E2", color: "#DC2626" }}>
-                {error}
-              </span>
-            )}
+          <div className="flex items-center gap-2 flex-wrap">
             <button onClick={handleRefresh} disabled={refreshing}
-              className="flex items-center gap-2 px-4 py-2 rounded-lg text-[13px] font-medium"
-              style={{ background: "#FFF", border: "1px solid #E5E5E5", color: "#555" }}>
-              <RefreshCw className={`w-4 h-4 ${refreshing ? "animate-spin" : ""}`} />
-              Aktualisieren
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium transition-colors hover:bg-white/10"
+              style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)", color: "rgba(255,255,255,0.6)" }}>
+              <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? "animate-spin" : ""}`} />
             </button>
-            <Link href={`/store/${metrics?.seller.id ?? ""}`}
-              className="flex items-center gap-2 px-4 py-2 rounded-lg text-[13px] font-medium"
-              style={{ background: "#D97706", color: "#FFF" }}>
-              <ExternalLink className="w-4 h-4" /> Shop ansehen
-            </Link>
+            <a href={storeHref} target="_blank" rel="noopener noreferrer"
+              className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold transition-colors hover:bg-white/10"
+              style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)", color: "rgba(255,255,255,0.7)" }}>
+              <Eye className="w-3.5 h-3.5" /> Store ansehen
+            </a>
+            {storeUrl && (
+              <>
+                <button onClick={handleCopyStoreLink}
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium transition-colors hover:bg-white/10"
+                  style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)", color: copied ? "#22C55E" : "rgba(255,255,255,0.6)" }}>
+                  {copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                  {copied ? "Kopiert" : "Link kopieren"}
+                </button>
+                <button onClick={handleShareStoreLink}
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium transition-colors hover:bg-white/10"
+                  style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)", color: "rgba(255,255,255,0.6)" }}>
+                  <Share2 className="w-3.5 h-3.5" />
+                </button>
+              </>
+            )}
           </div>
         </div>
 
-        {/* ── NAV SHORTCUTS ────────────────────────────────────────────── */}
-        <div className="flex gap-3 mb-6 flex-wrap">
-          {([
-            { href: "/seller/orders",   label: "Bestellungen", badge: k?.pendingOrders, icon: ShoppingCart },
-            { href: "/seller/products", label: "Produkte",     badge: k?.lowStockCount, icon: Package      },
-            { href: "/seller/payouts",  label: "Auszahlungen",                          icon: Banknote      },
-          ] as const).map(({ href, label, badge, icon: Icon }) => (
-            <Link key={href} href={href}
-              className="flex items-center gap-2 px-4 py-2 rounded-lg text-[13px] font-medium"
-              style={{ background: "#FFF", border: "1px solid #E5E5E5", color: "#1A1A1A" }}>
-              <Icon className="w-4 h-4" style={{ color: "#D97706" }} />
-              {label}
-              {!!badge && badge > 0 && (
-                <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold"
-                  style={{ background: "#FEF3C7", color: "#D97706" }}>
-                  {badge}
+        {/* ── KPI STRIP ──────────────────────────────────────────────── */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
+          {[
+            {
+              label: "Umsatz",
+              value: fmt(k?.revenue ?? 0),
+              sub: `${period} Tage`,
+              icon: Banknote,
+              accent: "#22C55E",
+            },
+            {
+              label: "Bestellungen",
+              value: String(k?.paidOrders ?? 0),
+              sub: `${k?.pendingOrders ?? 0} ausstehend`,
+              icon: ShoppingCart,
+              accent: "#3B82F6",
+            },
+            {
+              label: "Konversionsrate",
+              value: metrics?.analytics?.conversionRate != null
+                ? `${metrics.analytics.conversionRate}%` : "—",
+              sub: `${metrics?.analytics?.uniqueSessions ?? 0} Besucher`,
+              icon: TrendingUp,
+              accent: "#D97706",
+            },
+            {
+              label: "Besucher",
+              value: metrics?.analytics?.uniqueSessions != null
+                ? metrics.analytics.uniqueSessions.toLocaleString("de-DE") : "—",
+              sub: `${metrics?.analytics?.productViews ?? 0} Aufrufe`,
+              icon: Eye,
+              accent: "#8B5CF6",
+            },
+          ].map((kpi) => (
+            <div key={kpi.label} className="rounded-2xl p-4"
+              style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
+              <div className="flex items-center gap-2 mb-3">
+                <div className="w-8 h-8 rounded-lg flex items-center justify-center"
+                  style={{ background: `${kpi.accent}12` }}>
+                  <kpi.icon className="w-4 h-4" style={{ color: kpi.accent }} />
+                </div>
+                <span className="text-[11px] font-medium" style={{ color: "rgba(255,255,255,0.4)" }}>
+                  {kpi.label}
                 </span>
-              )}
-              <ChevronRight className="w-3 h-3 ml-1" style={{ color: "#CCC" }} />
+              </div>
+              <p className="text-xl font-bold text-white">{kpi.value}</p>
+              <p className="text-[10px] mt-1" style={{ color: "rgba(255,255,255,0.25)" }}>{kpi.sub}</p>
+            </div>
+          ))}
+        </div>
+
+        {/* ── QUICK ACTIONS ──────────────────────────────────────────── */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+          {[
+            { icon: Plus, label: "Produkt hinzufügen", href: "/seller/products/create", accent: "#D97706" },
+            { icon: FileText, label: "Post erstellen", href: "/seller/posts/create", accent: "#3B82F6" },
+            { icon: Palette, label: "Store anpassen", href: "/seller/settings", accent: "#8B5CF6" },
+            { icon: ShoppingCart, label: "Bestellungen", href: "/seller/orders", accent: "#22C55E" },
+          ].map((action) => (
+            <Link key={action.href} href={action.href}
+              className="group flex items-center gap-3 rounded-2xl p-4 transition-all duration-200 hover:scale-[1.02]"
+              style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
+              <div className="w-9 h-9 rounded-xl flex items-center justify-center transition-colors"
+                style={{ background: `${action.accent}12` }}>
+                <action.icon className="w-4.5 h-4.5" style={{ color: action.accent }} />
+              </div>
+              <span className="text-xs font-semibold text-white/70 group-hover:text-white transition-colors">
+                {action.label}
+              </span>
             </Link>
           ))}
         </div>
 
-        {/* ── KPI CARDS ────────────────────────────────────────────────── */}
-        <div className="grid grid-cols-5 gap-4 mb-6">
-          {kpiCards.map((kpi) => {
-            const Icon = kpi.icon
-            return (
-              <div key={kpi.label} className="rounded-lg p-4"
-                style={{ background: "#FFF", border: "1px solid #E5E5E5" }}>
-                <div className="flex items-center justify-between mb-3">
-                  <div className="w-9 h-9 rounded-lg flex items-center justify-center"
-                    style={{ background: `${kpi.color}15` }}>
-                    <Icon className="w-[18px] h-[18px]" style={{ color: kpi.color }} />
-                  </div>
-                  {kpi.live && (
-                    <span className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold uppercase"
-                      style={{ background: "#DCFCE7", color: "#16A34A" }}>
-                      <span className="w-1.5 h-1.5 rounded-full animate-pulse"
-                        style={{ background: "#16A34A" }} />
-                      Live
-                    </span>
-                  )}
-                </div>
-                <p className="text-[11px] font-medium mb-1" style={{ color: "#999" }}>{kpi.label}</p>
-                <p className="text-[20px] font-bold" style={{ color: "#1A1A1A" }}>{kpi.value}</p>
-                <p className="text-[10px] mt-0.5" style={{ color: "#CCC" }}>{kpi.sub}</p>
+        {/* ── STORE PREVIEW + ONBOARDING ROW ─────────────────────────── */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
+
+          {/* Store Preview Card */}
+          <div className="lg:col-span-2 rounded-2xl overflow-hidden"
+            style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
+            <div className="flex items-center justify-between px-5 py-3"
+              style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+              <div className="flex items-center gap-2">
+                <Store className="w-4 h-4" style={{ color: "#D97706" }} />
+                <span className="text-xs font-semibold text-white/70">Store Vorschau</span>
               </div>
-            )
-          })}
-        </div>
-
-        {/* ── BALANCE STRIP ────────────────────────────────────────────── */}
-        {b && (
-          <div className="rounded-lg p-4 mb-6 flex items-center gap-6 flex-wrap"
-            style={{ background: "#FFF", border: "1px solid #E5E5E5" }}>
-            <div>
-              <p className="text-[10px] uppercase font-bold mb-1" style={{ color: "#999" }}>Verfügbar</p>
-              <p className="text-[18px] font-black" style={{ color: "#22C55E" }}>{fmt(b.available)}</p>
-            </div>
-            <div className="h-8 w-px" style={{ background: "#F0F0F0" }} />
-            <div>
-              <p className="text-[10px] uppercase font-bold mb-1" style={{ color: "#999" }}>In Bearbeitung</p>
-              <p className="text-[18px] font-bold" style={{ color: "#D97706" }}>{fmt(b.pending)}</p>
-            </div>
-            <div className="h-8 w-px" style={{ background: "#F0F0F0" }} />
-            <div>
-              <p className="text-[10px] uppercase font-bold mb-1" style={{ color: "#999" }}>Ausgezahlt</p>
-              <p className="text-[18px] font-bold" style={{ color: "#1A1A1A" }}>{fmt(b.totalWithdrawn)}</p>
-            </div>
-            <div className="ml-auto">
-              <Link href="/seller/payouts"
-                className="px-4 py-2 rounded-lg text-[12px] font-bold"
-                style={{ background: "#D97706", color: "#FFF" }}>
-                Auszahlung anfordern →
-              </Link>
-            </div>
-          </div>
-        )}
-
-        {/* ── CHARTS ───────────────────────────────────────────────────── */}
-        <div className="grid grid-cols-2 gap-6 mb-6">
-
-          {/* Revenue Area Chart */}
-          <div className="rounded-lg p-6" style={{ background: "#FFF", border: "1px solid #E5E5E5" }}>
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <h2 className="text-[15px] font-bold" style={{ color: "#1A1A1A" }}>Umsatz Trend</h2>
-                <p className="text-[11px]" style={{ color: "#999" }}>Täglich, nur bezahlte Bestellungen</p>
-              </div>
-              <div className="flex gap-1 p-1 rounded-lg" style={{ background: "#F5F5F5" }}>
-                {([7, 30, 90] as const).map(p => (
-                  <button key={p} onClick={() => setPeriod(p)}
-                    className="px-3 py-1.5 rounded-md text-[11px] font-medium"
-                    style={{
-                      background: period === p ? "#FFF" : "transparent",
-                      color:      period === p ? "#1A1A1A" : "#999",
-                      boxShadow:  period === p ? "0 1px 3px rgba(0,0,0,0.08)" : "none",
-                    }}>
-                    {p}T
-                  </button>
-                ))}
-              </div>
-            </div>
-            {chartData.length > 0 ? (
-              <ResponsiveContainer width="100%" height={200}>
-                <AreaChart data={chartData}>
-                  <defs>
-                    <linearGradient id="revGrad" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%"   stopColor="#D97706" stopOpacity={0.2} />
-                      <stop offset="100%" stopColor="#D97706" stopOpacity={0}   />
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#F0F0F0" />
-                  <XAxis dataKey="date" tickFormatter={shortDate} stroke="#CCC" fontSize={10}
-                    interval="preserveStartEnd" />
-                  <YAxis stroke="#CCC" fontSize={10} tickFormatter={v => `€${v}`} />
-                  <Tooltip content={<ChartTooltip />} />
-                  <Area type="monotone" dataKey="revenue" stroke="#D97706" strokeWidth={2}
-                    fill="url(#revGrad)" name="Umsatz" />
-                </AreaChart>
-              </ResponsiveContainer>
-            ) : (
-              <div className="h-[200px] flex items-center justify-center">
-                <p className="text-[13px]" style={{ color: "#999" }}>Noch keine Verkaufsdaten</p>
-              </div>
-            )}
-          </div>
-
-          {/* Orders Bar Chart */}
-          <div className="rounded-lg p-6" style={{ background: "#FFF", border: "1px solid #E5E5E5" }}>
-            <div className="mb-4">
-              <h2 className="text-[15px] font-bold" style={{ color: "#1A1A1A" }}>Bestellungen pro Tag</h2>
-              <p className="text-[11px]" style={{ color: "#999" }}>Täglich, letzten {period} Tage</p>
-            </div>
-            {chartData.length > 0 ? (
-              <ResponsiveContainer width="100%" height={200}>
-                <BarChart data={chartData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#F0F0F0" />
-                  <XAxis dataKey="date" tickFormatter={shortDate} stroke="#CCC" fontSize={10}
-                    interval="preserveStartEnd" />
-                  <YAxis stroke="#CCC" fontSize={10} allowDecimals={false} />
-                  <Tooltip content={<ChartTooltip />} />
-                  <Bar dataKey="orders" fill="#3B82F6" radius={[3, 3, 0, 0]} name="Bestellungen" />
-                </BarChart>
-              </ResponsiveContainer>
-            ) : (
-              <div className="h-[200px] flex items-center justify-center">
-                <p className="text-[13px]" style={{ color: "#999" }}>Noch keine Bestellungsdaten</p>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* ── TABLES ───────────────────────────────────────────────────── */}
-        <div className="grid grid-cols-2 gap-6">
-
-          {/* Recent Orders */}
-          <div className="rounded-lg p-6" style={{ background: "#FFF", border: "1px solid #E5E5E5" }}>
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-[15px] font-bold" style={{ color: "#1A1A1A" }}>Aktuelle Bestellungen</h3>
-              <Link href="/seller/orders"
-                className="text-[12px] font-medium flex items-center gap-1"
+              <a href={storeHref} target="_blank" rel="noopener noreferrer"
+                className="flex items-center gap-1 text-[10px] font-medium transition-opacity hover:opacity-70"
                 style={{ color: "#D97706" }}>
-                Alle <ChevronRight className="w-3 h-3" />
-              </Link>
+                Öffnen <ExternalLink className="w-3 h-3" />
+              </a>
             </div>
-            {metrics?.recent.orders.length ? (
-              <div className="space-y-2">
-                {metrics.recent.orders.map(order => (
-                  <div key={order.id} className="flex items-center gap-3 p-2 rounded-lg"
-                    style={{ border: "1px solid #F0F0F0" }}>
-                    <div className="w-8 h-8 rounded-md flex items-center justify-center"
-                      style={{ background: "#F5F5F5" }}>
-                      <Package className="w-4 h-4" style={{ color: "#CCC" }} />
+            <div className="relative" style={{ height: 280 }}>
+              {/* Mock store preview */}
+              <div className="absolute inset-0 flex flex-col items-center justify-center p-6 text-center">
+                <div className="w-14 h-14 rounded-2xl flex items-center justify-center mb-4"
+                  style={{ background: "#D97706" }}>
+                  <span className="text-white font-bold text-xl">
+                    {(metrics?.seller.shopName ?? "S").charAt(0).toUpperCase()}
+                  </span>
+                </div>
+                <h3 className="text-base font-bold text-white mb-1">
+                  {metrics?.seller.shopName ?? "Dein Store"}
+                </h3>
+                {storeUrl && (
+                  <p className="text-[11px] mb-4" style={{ color: "rgba(255,255,255,0.3)" }}>
+                    {storeUrl.replace(/^https?:\/\//, "")}
+                  </p>
+                )}
+                <div className="flex items-center gap-3 text-[11px]" style={{ color: "rgba(255,255,255,0.35)" }}>
+                  <span>{k?.activeProducts ?? 0} Produkte</span>
+                  <span className="w-1 h-1 rounded-full" style={{ background: "rgba(255,255,255,0.15)" }} />
+                  <span>{k?.paidOrders ?? 0} Verkäufe</span>
+                </div>
+                <a href={storeHref} target="_blank" rel="noopener noreferrer"
+                  className="mt-5 inline-flex items-center gap-2 px-5 py-2 rounded-xl text-xs font-semibold transition-all hover:brightness-110"
+                  style={{ background: "#D97706", color: "#FFF" }}>
+                  Store besuchen <ExternalLink className="w-3.5 h-3.5" />
+                </a>
+              </div>
+            </div>
+          </div>
+
+          {/* Onboarding Checklist */}
+          <div className="rounded-2xl p-5"
+            style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-sm font-semibold text-white">Setup</h3>
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full"
+                style={{
+                  background: checklistDone === 3 ? "rgba(34,197,94,0.12)" : "rgba(217,119,6,0.12)",
+                  color: checklistDone === 3 ? "#22C55E" : "#D97706",
+                }}>
+                {checklistDone}/3
+              </span>
+            </div>
+
+            {/* Progress bar */}
+            <div className="w-full h-1.5 rounded-full mb-5" style={{ background: "rgba(255,255,255,0.06)" }}>
+              <div className="h-full rounded-full transition-all duration-500"
+                style={{
+                  width: `${(checklistDone / 3) * 100}%`,
+                  background: checklistDone === 3 ? "#22C55E" : "#D97706",
+                }} />
+            </div>
+
+            <div className="space-y-3">
+              {checklistItems.map((item) => (
+                <Link key={item.label} href={item.href}
+                  className="group flex items-center gap-3 p-3 rounded-xl transition-all hover:bg-white/[0.03]"
+                  style={{ border: "1px solid rgba(255,255,255,0.04)" }}>
+                  {item.done ? (
+                    <CheckCircle2 className="w-5 h-5 flex-shrink-0" style={{ color: "#22C55E" }} />
+                  ) : (
+                    <Circle className="w-5 h-5 flex-shrink-0" style={{ color: "rgba(255,255,255,0.15)" }} />
+                  )}
+                  <span className={`text-xs font-medium flex-1 ${item.done ? "line-through" : ""}`}
+                    style={{ color: item.done ? "rgba(255,255,255,0.25)" : "rgba(255,255,255,0.7)" }}>
+                    {item.label}
+                  </span>
+                  {!item.done && (
+                    <ChevronRight className="w-3.5 h-3.5 opacity-0 group-hover:opacity-100 transition-opacity"
+                      style={{ color: "#D97706" }} />
+                  )}
+                </Link>
+              ))}
+            </div>
+
+            {showOnboarding && (
+              <p className="text-[10px] mt-4 leading-relaxed" style={{ color: "rgba(255,255,255,0.25)" }}>
+                Vervollständige alle Schritte, um deinen Store optimal zu starten.
+              </p>
+            )}
+          </div>
+        </div>
+
+        {/* ── RECENT ORDERS ──────────────────────────────────────────── */}
+        <div className="rounded-2xl"
+          style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
+          <div className="flex items-center justify-between px-5 py-4"
+            style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+            <h3 className="text-sm font-semibold text-white">Letzte Bestellungen</h3>
+            <Link href="/seller/orders"
+              className="text-[11px] font-medium flex items-center gap-1 transition-opacity hover:opacity-70"
+              style={{ color: "#D97706" }}>
+              Alle ansehen <ChevronRight className="w-3 h-3" />
+            </Link>
+          </div>
+          {metrics?.recent.orders.length ? (
+            <div className="divide-y" style={{ borderColor: "rgba(255,255,255,0.04)" }}>
+              {metrics.recent.orders.slice(0, 5).map(order => {
+                const stateMap: Record<string, { color: string; label: string }> = {
+                  PAID: { color: "#22C55E", label: "Bezahlt" },
+                  DELIVERED: { color: "#22C55E", label: "Geliefert" },
+                  COMPLETED: { color: "#22C55E", label: "Abgeschlossen" },
+                  SHIPPED: { color: "#3B82F6", label: "Versandt" },
+                  PAYMENT_PENDING: { color: "#D97706", label: "Ausstehend" },
+                  CREATED: { color: "#6B7280", label: "Erstellt" },
+                  REFUNDED: { color: "#EF4444", label: "Erstattet" },
+                  CANCELLED: { color: "#EF4444", label: "Storniert" },
+                }
+                const s = stateMap[order.state] ?? { color: "#6B7280", label: order.state }
+                return (
+                  <div key={order.id} className="flex items-center gap-4 px-5 py-3">
+                    <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
+                      style={{ background: "rgba(255,255,255,0.04)" }}>
+                      <Package className="w-4 h-4" style={{ color: "rgba(255,255,255,0.25)" }} />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-[12px] font-medium truncate" style={{ color: "#1A1A1A" }}>
-                        {order.customerName}
-                      </p>
-                      <p className="text-[10px]" style={{ color: "#999" }}>
+                      <p className="text-xs font-medium text-white/80 truncate">{order.customerName}</p>
+                      <p className="text-[10px]" style={{ color: "rgba(255,255,255,0.25)" }}>
                         {new Date(order.createdAt).toLocaleDateString("de-DE")}
                       </p>
                     </div>
-                    <div className="text-right flex flex-col items-end gap-1">
-                      <p className="text-[12px] font-bold" style={{ color: "#1A1A1A" }}>
-                        {fmt(order.totalAmount)}
-                      </p>
-                      <StateBadge state={order.state} />
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="py-10 text-center">
-                <ShoppingCart className="w-8 h-8 mx-auto mb-2" style={{ color: "#E5E5E5" }} />
-                <p className="text-[12px]" style={{ color: "#999" }}>Noch keine Bestellungen</p>
-              </div>
-            )}
-          </div>
-
-          {/* Low Stock */}
-          <div className="rounded-lg p-6" style={{ background: "#FFF", border: "1px solid #E5E5E5" }}>
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-[15px] font-bold flex items-center gap-2" style={{ color: "#1A1A1A" }}>
-                <AlertTriangle className="w-4 h-4" style={{ color: "#D97706" }} />
-                Niedrige Bestände
-              </h3>
-              <Link href="/seller/products"
-                className="text-[12px] font-medium flex items-center gap-1"
-                style={{ color: "#D97706" }}>
-                Alle Produkte <ChevronRight className="w-3 h-3" />
-              </Link>
-            </div>
-            {metrics?.recent.lowStockProducts.length ? (
-              <div className="space-y-2">
-                {metrics.recent.lowStockProducts.map(p => {
-                  const urgent = p.stock_quantity <= 3
-                  const color = urgent ? "#DC2626" : "#D97706"
-                  return (
-                    <div key={p.id} className="flex items-center justify-between p-3 rounded-lg"
-                      style={{ background: `${color}08`, border: `1px solid ${color}20` }}>
-                      <div className="flex items-center gap-3 min-w-0">
-                        {p.image ? (
-                          <img src={p.image} alt="" className="w-8 h-8 rounded-md object-cover" />
-                        ) : (
-                          <div className="w-8 h-8 rounded-md" style={{ background: "#F5F5F5" }} />
-                        )}
-                        <div className="min-w-0">
-                          <p className="text-[12px] font-medium truncate" style={{ color: "#1A1A1A" }}>
-                            {p.title}
-                          </p>
-                          <p className="text-[10px]" style={{ color: "#999" }}>{fmt(p.price)}</p>
-                        </div>
-                      </div>
-                      <span className="text-[11px] font-bold px-2 py-1 rounded-md flex-shrink-0 ml-3"
-                        style={{ background: `${color}15`, color }}>
-                        {p.stock_quantity} Stk.
+                    <div className="text-right flex items-center gap-3">
+                      <span className="text-xs font-bold text-white">{fmt(order.totalAmount)}</span>
+                      <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full"
+                        style={{ background: `${s.color}15`, color: s.color }}>
+                        {s.label}
                       </span>
                     </div>
-                  )
-                })}
-              </div>
-            ) : (
-              <div className="py-10 text-center">
-                <Zap className="w-8 h-8 mx-auto mb-2" style={{ color: "#E5E5E5" }} />
-                <p className="text-[12px]" style={{ color: "#999" }}>Alle Bestände ausreichend</p>
-              </div>
-            )}
-          </div>
+                  </div>
+                )
+              })}
+            </div>
+          ) : (
+            <div className="py-12 text-center">
+              <ShoppingCart className="w-8 h-8 mx-auto mb-2" style={{ color: "rgba(255,255,255,0.08)" }} />
+              <p className="text-xs" style={{ color: "rgba(255,255,255,0.25)" }}>
+                Noch keine Bestellungen
+              </p>
+            </div>
+          )}
         </div>
 
       </div>

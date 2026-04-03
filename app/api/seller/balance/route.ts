@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/app/api/auth/[...nextauth]/route'
 import { supabaseAdmin } from '@/lib/supabase-admin'
+import { isSellerOperational } from '@/lib/seller-status'
 import { getFullFinancialSummary, getPayoutSummary } from '@/lib/financial-engine'
 
 /**
@@ -12,27 +13,20 @@ import { getFullFinancialSummary, getPayoutSummary } from '@/lib/financial-engin
  */
 export async function GET(request: NextRequest) {
   try {
-    // Support both auth methods
-    let userId: string | null = null
-
     const session = await getServerSession(authOptions)
-    if (session?.user?.id) {
-      userId = session.user.id
-    } else {
-      userId = request.headers.get('x-user-id')
-    }
-
-    if (!userId) {
+    if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
+    const userId = session.user.id
+
     const { data: seller, error: sellerError } = await supabaseAdmin
       .from('sellers')
-      .select('id, commission_rate')
+      .select('id, commission_rate, status')
       .eq('user_id', userId)
-      .single()
+      .maybeSingle()
 
-    if (sellerError || !seller) {
+    if (sellerError || !seller || !isSellerOperational(seller.status)) {
       return NextResponse.json({ error: 'Seller not found' }, { status: 404 })
     }
 
@@ -43,7 +37,7 @@ export async function GET(request: NextRequest) {
       .from('seller_balances')
       .select('*')
       .eq('seller_id', seller.id)
-      .single()
+      .maybeSingle()
 
     if (balanceError || !balance) {
       // Create initial balance record
@@ -58,7 +52,7 @@ export async function GET(request: NextRequest) {
           commission_rate: commissionRate,
         }])
         .select()
-        .single()
+        .maybeSingle()
 
       balance = newBalance
     }

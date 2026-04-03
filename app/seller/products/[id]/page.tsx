@@ -42,11 +42,11 @@ export default function EditProductPage() {
         .from('sellers')
         .select('id')
         .eq('user_id', userId)
-        .single()
+        .maybeSingle()
 
       if (!seller) {
-        alert('Satıcı bulunamadı!')
-        router.push('/seller/dashboard')
+        console.error('[seller/products/edit] seller not found')
+        router.push('/seller/products')
         return
       }
 
@@ -55,10 +55,9 @@ export default function EditProductPage() {
         .select('*')
         .eq('id', productId)
         .eq('seller_id', seller.id)
-        .single()
+        .maybeSingle()
 
       if (error || !product) {
-        alert('Ürün bulunamadı!')
         router.push('/seller/products')
         return
       }
@@ -92,10 +91,10 @@ export default function EditProductPage() {
         .from('sellers')
         .select('id')
         .eq('user_id', userId)
-        .single()
+        .maybeSingle()
 
       if (!seller) {
-        alert('Satıcı bulunamadı!')
+        console.error('[seller/products/edit] seller not found on save')
         return
       }
 
@@ -119,11 +118,9 @@ export default function EditProductPage() {
 
       if (error) throw error
 
-      alert('✅ Ürün başarıyla güncellendi!')
       router.push('/seller/products')
     } catch (error) {
       console.error('Update product error:', error)
-      alert('❌ Ürün güncellenirken hata oluştu!')
     } finally {
       setSaving(false)
     }

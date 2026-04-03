@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/app/api/auth/[...nextauth]/route'
-import { supabase } from '@/lib/supabase'
+import { supabaseAdmin } from '@/lib/supabase-admin'
+import { isSellerOperational } from '@/lib/seller-status'
 import {
   createSellerConnectAccount,
   refreshOnboardingLink,
@@ -31,18 +32,18 @@ export async function POST(request: NextRequest) {
     const forceRefresh = body.refresh || false
 
     // Get seller info
-    const { data: seller, error: sellerError } = await supabase
+    const { data: seller, error: sellerError } = await supabaseAdmin
       .from('sellers')
       .select('*')
       .eq('user_id', userId)
-      .single()
+      .maybeSingle()
 
     if (sellerError || !seller) {
       return NextResponse.json({ error: 'Satıcı kaydı bulunamadı' }, { status: 404 })
     }
 
-    // Check if seller is approved
-    if (seller.status !== 'approved') {
+    // Check if seller is operational (active or approved)
+    if (!isSellerOperational(seller.status)) {
       return NextResponse.json(
         { error: 'Satıcı hesabınız henüz onaylanmamış' },
         { status: 403 }
@@ -103,11 +104,11 @@ export async function GET(request: NextRequest) {
     const userId = session.user.id
 
     // Get seller info
-    const { data: seller } = await supabase
+    const { data: seller } = await supabaseAdmin
       .from('sellers')
       .select('*')
       .eq('user_id', userId)
-      .single()
+      .maybeSingle()
 
     if (!seller) {
       return NextResponse.json({ error: 'Satıcı kaydı bulunamadı' }, { status: 404 })

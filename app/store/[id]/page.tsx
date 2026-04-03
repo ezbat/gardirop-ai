@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import { useSession } from 'next-auth/react'
 import { useLanguage } from '@/lib/language-context'
+import { useAuthModal } from '@/components/auth-modal'
 import { supabase } from '@/lib/supabase'
 import { motion, AnimatePresence } from 'framer-motion'
 import Link from 'next/link'
@@ -71,6 +72,7 @@ export default function ProductDetailPage() {
   const params = useParams()
   const productId = params.id as string
   const { data: session } = useSession()
+  const { requireAuth } = useAuthModal()
   const userId = session?.user?.id
   const { t } = useLanguage()
 
@@ -163,8 +165,7 @@ export default function ProductDetailPage() {
 
   const toggleFavorite = async () => {
     if (!userId) {
-      router.push('/auth/signin')
-      return
+      if (!requireAuth('Melde dich an, um Favoriten zu speichern.')) return
     }
     setFavLoading(true)
     try {

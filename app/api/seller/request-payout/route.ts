@@ -23,7 +23,7 @@ export async function POST(request: NextRequest) {
       .from('sellers')
       .select('id, card_verified, card_last4, card_brand')
       .eq('user_id', userId)
-      .single()
+      .maybeSingle()
 
     if (sellerError || !seller) {
       return NextResponse.json({ error: 'Seller not found' }, { status: 404 })
@@ -38,7 +38,7 @@ export async function POST(request: NextRequest) {
       .from('seller_balances')
       .select('available_balance, commission_rate')
       .eq('seller_id', seller.id)
-      .single()
+      .maybeSingle()
 
     if (!balance) {
       return NextResponse.json({ error: 'Balance not found' }, { status: 400 })
@@ -63,7 +63,7 @@ export async function POST(request: NextRequest) {
         card_brand: seller.card_brand
       }])
       .select()
-      .single()
+      .maybeSingle()
 
     if (insertError) throw insertError
 

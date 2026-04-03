@@ -13,15 +13,17 @@ import Footer from "@/components/footer"
 import { LanguageProvider } from '@/lib/language-context'
 import { CurrencyProvider } from '@/lib/currency-context'
 import SessionWrapper from "@/components/session-wrapper"
+import { ErrorBoundary } from "@/components/ErrorBoundary"
+import { AuthModalProvider } from "@/components/auth-modal"
 
 
 export const metadata: Metadata = {
   title: {
-    default: "Wearo - KI-gestützte Mode-Plattform",
+    default: "Wearo - Dein Store. Dein Link.",
     template: "%s | Wearo"
   },
-  description: "Moderne, luxuriöse und benutzerfreundliche E-Commerce-Plattform. KI-gestützte Modeempfehlungen, Outfit-Erstellung und sicheres Einkaufserlebnis.",
-  keywords: ["Mode", "E-Commerce", "Online-Shopping", "Kleidung", "Schuhe", "Accessoires", "Outfit", "KI Mode"],
+  description: "Erstelle deinen eigenen Store in Minuten. Verkaufe direkt über deinen Link — ohne Code, ohne Limit.",
+  keywords: ["Store erstellen", "Online-Shop", "Creator Store", "Link-in-Bio Shop", "Verkaufen", "E-Commerce", "Mode"],
   authors: [{ name: "Wearo Team" }],
   creator: "Wearo",
   publisher: "Wearo",
@@ -30,8 +32,8 @@ export const metadata: Metadata = {
     type: 'website',
     locale: 'de_DE',
     url: 'https://wearo.de',
-    title: 'Wearo - KI-gestützte Mode-Plattform',
-    description: 'Moderne, luxuriöse und benutzerfreundliche E-Commerce-Plattform.',
+    title: 'Wearo - Dein Store. Dein Link.',
+    description: 'Erstelle deinen eigenen Store in Minuten. Verkaufe direkt über deinen Link.',
     siteName: 'Wearo',
     images: [
       {
@@ -44,8 +46,8 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'Wearo - KI-gestützte Mode-Plattform',
-    description: 'Moderne, luxuriöse und benutzerfreundliche E-Commerce-Plattform.',
+    title: 'Wearo - Dein Store. Dein Link.',
+    description: 'Erstelle deinen eigenen Store in Minuten. Verkaufe direkt über deinen Link.',
     images: ['/og-image.jpg'],
   },
   robots: {
@@ -76,18 +78,22 @@ export default function RootLayout({
           <ThemeProvider attribute="class" defaultTheme="dark">
             <LanguageProvider>
               <CurrencyProvider>
+                <AuthModalProvider>
                 <OnboardingGuard>
-                  <div className="relative min-h-screen flex flex-col" style={{ background: 'var(--lux-bg)', color: 'var(--text-primary)' }}>
-                    <PageTransitionProvider>
-                      <NavHeader />
-                      <TransitionWrapper>{children}</TransitionWrapper>
-                      <Footer />
-                      <MobileBottomNav />
-                    </PageTransitionProvider>
-                    <CookieConsent />
-                    <SupportChat />
-                  </div>
+                  <ErrorBoundary>
+                    <div className="relative min-h-screen flex flex-col" style={{ background: 'var(--lux-bg)', color: 'var(--text-primary)' }}>
+                      <PageTransitionProvider>
+                        <NavHeader />
+                        <TransitionWrapper>{children}</TransitionWrapper>
+                        <Footer />
+                        <MobileBottomNav />
+                      </PageTransitionProvider>
+                      <CookieConsent />
+                      <SupportChat />
+                    </div>
+                  </ErrorBoundary>
                 </OnboardingGuard>
+                </AuthModalProvider>
               </CurrencyProvider>
             </LanguageProvider>
           </ThemeProvider>

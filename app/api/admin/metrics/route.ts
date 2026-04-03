@@ -12,40 +12,8 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
-import crypto from 'crypto'
 import { supabaseAdmin } from '@/lib/supabase-admin'
-
-// ─── Auth ─────────────────────────────────────────────────────────────
-type AuthOk      = { ok: true }
-type AuthFailure = { ok: false; status: 401 | 500; error: string }
-
-function authorize(request: NextRequest): AuthOk | AuthFailure {
-  const expected = process.env.ADMIN_TOKEN
-  if (!expected) {
-    console.error('[Metrics] ADMIN_TOKEN not configured')
-    return { ok: false, status: 500, error: 'ADMIN_TOKEN not configured' }
-  }
-
-  const token = request.headers.get('x-admin-token')
-  if (!token) {
-    return { ok: false, status: 401, error: 'Unauthorized' }
-  }
-
-  const tokenBuf    = Buffer.from(token)
-  const expectedBuf = Buffer.from(expected)
-
-  // Always run a comparison so response time doesn't leak token length
-  if (tokenBuf.length !== expectedBuf.length) {
-    crypto.timingSafeEqual(Buffer.alloc(expectedBuf.length), expectedBuf)
-    return { ok: false, status: 401, error: 'Unauthorized' }
-  }
-
-  if (!crypto.timingSafeEqual(tokenBuf, expectedBuf)) {
-    return { ok: false, status: 401, error: 'Unauthorized' }
-  }
-
-  return { ok: true }
-}
+import { requireAdmin } from '@/lib/admin-auth'
 
 // ─── Date helpers ─────────────────────────────────────────────────────
 function toUTCDateStr(d: Date): string {
@@ -84,10 +52,8 @@ function fillDays(
 
 // ─── GET ──────────────────────────────────────────────────────────────
 export async function GET(request: NextRequest) {
-  const auth = authorize(request)
-  if (!auth.ok) {
-    return NextResponse.json({ success: false, error: auth.error }, { status: auth.status })
-  }
+  const auth = requireAdmin(request)
+  if (auth.error) return auth.error
 
   // ── Date range ──────────────────────────────────────────────────────
   const { searchParams } = new URL(request.url)

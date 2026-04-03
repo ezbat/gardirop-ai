@@ -1,30 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { supabase } from '@/lib/supabase'
+import { supabaseAdmin } from '@/lib/supabase-admin'
+import { requireAdmin } from '@/lib/admin-auth'
 
 // GET - Tüm mesajları getir (Admin)
 export async function GET(request: NextRequest) {
   try {
-    const userId = request.headers.get('x-user-id')
-
-    if (!userId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
-    // Admin kontrolü (m3000 için basitleştirilmiş)
-    if (userId !== 'm3000') {
-      const { data: user } = await supabase
-        .from('users')
-        .select('role')
-        .eq('id', userId)
-        .single()
-
-      if (!user || user.role !== 'admin') {
-        return NextResponse.json({ error: 'Unauthorized - Admin only' }, { status: 403 })
-      }
-    }
+    const auth = requireAdmin(request)
+    if (auth.error) return auth.error
 
     // Mesajları satıcı bilgileriyle getir
-    const { data: messages, error } = await supabase
+    const { data: messages, error } = await supabaseAdmin
       .from('seller_messages')
       .select(`
         *,
@@ -44,38 +29,23 @@ export async function GET(request: NextRequest) {
 // PUT - Mesaja yanıt ver (Admin)
 export async function PUT(request: NextRequest) {
   try {
-    const userId = request.headers.get('x-user-id')
-    const { messageId, adminReply, status } = await request.json()
+    const auth = requireAdmin(request)
+    if (auth.error) return auth.error
 
-    if (!userId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
+    const { messageId, adminReply, status } = await request.json()
 
     if (!messageId || !adminReply || !status) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
     }
 
-    // Admin kontrolü (m3000 için basitleştirilmiş)
-    if (userId !== 'm3000') {
-      const { data: user } = await supabase
-        .from('users')
-        .select('role')
-        .eq('id', userId)
-        .single()
-
-      if (!user || user.role !== 'admin') {
-        return NextResponse.json({ error: 'Unauthorized - Admin only' }, { status: 403 })
-      }
-    }
-
     // Mesajı güncelle
-    const { data: updatedMessage, error } = await supabase
+    const { data: updatedMessage, error } = await supabaseAdmin
       .from('seller_messages')
       .update({
         admin_reply: adminReply,
         status,
         updated_at: new Date().toISOString(),
-        resolved_by: userId,
+        resolved_by: 'admin',
         resolved_at: status === 'resolved' || status === 'closed' ? new Date().toISOString() : null
       })
       .eq('id', messageId)

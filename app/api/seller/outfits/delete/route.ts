@@ -21,7 +21,7 @@ export async function POST(req: NextRequest) {
       .from('outfit_collections')
       .select('seller_id')
       .eq('id', outfitId)
-      .single()
+      .maybeSingle()
 
     if (fetchError || !outfit) {
       return NextResponse.json({ error: 'Outfit not found' }, { status: 404 })
@@ -33,7 +33,7 @@ export async function POST(req: NextRequest) {
       .select('id')
       .eq('user_id', session.user.id)
       .eq('id', outfit.seller_id)
-      .single()
+      .maybeSingle()
 
     if (!seller) {
       return NextResponse.json({ error: 'Not authorized' }, { status: 403 })

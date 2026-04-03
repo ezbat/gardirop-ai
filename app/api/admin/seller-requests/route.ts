@@ -1,30 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { supabase } from '@/lib/supabase'
+import { supabaseAdmin } from '@/lib/supabase-admin'
+import { requireAdmin } from '@/lib/admin-auth'
 
 export async function GET(request: NextRequest) {
   try {
-    const userId = request.headers.get('x-user-id')
+    const auth = requireAdmin(request)
+    if (auth.error) return auth.error
+
     const { searchParams } = new URL(request.url)
     const status = searchParams.get('status')
 
-    if (!userId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
-    // Admin check (simplified for m3000)
-    if (userId !== 'm3000') {
-      const { data: user } = await supabase
-        .from('users')
-        .select('role')
-        .eq('id', userId)
-        .single()
-
-      if (user?.role !== 'admin') {
-        return NextResponse.json({ error: 'Forbidden: Admin access required' }, { status: 403 })
-      }
-    }
-
-    let query = supabase
+    let query = supabaseAdmin
       .from('seller_requests')
       .select(`
         *,
@@ -49,36 +35,21 @@ export async function GET(request: NextRequest) {
 
 export async function PATCH(request: NextRequest) {
   try {
-    const userId = request.headers.get('x-user-id')
+    const auth = requireAdmin(request)
+    if (auth.error) return auth.error
+
     const { requestId, status, adminResponse } = await request.json()
-
-    if (!userId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
-    // Admin check (simplified for m3000)
-    if (userId !== 'm3000') {
-      const { data: user } = await supabase
-        .from('users')
-        .select('role')
-        .eq('id', userId)
-        .single()
-
-      if (user?.role !== 'admin') {
-        return NextResponse.json({ error: 'Forbidden: Admin access required' }, { status: 403 })
-      }
-    }
 
     if (!requestId || !status) {
       return NextResponse.json({ error: 'Request ID and status required' }, { status: 400 })
     }
 
-    const { data: updatedRequest, error } = await supabase
+    const { data: updatedRequest, error } = await supabaseAdmin
       .from('seller_requests')
       .update({
         status,
         admin_response: adminResponse,
-        processed_by: userId,
+        processed_by: 'admin',
         processed_at: new Date().toISOString()
       })
       .eq('id', requestId)

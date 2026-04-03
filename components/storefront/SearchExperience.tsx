@@ -79,7 +79,7 @@ export function SearchExperience({ className = '' }: SearchExperienceProps) {
   const [dropdownStyle, setDropdownStyle] = useState<React.CSSProperties>({})
   const [mounted, setMounted] = useState(false)
 
-  const debounceRef = useRef<ReturnType<typeof setTimeout>>()
+  const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined)
 
   useEffect(() => { setMounted(true) }, [])
 
@@ -114,7 +114,7 @@ export function SearchExperience({ className = '' }: SearchExperienceProps) {
   const updatePosition = useCallback(() => {
     if (!wrapperRef.current) return
     const rect = wrapperRef.current.getBoundingClientRect()
-    const HEADER_H = 92 // 56 (layer1) + 36 (layer2)
+    const HEADER_H = 100 // 60 (layer1) + 40 (layer2)
     const maxW = Math.min(840, window.innerWidth - 32)
     const centerX = rect.left + rect.width / 2
     const left = Math.max(16, Math.min(window.innerWidth - maxW - 16, centerX - maxW / 2))

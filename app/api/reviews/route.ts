@@ -1,21 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { supabase } from '@/lib/supabase'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/app/api/auth/[...nextauth]/route'
+import { supabaseAdmin } from '@/lib/supabase-admin'
 import { rateLimitMiddleware, API_LIMITS } from '@/lib/rate-limit'
 
-// GET - Fetch reviews for a product (no rate limit for reading)
+// GET - Fetch reviews for a product (public, no auth required)
 async function getReviewsHandler(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url)
     const productId = searchParams.get('productId')
     const limit = parseInt(searchParams.get('limit') || '10')
     const offset = parseInt(searchParams.get('offset') || '0')
-    const sortBy = searchParams.get('sortBy') || 'recent' // recent, helpful, rating
+    const sortBy = searchParams.get('sortBy') || 'recent'
 
     if (!productId) {
       return NextResponse.json({ error: 'Product ID required' }, { status: 400 })
     }
 
-    let query = supabase
+    let query = supabaseAdmin
       .from('product_reviews')
       .select(`
         id,
@@ -34,7 +36,6 @@ async function getReviewsHandler(req: NextRequest) {
       `)
       .eq('product_id', productId)
 
-    // Sort
     if (sortBy === 'helpful') {
       query = query.order('helpful_count', { ascending: false })
     } else if (sortBy === 'rating') {
@@ -52,8 +53,7 @@ async function getReviewsHandler(req: NextRequest) {
       return NextResponse.json({ error: 'Failed to fetch reviews' }, { status: 500 })
     }
 
-    // Get total count
-    const { count } = await supabase
+    const { count } = await supabaseAdmin
       .from('product_reviews')
       .select('id', { count: 'exact', head: true })
       .eq('product_id', productId)
@@ -72,13 +72,18 @@ async function getReviewsHandler(req: NextRequest) {
 
 export const GET = getReviewsHandler
 
-// POST - Create a review (rate limited)
+// POST - Create a review (session-authenticated, rate limited)
 async function createReviewHandler(req: NextRequest) {
   try {
-    const body = await req.json()
-    const { productId, userId, rating, title, comment, images } = body
+    const session = await getServerSession(authOptions)
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Anmeldung erforderlich' }, { status: 401 })
+    }
 
-    if (!productId || !userId || !rating) {
+    const body = await req.json()
+    const { productId, rating, title, comment, images } = body
+
+    if (!productId || !rating) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
     }
 
@@ -87,24 +92,23 @@ async function createReviewHandler(req: NextRequest) {
     }
 
     // Check if user has purchased this product
-    const { data: orders } = await supabase
+    const { data: orders } = await supabaseAdmin
       .from('orders')
       .select(`
         id,
         order_items!inner(product_id)
       `)
-      .eq('user_id', userId)
+      .eq('user_id', session.user.id)
       .eq('order_items.product_id', productId)
       .eq('payment_status', 'paid')
 
     const isVerifiedPurchase = orders && orders.length > 0
 
-    // Create review
-    const { data: review, error } = await supabase
+    const { data: review, error } = await supabaseAdmin
       .from('product_reviews')
       .insert({
         product_id: productId,
-        user_id: userId,
+        user_id: session.user.id,
         rating,
         title: title || null,
         comment: comment || null,
@@ -129,7 +133,7 @@ async function createReviewHandler(req: NextRequest) {
       .single()
 
     if (error) {
-      if (error.code === '23505') { // Unique constraint violation
+      if (error.code === '23505') {
         return NextResponse.json({ error: 'You have already reviewed this product' }, { status: 400 })
       }
       console.error('Create review error:', error)
@@ -144,7 +148,6 @@ async function createReviewHandler(req: NextRequest) {
   }
 }
 
-// Apply rate limiting: 10 requests per minute for creating reviews
 export async function POST(req: NextRequest) {
   const limited = rateLimitMiddleware(req, API_LIMITS.auth)
   if (limited) return limited

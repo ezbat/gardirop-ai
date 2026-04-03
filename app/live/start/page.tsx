@@ -37,8 +37,8 @@ export default function StartLivePage() {
         .single()
 
       if (!seller) {
-        alert('You must be a seller to start a live stream')
-        router.push('/seller-application')
+        alert('Du musst Verkäufer sein, um einen Livestream zu starten.')
+        router.push('/sell/apply')
         return
       }
 

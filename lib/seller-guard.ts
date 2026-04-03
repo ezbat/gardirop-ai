@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
-import { supabase } from './supabase'
+import { supabaseAdmin } from './supabase-admin'
+import { isSellerOperational, isSellerSuspended, SELLER_ACTIVE_STATUSES } from './seller-status'
 
 export interface SellerProfile {
   id: string
@@ -27,6 +28,10 @@ export interface SellerGuardError {
 /**
  * Verify seller exists and is associated with the given user.
  * Does NOT check Stripe verification - use requireVerifiedSeller for that.
+ *
+ * Uses supabaseAdmin (service role) for server-side authority.
+ * Uses maybeSingle() to handle missing rows gracefully.
+ * Accepts both 'active' and 'approved' as operational statuses.
  */
 export async function requireSeller(
   userId: string | null | undefined
@@ -41,15 +46,15 @@ export async function requireSeller(
     }
   }
 
-  const { data: seller, error } = await supabase
+  const { data: seller, error } = await supabaseAdmin
     .from('sellers')
     .select(`
       id, user_id, shop_name, status,
       stripe_account_id, stripe_charges_enabled, stripe_payouts_enabled,
-      stripe_onboarding_complete, stripe_verification_status
+      stripe_onboarding_complete, stripe_verification_status, commission_rate
     `)
     .eq('user_id', userId)
-    .single()
+    .maybeSingle()
 
   if (error || !seller) {
     return {
@@ -61,7 +66,7 @@ export async function requireSeller(
     }
   }
 
-  if (seller.status === 'suspended') {
+  if (isSellerSuspended(seller.status)) {
     return {
       seller: null,
       error: NextResponse.json(
@@ -71,7 +76,7 @@ export async function requireSeller(
     }
   }
 
-  if (seller.status !== 'approved') {
+  if (!isSellerOperational(seller.status)) {
     return {
       seller: null,
       error: NextResponse.json(
@@ -90,7 +95,7 @@ export async function requireSeller(
  *
  * Checks:
  * 1. User is authenticated
- * 2. User has an approved seller account
+ * 2. User has an operational seller account (active or approved)
  * 3. Stripe account exists
  * 4. Stripe charges are enabled
  * 5. Stripe payouts are enabled
@@ -159,12 +164,12 @@ export async function verifyOwnership(
   sellerId: string,
   sellerIdColumn: string = 'seller_id'
 ): Promise<boolean> {
-  const { data, error } = await supabase
+  const { data, error } = await supabaseAdmin
     .from(table)
     .select('id')
     .eq('id', resourceId)
     .eq(sellerIdColumn, sellerId)
-    .single()
+    .maybeSingle()
 
   return !!data && !error
 }
@@ -182,11 +187,11 @@ export async function requireAdmin(
     }
   }
 
-  const { data: user } = await supabase
+  const { data: user } = await supabaseAdmin
     .from('users')
     .select('role')
     .eq('id', userId)
-    .single()
+    .maybeSingle()
 
   if (!user || user.role !== 'admin') {
     return {

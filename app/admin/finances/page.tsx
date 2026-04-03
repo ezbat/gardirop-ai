@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { useSession } from "next-auth/react"
+import { getAdminToken } from '@/lib/admin-fetch'
 import Link from "next/link"
 import {
   Banknote, Shield, AlertTriangle, TrendingUp, Loader2,
@@ -94,7 +95,7 @@ export default function AdminFinancesPage() {
   const loadOverview = async () => {
     try {
       const response = await fetch('/api/admin/finances/overview', {
-        headers: { 'x-user-id': userId }
+        headers: { 'x-admin-token': getAdminToken() }
       })
       const data = await response.json()
       if (response.ok) setOverview(data.overview)
@@ -108,7 +109,7 @@ export default function AdminFinancesPage() {
   const loadPayouts = async () => {
     try {
       const response = await fetch('/api/admin/finances/payout-approve', {
-        headers: { 'x-user-id': userId }
+        headers: { 'x-admin-token': getAdminToken() }
       })
       const data = await response.json()
       if (response.ok) setPayouts(data.batches || [])
@@ -120,7 +121,7 @@ export default function AdminFinancesPage() {
   const loadChargebacks = async () => {
     try {
       const response = await fetch('/api/admin/finances/chargebacks', {
-        headers: { 'x-user-id': userId }
+        headers: { 'x-admin-token': getAdminToken() }
       })
       const data = await response.json()
       if (response.ok) {
@@ -135,7 +136,7 @@ export default function AdminFinancesPage() {
   const loadReconciliation = async () => {
     try {
       const response = await fetch('/api/admin/finances/reconciliation', {
-        headers: { 'x-user-id': userId }
+        headers: { 'x-admin-token': getAdminToken() }
       })
       const data = await response.json()
       if (response.ok) setReconciliationRuns(data.runs || [])
@@ -148,7 +149,7 @@ export default function AdminFinancesPage() {
     try {
       const response = await fetch('/api/admin/finances/payout-approve', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-user-id': userId },
+        headers: { 'Content-Type': 'application/json', 'x-admin-token': getAdminToken() },
         body: JSON.stringify({ batchId, action }),
       })
       if (response.ok) loadPayouts()
@@ -161,7 +162,7 @@ export default function AdminFinancesPage() {
     try {
       await fetch('/api/admin/finances/reconciliation', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-user-id': userId },
+        headers: { 'Content-Type': 'application/json', 'x-admin-token': getAdminToken() },
         body: JSON.stringify({}),
       })
       loadReconciliation()
@@ -177,7 +178,7 @@ export default function AdminFinancesPage() {
       <div className="min-h-screen flex items-center justify-center" style={{ background: '#F5F5F5' }}>
         <div className="flex flex-col items-center gap-4">
           <Loader2 className="w-8 h-8 animate-spin" style={{ color: '#D97706' }} />
-          <p className="text-sm" style={{ color: '#999' }}>Financial Integrity wird geladen...</p>
+          <p className="text-sm" style={{ color: '#8B92A8' }}>Financial Integrity wird geladen...</p>
         </div>
       </div>
     )
@@ -233,7 +234,7 @@ export default function AdminFinancesPage() {
                 </span>
               )}
             </div>
-            <p className="text-[13px] mt-1" style={{ color: '#999' }}>
+            <p className="text-[13px] mt-1" style={{ color: '#8B92A8' }}>
               Double-Entry Ledger — Alle Finanzdaten verifiziert
             </p>
           </div>
@@ -271,7 +272,7 @@ export default function AdminFinancesPage() {
                     <Icon className="w-3.5 h-3.5" style={{ color: kpi.color }} />
                   </div>
                 </div>
-                <p className="text-[10px] font-medium mb-1" style={{ color: '#999' }}>{kpi.label}</p>
+                <p className="text-[10px] font-medium mb-1" style={{ color: '#8B92A8' }}>{kpi.label}</p>
                 <p className="text-[18px] font-bold" style={{ color: '#1A1A1A' }}>{formatted}</p>
               </div>
             )
@@ -287,7 +288,7 @@ export default function AdminFinancesPage() {
                 className="flex items-center gap-2 px-4 py-2.5 rounded-md text-[13px] font-medium flex-1 justify-center"
                 style={{
                   background: activeTab === tab.id ? '#131921' : 'transparent',
-                  color: activeTab === tab.id ? '#FFFFFF' : '#999',
+                  color: activeTab === tab.id ? '#FFFFFF' : '#8B92A8',
                 }}>
                 <Icon className="w-4 h-4" />
                 {tab.label}
@@ -306,7 +307,7 @@ export default function AdminFinancesPage() {
                   <Shield className="w-4 h-4 inline mr-2" style={{ color: '#D97706' }} />
                   Risk Distribution
                 </h3>
-                <p className="text-[11px] mb-4" style={{ color: '#999' }}>Seller Risk Score Verteilung</p>
+                <p className="text-[11px] mb-4" style={{ color: '#8B92A8' }}>Seller Risk Score Verteilung</p>
 
                 {riskPieData.length > 0 ? (
                   <div className="flex items-center gap-6">
@@ -332,7 +333,7 @@ export default function AdminFinancesPage() {
                   </div>
                 ) : (
                   <div className="h-[180px] flex items-center justify-center">
-                    <p className="text-[12px]" style={{ color: '#999' }}>Keine Risiko-Daten vorhanden</p>
+                    <p className="text-[12px]" style={{ color: '#8B92A8' }}>Keine Risiko-Daten vorhanden</p>
                   </div>
                 )}
               </div>
@@ -343,21 +344,21 @@ export default function AdminFinancesPage() {
                   <Globe className="w-4 h-4 inline mr-2" style={{ color: '#D97706' }} />
                   VAT Collected by Country
                 </h3>
-                <p className="text-[11px] mb-4" style={{ color: '#999' }}>Steuereinnahmen nach Land</p>
+                <p className="text-[11px] mb-4" style={{ color: '#8B92A8' }}>Steuereinnahmen nach Land</p>
 
                 {vatBarData.length > 0 ? (
                   <ResponsiveContainer width="100%" height={180}>
                     <BarChart data={vatBarData}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#F0F0F0" />
-                      <XAxis dataKey="country" stroke="#CCC" fontSize={11} />
-                      <YAxis stroke="#CCC" fontSize={11} />
+                      <CartesianGrid strokeDasharray="3 3" stroke="#E0E0E0" />
+                      <XAxis dataKey="country" stroke="#888888" fontSize={11} />
+                      <YAxis stroke="#888888" fontSize={11} />
                       <Tooltip contentStyle={{ background: '#FFF', border: '1px solid #E5E5E5', borderRadius: '8px', fontSize: '12px' }} />
                       <Bar dataKey="tax" fill="#D97706" radius={[4, 4, 0, 0]} name="VAT (€)" />
                     </BarChart>
                   </ResponsiveContainer>
                 ) : (
                   <div className="h-[180px] flex items-center justify-center">
-                    <p className="text-[12px]" style={{ color: '#999' }}>Keine Steuer-Daten vorhanden</p>
+                    <p className="text-[12px]" style={{ color: '#8B92A8' }}>Keine Steuer-Daten vorhanden</p>
                   </div>
                 )}
               </div>
@@ -370,20 +371,20 @@ export default function AdminFinancesPage() {
                 Trial Balance
               </h3>
               <div className="grid grid-cols-4 gap-4">
-                <div className="p-4 rounded-lg" style={{ background: '#F9FAFB', border: '1px solid #F0F0F0' }}>
-                  <p className="text-[10px] font-medium mb-1" style={{ color: '#999' }}>Total Debit</p>
+                <div className="p-4 rounded-lg" style={{ background: '#F9FAFB', border: '1px solid #E0E0E0' }}>
+                  <p className="text-[10px] font-medium mb-1" style={{ color: '#8B92A8' }}>Total Debit</p>
                   <p className="text-[16px] font-bold" style={{ color: '#1A1A1A' }}>
                     €{(overview?.trialBalance.totalDebit ?? 0).toLocaleString('de-DE', { minimumFractionDigits: 2 })}
                   </p>
                 </div>
-                <div className="p-4 rounded-lg" style={{ background: '#F9FAFB', border: '1px solid #F0F0F0' }}>
-                  <p className="text-[10px] font-medium mb-1" style={{ color: '#999' }}>Total Credit</p>
+                <div className="p-4 rounded-lg" style={{ background: '#F9FAFB', border: '1px solid #E0E0E0' }}>
+                  <p className="text-[10px] font-medium mb-1" style={{ color: '#8B92A8' }}>Total Credit</p>
                   <p className="text-[16px] font-bold" style={{ color: '#1A1A1A' }}>
                     €{(overview?.trialBalance.totalCredit ?? 0).toLocaleString('de-DE', { minimumFractionDigits: 2 })}
                   </p>
                 </div>
-                <div className="p-4 rounded-lg" style={{ background: '#F9FAFB', border: '1px solid #F0F0F0' }}>
-                  <p className="text-[10px] font-medium mb-1" style={{ color: '#999' }}>Accounts</p>
+                <div className="p-4 rounded-lg" style={{ background: '#F9FAFB', border: '1px solid #E0E0E0' }}>
+                  <p className="text-[10px] font-medium mb-1" style={{ color: '#8B92A8' }}>Accounts</p>
                   <p className="text-[16px] font-bold" style={{ color: '#1A1A1A' }}>
                     {overview?.trialBalance.accountCount ?? 0}
                   </p>
@@ -392,7 +393,7 @@ export default function AdminFinancesPage() {
                   background: overview?.trialBalance.balanced ? '#F0FDF4' : '#FEF2F2',
                   border: `1px solid ${overview?.trialBalance.balanced ? '#BBF7D0' : '#FECACA'}`,
                 }}>
-                  <p className="text-[10px] font-medium mb-1" style={{ color: '#999' }}>Status</p>
+                  <p className="text-[10px] font-medium mb-1" style={{ color: '#8B92A8' }}>Status</p>
                   <p className="text-[16px] font-bold" style={{
                     color: overview?.trialBalance.balanced ? '#16A34A' : '#DC2626'
                   }}>
@@ -409,7 +410,7 @@ export default function AdminFinancesPage() {
                 <p className="text-[28px] font-black" style={{ color: '#D97706' }}>
                   {overview?.pendingPayoutCount ?? 0}
                 </p>
-                <p className="text-[12px]" style={{ color: '#999' }}>
+                <p className="text-[12px]" style={{ color: '#8B92A8' }}>
                   €{(overview?.pendingPayoutAmount ?? 0).toLocaleString('de-DE', { minimumFractionDigits: 2 })} total
                 </p>
               </div>
@@ -420,7 +421,7 @@ export default function AdminFinancesPage() {
                 }}>
                   {overview?.chargebackCount ?? 0}
                 </p>
-                <p className="text-[12px]" style={{ color: '#999' }}>
+                <p className="text-[12px]" style={{ color: '#8B92A8' }}>
                   €{(overview?.chargebackAmount ?? 0).toLocaleString('de-DE', { minimumFractionDigits: 2 })} ({(overview?.chargebackRate ?? 0).toFixed(2)}%)
                 </p>
               </div>
@@ -429,7 +430,7 @@ export default function AdminFinancesPage() {
                 <p className="text-[28px] font-black" style={{ color: '#8B5CF6' }}>
                   €{(overview?.paymentFees ?? 0).toLocaleString('de-DE', { minimumFractionDigits: 2 })}
                 </p>
-                <p className="text-[12px]" style={{ color: '#999' }}>Stripe processing fees</p>
+                <p className="text-[12px]" style={{ color: '#8B92A8' }}>Stripe processing fees</p>
               </div>
             </div>
           </div>
@@ -441,17 +442,17 @@ export default function AdminFinancesPage() {
             <div className="flex items-center justify-between mb-6">
               <div>
                 <h3 className="text-[16px] font-bold" style={{ color: '#1A1A1A' }}>Payout Batches</h3>
-                <p className="text-[11px]" style={{ color: '#999' }}>Risk-weighted Auszahlungskontrolle</p>
+                <p className="text-[11px]" style={{ color: '#8B92A8' }}>Risk-weighted Auszahlungskontrolle</p>
               </div>
             </div>
 
             {payouts.length > 0 ? (
               <table className="w-full">
                 <thead>
-                  <tr style={{ borderBottom: '1px solid #F0F0F0' }}>
+                  <tr style={{ borderBottom: '1px solid #E0E0E0' }}>
                     {['Seller', 'Betrag', 'Risk Score', 'Status', 'Geplant', 'Hold Grund', 'Aktionen'].map(h => (
                       <th key={h} className="text-left py-2 px-2 text-[10px] font-bold uppercase"
-                        style={{ color: '#999', letterSpacing: '0.05em' }}>{h}</th>
+                        style={{ color: '#8B92A8', letterSpacing: '0.05em' }}>{h}</th>
                     ))}
                   </tr>
                 </thead>
@@ -461,10 +462,10 @@ export default function AdminFinancesPage() {
                     const statusColors: Record<string, string> = {
                       pending: '#D97706', held: '#DC2626', approved: '#22C55E', processing: '#3B82F6', completed: '#22C55E', failed: '#DC2626',
                     }
-                    const statusColor = statusColors[batch.status] || '#999'
+                    const statusColor = statusColors[batch.status] || '#8B92A8'
 
                     return (
-                      <tr key={batch.id} style={{ borderBottom: '1px solid #F8F8F8' }}>
+                      <tr key={batch.id} style={{ borderBottom: '1px solid #E5E5E5' }}>
                         <td className="py-3 px-2">
                           <span className="text-[12px] font-medium" style={{ color: '#1A1A1A' }}>
                             {(batch as any).sellers?.shop_name || batch.seller_id.slice(0, 8)}
@@ -493,7 +494,7 @@ export default function AdminFinancesPage() {
                           </span>
                         </td>
                         <td className="py-3 px-2">
-                          <span className="text-[11px]" style={{ color: '#999' }}>
+                          <span className="text-[11px]" style={{ color: '#8B92A8' }}>
                             {batch.hold_reason || '—'}
                           </span>
                         </td>
@@ -536,8 +537,8 @@ export default function AdminFinancesPage() {
               </table>
             ) : (
               <div className="py-12 text-center">
-                <Banknote className="w-10 h-10 mx-auto mb-3" style={{ color: '#E5E5E5' }} />
-                <p className="text-[13px]" style={{ color: '#999' }}>Keine ausstehenden Auszahlungen</p>
+                <Banknote className="w-10 h-10 mx-auto mb-3" style={{ color: '#CCCCCC' }} />
+                <p className="text-[13px]" style={{ color: '#8B92A8' }}>Keine ausstehenden Auszahlungen</p>
               </div>
             )}
           </div>
@@ -549,21 +550,21 @@ export default function AdminFinancesPage() {
             {chargebackStats && (
               <div className="grid grid-cols-4 gap-4">
                 <div className="rounded-lg p-4" style={{ background: '#FFFFFF', border: '1px solid #E5E5E5' }}>
-                  <p className="text-[10px] font-medium" style={{ color: '#999' }}>Total Orders (30d)</p>
+                  <p className="text-[10px] font-medium" style={{ color: '#8B92A8' }}>Total Orders (30d)</p>
                   <p className="text-[20px] font-bold" style={{ color: '#1A1A1A' }}>{chargebackStats.totalOrders}</p>
                 </div>
                 <div className="rounded-lg p-4" style={{ background: '#FFFFFF', border: '1px solid #E5E5E5' }}>
-                  <p className="text-[10px] font-medium" style={{ color: '#999' }}>Chargebacks</p>
+                  <p className="text-[10px] font-medium" style={{ color: '#8B92A8' }}>Chargebacks</p>
                   <p className="text-[20px] font-bold" style={{ color: '#DC2626' }}>{chargebackStats.totalChargebacks}</p>
                 </div>
                 <div className="rounded-lg p-4" style={{ background: '#FFFFFF', border: '1px solid #E5E5E5' }}>
-                  <p className="text-[10px] font-medium" style={{ color: '#999' }}>Rate</p>
+                  <p className="text-[10px] font-medium" style={{ color: '#8B92A8' }}>Rate</p>
                   <p className="text-[20px] font-bold" style={{
                     color: chargebackStats.rate > 1 ? '#DC2626' : '#22C55E'
                   }}>{chargebackStats.rate.toFixed(2)}%</p>
                 </div>
                 <div className="rounded-lg p-4" style={{ background: '#FFFFFF', border: '1px solid #E5E5E5' }}>
-                  <p className="text-[10px] font-medium" style={{ color: '#999' }}>Total Amount</p>
+                  <p className="text-[10px] font-medium" style={{ color: '#8B92A8' }}>Total Amount</p>
                   <p className="text-[20px] font-bold" style={{ color: '#F97316' }}>
                     €{chargebackStats.totalAmount.toFixed(2)}
                   </p>
@@ -577,10 +578,10 @@ export default function AdminFinancesPage() {
               {chargebacks.length > 0 ? (
                 <table className="w-full">
                   <thead>
-                    <tr style={{ borderBottom: '1px solid #F0F0F0' }}>
+                    <tr style={{ borderBottom: '1px solid #E0E0E0' }}>
                       {['Order', 'Seller', 'Betrag', 'Grund', 'Status', 'Deadline', 'Erstellt'].map(h => (
                         <th key={h} className="text-left py-2 px-2 text-[10px] font-bold uppercase"
-                          style={{ color: '#999', letterSpacing: '0.05em' }}>{h}</th>
+                          style={{ color: '#8B92A8', letterSpacing: '0.05em' }}>{h}</th>
                       ))}
                     </tr>
                   </thead>
@@ -589,7 +590,7 @@ export default function AdminFinancesPage() {
                       const isUrgent = cb.evidenceDeadline && new Date(cb.evidenceDeadline) < new Date(Date.now() + 3 * 86400000)
                       return (
                         <tr key={cb.id} style={{
-                          borderBottom: '1px solid #F8F8F8',
+                          borderBottom: '1px solid #E5E5E5',
                           background: isUrgent ? '#FEF2F2' : 'transparent',
                         }}>
                           <td className="py-3 px-2">
@@ -627,7 +628,7 @@ export default function AdminFinancesPage() {
                             </span>
                           </td>
                           <td className="py-3 px-2">
-                            <span className="text-[11px]" style={{ color: '#999' }}>
+                            <span className="text-[11px]" style={{ color: '#8B92A8' }}>
                               {new Date(cb.createdAt).toLocaleDateString('de-DE')}
                             </span>
                           </td>
@@ -638,8 +639,8 @@ export default function AdminFinancesPage() {
                 </table>
               ) : (
                 <div className="py-12 text-center">
-                  <Shield className="w-10 h-10 mx-auto mb-3" style={{ color: '#E5E5E5' }} />
-                  <p className="text-[13px]" style={{ color: '#999' }}>Keine aktiven Chargebacks</p>
+                  <Shield className="w-10 h-10 mx-auto mb-3" style={{ color: '#CCCCCC' }} />
+                  <p className="text-[13px]" style={{ color: '#8B92A8' }}>Keine aktiven Chargebacks</p>
                 </div>
               )}
             </div>
@@ -652,7 +653,7 @@ export default function AdminFinancesPage() {
             <div className="flex items-center justify-between">
               <div>
                 <h3 className="text-[16px] font-bold" style={{ color: '#1A1A1A' }}>Payment Reconciliation</h3>
-                <p className="text-[11px]" style={{ color: '#999' }}>Ledger vs. Stripe Abgleich</p>
+                <p className="text-[11px]" style={{ color: '#8B92A8' }}>Ledger vs. Stripe Abgleich</p>
               </div>
               <button onClick={handleRunReconciliation}
                 className="flex items-center gap-2 px-4 py-2 rounded-lg text-[13px] font-medium"
@@ -665,10 +666,10 @@ export default function AdminFinancesPage() {
               {reconciliationRuns.length > 0 ? (
                 <table className="w-full">
                   <thead>
-                    <tr style={{ borderBottom: '1px solid #F0F0F0' }}>
+                    <tr style={{ borderBottom: '1px solid #E0E0E0' }}>
                       {['Datum', 'Ledger', 'Provider', 'Varianz', 'Matched', 'Mismatched', 'Status'].map(h => (
                         <th key={h} className="text-left py-2 px-2 text-[10px] font-bold uppercase"
-                          style={{ color: '#999', letterSpacing: '0.05em' }}>{h}</th>
+                          style={{ color: '#8B92A8', letterSpacing: '0.05em' }}>{h}</th>
                       ))}
                     </tr>
                   </thead>
@@ -676,7 +677,7 @@ export default function AdminFinancesPage() {
                     {reconciliationRuns.map((run) => {
                       const statusColor = run.status === 'matched' ? '#22C55E' : run.status === 'mismatch' ? '#DC2626' : '#D97706'
                       return (
-                        <tr key={run.id} style={{ borderBottom: '1px solid #F8F8F8' }}>
+                        <tr key={run.id} style={{ borderBottom: '1px solid #E5E5E5' }}>
                           <td className="py-3 px-2">
                             <span className="text-[12px] font-medium" style={{ color: '#1A1A1A' }}>
                               {run.runDate}
@@ -724,9 +725,9 @@ export default function AdminFinancesPage() {
                 </table>
               ) : (
                 <div className="py-12 text-center">
-                  <Scale className="w-10 h-10 mx-auto mb-3" style={{ color: '#E5E5E5' }} />
-                  <p className="text-[13px]" style={{ color: '#999' }}>Keine Abgleich-Läufe vorhanden</p>
-                  <p className="text-[11px] mt-1" style={{ color: '#CCC' }}>Klicken Sie auf "Abgleich starten" oben</p>
+                  <Scale className="w-10 h-10 mx-auto mb-3" style={{ color: '#CCCCCC' }} />
+                  <p className="text-[13px]" style={{ color: '#8B92A8' }}>Keine Abgleich-Läufe vorhanden</p>
+                  <p className="text-[11px] mt-1" style={{ color: '#888888' }}>Klicken Sie auf "Abgleich starten" oben</p>
                 </div>
               )}
             </div>
@@ -740,7 +741,7 @@ export default function AdminFinancesPage() {
               <Landmark className="w-4 h-4 inline mr-2" style={{ color: '#D97706' }} />
               Double-Entry Ledger
             </h3>
-            <p className="text-[11px] mb-4" style={{ color: '#999' }}>
+            <p className="text-[11px] mb-4" style={{ color: '#8B92A8' }}>
               Immutable record — Jede Transaktion erzeugt balancierte Debit/Credit Einträge
             </p>
 
@@ -756,7 +757,7 @@ export default function AdminFinancesPage() {
                 const Icon = account.icon
                 return (
                   <div key={account.type} className="p-4 rounded-lg"
-                    style={{ background: '#F9FAFB', border: '1px solid #F0F0F0' }}>
+                    style={{ background: '#F9FAFB', border: '1px solid #E0E0E0' }}>
                     <div className="flex items-center gap-3 mb-2">
                       <div className="w-8 h-8 rounded-lg flex items-center justify-center"
                         style={{ background: `${account.color}15` }}>
@@ -764,7 +765,7 @@ export default function AdminFinancesPage() {
                       </div>
                       <div>
                         <p className="text-[13px] font-bold" style={{ color: '#1A1A1A' }}>{account.label}</p>
-                        <p className="text-[10px]" style={{ color: '#999' }}>{account.description}</p>
+                        <p className="text-[10px]" style={{ color: '#8B92A8' }}>{account.description}</p>
                       </div>
                     </div>
                     <p className="text-[10px] font-mono px-2 py-1 rounded"

@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { useSession } from "next-auth/react"
+import { getAdminToken } from "@/lib/admin-fetch"
 import { motion } from "framer-motion"
 import { Shirt, Check, X, Eye, Search, Image as ImageIcon } from "lucide-react"
 import { Input } from "@/components/ui/input"
@@ -52,7 +53,7 @@ export default function AdminOutfitsPage() {
 
       const response = await fetch(url, {
         headers: {
-          'x-user-id': userId
+          'x-admin-token': getAdminToken()
         }
       })
 
@@ -76,7 +77,7 @@ export default function AdminOutfitsPage() {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
-          'x-user-id': userId
+          'x-admin-token': getAdminToken()
         },
         body: JSON.stringify({
           outfitId,
@@ -227,7 +228,7 @@ export default function AdminOutfitsPage() {
                   {/* Status Badge */}
                   <div className={`absolute top-3 right-3 px-3 py-1 rounded-full text-xs font-semibold border ${getStatusColor(outfit.moderation_status)}`}>
                     {outfit.moderation_status === 'pending' && 'Bekleyen'}
-                    {outfit.moderation_status === 'approved' && 'Onaylandi'}
+                    {outfit.moderation_status === 'approved' && 'Genehmigt'}
                     {outfit.moderation_status === 'rejected' && 'Reddedildi'}
                   </div>
                 </div>
@@ -365,7 +366,7 @@ export default function AdminOutfitsPage() {
                   <label className="text-sm text-muted-foreground">Moderasyon Durumu</label>
                   <span className={`inline-block px-3 py-1 rounded-full text-sm font-semibold border ${getStatusColor(selectedOutfit.moderation_status)}`}>
                     {selectedOutfit.moderation_status === 'pending' && 'Bekleyen'}
-                    {selectedOutfit.moderation_status === 'approved' && 'Onaylandi'}
+                    {selectedOutfit.moderation_status === 'approved' && 'Genehmigt'}
                     {selectedOutfit.moderation_status === 'rejected' && 'Reddedildi'}
                   </span>
                 </div>
@@ -387,7 +388,7 @@ export default function AdminOutfitsPage() {
                     className="flex-1 px-6 py-3 bg-green-500 hover:bg-green-600 text-white rounded-xl font-semibold transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
                   >
                     <Check className="w-5 h-5" />
-                    Onayla
+                    Genehmigen
                   </button>
                   <button
                     onClick={() => handleAction(selectedOutfit.id, 'reject', 'Uygunsuz icerik')}

@@ -221,7 +221,7 @@ Zahlungsstatus: ${data.paymentStatus}
             className="glass border border-border rounded-2xl p-12 text-center"
           >
             <Package className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
-            <h2 className="text-2xl font-bold mb-2">Keine Bestellungen gefunden</h2>
+            <h2 className="text-2xl font-bold mb-2 text-foreground">Keine Bestellungen gefunden</h2>
             <p className="text-muted-foreground mb-6">
               {selectedStatus === "all"
                 ? "Sie haben noch keine Bestellungen aufgegeben"
@@ -256,7 +256,7 @@ Zahlungsstatus: ${data.paymentStatus}
                       </div>
                       <div>
                         <p className="text-sm text-muted-foreground">Bestellnummer</p>
-                        <p className="font-bold text-lg">{order.order_number}</p>
+                        <p className="font-bold text-lg text-foreground">{order.order_number}</p>
                       </div>
                     </div>
 
@@ -278,7 +278,7 @@ Zahlungsstatus: ${data.paymentStatus}
                       <Calendar className="w-5 h-5 text-muted-foreground" />
                       <div>
                         <p className="text-xs text-muted-foreground">Bestellt am</p>
-                        <p className="font-semibold">{new Date(order.created_at).toLocaleDateString("de-DE")}</p>
+                        <p className="font-semibold text-foreground">{new Date(order.created_at).toLocaleDateString("de-DE")}</p>
                       </div>
                     </div>
 
@@ -294,7 +294,7 @@ Zahlungsstatus: ${data.paymentStatus}
                       <MapPin className="w-5 h-5 text-muted-foreground" />
                       <div>
                         <p className="text-xs text-muted-foreground">Lieferadresse</p>
-                        <p className="font-semibold">{order.shipping_address?.city || "N/A"}</p>
+                        <p className="font-semibold text-foreground">{order.shipping_address?.city || "N/A"}</p>
                       </div>
                     </div>
                   </div>
@@ -307,7 +307,7 @@ Zahlungsstatus: ${data.paymentStatus}
                           <Truck className="w-5 h-5 text-primary" />
                           <div>
                             <p className="text-xs text-muted-foreground">Sendungsnummer</p>
-                            <p className="font-mono font-semibold">{order.tracking_number}</p>
+                            <p className="font-mono font-semibold text-foreground">{order.tracking_number}</p>
                           </div>
                         </div>
                         <a
@@ -392,10 +392,13 @@ Zahlungsstatus: ${data.paymentStatus}
                           Bewerten
                         </button>
 
-                        <button className="flex-1 sm:flex-none px-6 py-2 glass border border-border rounded-xl font-semibold hover:border-red-500 hover:text-red-500 transition-colors flex items-center justify-center gap-2">
+                        <Link
+                          href={`/orders/${order.id}/return`}
+                          className="flex-1 sm:flex-none px-6 py-2 glass border border-border rounded-xl font-semibold hover:border-red-500 hover:text-red-500 transition-colors flex items-center justify-center gap-2"
+                        >
                           <RotateCcw className="w-4 h-4" />
                           Rückgabe
-                        </button>
+                        </Link>
                       </>
                     )}
 

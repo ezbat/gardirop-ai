@@ -81,7 +81,7 @@ export default function ProductReviews({ productId, averageRating = 0, reviewCou
 
   const submitReview = async () => {
     if (!userId || !newComment.trim()) {
-      alert('Lütfen yorum yazın!')
+      alert('Bitte schreibe einen Kommentar.')
       return
     }
 
@@ -102,7 +102,7 @@ export default function ProductReviews({ productId, averageRating = 0, reviewCou
       const data = await response.json()
 
       if (!response.ok) {
-        alert(data.error || 'Yorum eklenemedi!')
+        alert(data.error || 'Bewertung konnte nicht hinzugefügt werden.')
         return
       }
 
@@ -112,10 +112,10 @@ export default function ProductReviews({ productId, averageRating = 0, reviewCou
       setNewRating(5)
       setNewTitle('')
       setNewComment('')
-      alert('✅ Yorumunuz eklendi!')
+      alert('✅ Deine Bewertung wurde hinzugefügt!')
     } catch (error) {
       console.error('Submit review error:', error)
-      alert('Bir hata oluştu!')
+      alert('Ein Fehler ist aufgetreten.')
     } finally {
       setSubmitting(false)
     }
@@ -123,7 +123,7 @@ export default function ProductReviews({ productId, averageRating = 0, reviewCou
 
   const toggleHelpful = async (reviewId: string) => {
     if (!userId) {
-      alert('Giriş yapmalısınız!')
+      alert('Bitte melde dich an.')
       return
     }
 
@@ -153,7 +153,7 @@ export default function ProductReviews({ productId, averageRating = 0, reviewCou
         {[1, 2, 3, 4, 5].map(star => (
           <Star
             key={star}
-            className={`${size} ${star <= rating ? 'fill-yellow-500 text-yellow-500' : 'text-gray-300'}`}
+            className={`${size} ${star <= rating ? 'fill-yellow-500 text-yellow-500' : 'text-[#CCCCCC]'}`}
           />
         ))}
       </div>
@@ -164,7 +164,7 @@ export default function ProductReviews({ productId, averageRating = 0, reviewCou
     <div className="space-y-8">
       {/* Overall Rating */}
       <div className="glass border border-border rounded-2xl p-8">
-        <h2 className="text-3xl font-bold mb-6">Değerlendirmeler</h2>
+        <h2 className="text-3xl font-bold mb-6">Bewertungen</h2>
 
         <div className="flex flex-col md:flex-row gap-8">
           {/* Rating Summary */}
@@ -173,7 +173,7 @@ export default function ProductReviews({ productId, averageRating = 0, reviewCou
               {averageRating.toFixed(1)}
             </div>
             {renderStars(Math.round(averageRating), 'w-8 h-8')}
-            <p className="text-sm text-muted-foreground mt-2">{reviewCount} değerlendirme</p>
+            <p className="text-sm text-muted-foreground mt-2">{reviewCount} Bewertungen</p>
           </div>
 
           {/* Write Review Button */}
@@ -183,10 +183,10 @@ export default function ProductReviews({ productId, averageRating = 0, reviewCou
                 onClick={() => setShowWriteReview(!showWriteReview)}
                 className="px-6 py-3 bg-primary text-primary-foreground rounded-xl font-semibold hover:opacity-90 transition-opacity"
               >
-                {showWriteReview ? 'İptal Et' : 'Yorum Yaz'}
+                {showWriteReview ? 'Abbrechen' : 'Bewertung schreiben'}
               </button>
             ) : (
-              <p className="text-muted-foreground">Yorum yapmak için giriş yapın</p>
+              <p className="text-muted-foreground">Melde dich an, um eine Bewertung zu schreiben</p>
             )}
           </div>
         </div>
@@ -203,7 +203,7 @@ export default function ProductReviews({ productId, averageRating = 0, reviewCou
               <div className="space-y-4">
                 {/* Rating */}
                 <div>
-                  <label className="block font-semibold mb-2">Puanınız *</label>
+                  <label className="block font-semibold mb-2">Deine Bewertung *</label>
                   <div className="flex gap-2">
                     {[1, 2, 3, 4, 5].map(star => (
                       <button
@@ -212,7 +212,7 @@ export default function ProductReviews({ productId, averageRating = 0, reviewCou
                         className="hover:scale-110 transition-transform"
                       >
                         <Star
-                          className={`w-8 h-8 ${star <= newRating ? 'fill-yellow-500 text-yellow-500' : 'text-gray-300'}`}
+                          className={`w-8 h-8 ${star <= newRating ? 'fill-yellow-500 text-yellow-500' : 'text-[#CCCCCC]'}`}
                         />
                       </button>
                     ))}
@@ -221,12 +221,12 @@ export default function ProductReviews({ productId, averageRating = 0, reviewCou
 
                 {/* Title */}
                 <div>
-                  <label className="block font-semibold mb-2">Başlık</label>
+                  <label className="block font-semibold mb-2">Titel</label>
                   <input
                     type="text"
                     value={newTitle}
                     onChange={(e) => setNewTitle(e.target.value)}
-                    placeholder="Kısaca özetleyin..."
+                    placeholder="Kurze Zusammenfassung..."
                     className="w-full px-4 py-3 glass border border-border rounded-xl focus:border-primary outline-none"
                     maxLength={200}
                   />
@@ -234,11 +234,11 @@ export default function ProductReviews({ productId, averageRating = 0, reviewCou
 
                 {/* Comment */}
                 <div>
-                  <label className="block font-semibold mb-2">Yorumunuz *</label>
+                  <label className="block font-semibold mb-2">Dein Kommentar *</label>
                   <textarea
                     value={newComment}
                     onChange={(e) => setNewComment(e.target.value)}
-                    placeholder="Ürün hakkında düşüncelerinizi paylaşın..."
+                    placeholder="Teile deine Meinung zu diesem Produkt..."
                     className="w-full px-4 py-3 glass border border-border rounded-xl focus:border-primary outline-none min-h-[120px]"
                     required
                   />
@@ -251,7 +251,7 @@ export default function ProductReviews({ productId, averageRating = 0, reviewCou
                   className="px-6 py-3 bg-primary text-primary-foreground rounded-xl font-semibold hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                 >
                   {submitting && <Loader2 className="w-5 h-5 animate-spin" />}
-                  {submitting ? 'Gönderiliyor...' : 'Yorumu Gönder'}
+                  {submitting ? 'Wird gesendet...' : 'Bewertung abschicken'}
                 </button>
               </div>
             </motion.div>
@@ -271,9 +271,9 @@ export default function ProductReviews({ productId, averageRating = 0, reviewCou
                 : 'glass border border-border hover:border-primary'
             }`}
           >
-            {sort === 'recent' && 'En Yeni'}
-            {sort === 'helpful' && 'En Faydalı'}
-            {sort === 'rating' && 'En Yüksek Puan'}
+            {sort === 'recent' && 'Neueste'}
+            {sort === 'helpful' && 'Hilfreichste'}
+            {sort === 'rating' && 'Beste Bewertung'}
           </button>
         ))}
       </div>
@@ -285,7 +285,7 @@ export default function ProductReviews({ productId, averageRating = 0, reviewCou
         </div>
       ) : !reviews || reviews.length === 0 ? (
         <div className="text-center py-12 glass border border-border rounded-2xl">
-          <p className="text-muted-foreground">Henüz değerlendirme yok. İlk yorumu siz yapın!</p>
+          <p className="text-muted-foreground">Noch keine Bewertungen. Sei der Erste!</p>
         </div>
       ) : (
         <div className="space-y-4">
@@ -306,12 +306,12 @@ export default function ProductReviews({ productId, averageRating = 0, reviewCou
                     {review.is_verified_purchase && (
                       <div className="flex items-center gap-1 px-2 py-1 bg-green-500/10 text-green-600 text-xs rounded-full">
                         <CheckCircle className="w-3 h-3" />
-                        Onaylı Alışveriş
+                        Verifizierter Kauf
                       </div>
                     )}
                   </div>
                   <p className="text-sm text-muted-foreground">
-                    {new Date(review.created_at).toLocaleDateString('tr-TR', {
+                    {new Date(review.created_at).toLocaleDateString('de-DE', {
                       year: 'numeric',
                       month: 'long',
                       day: 'numeric'
@@ -355,7 +355,7 @@ export default function ProductReviews({ productId, averageRating = 0, reviewCou
                 className="flex items-center gap-2 text-sm text-muted-foreground hover:text-primary transition-colors"
               >
                 <ThumbsUp className="w-4 h-4" />
-                Faydalı ({review.helpful_count})
+                Hilfreich ({review.helpful_count})
               </button>
             </div>
           ))}
@@ -366,7 +366,7 @@ export default function ProductReviews({ productId, averageRating = 0, reviewCou
               onClick={() => loadReviews(true)}
               className="w-full px-6 py-3 glass border border-border rounded-xl font-semibold hover:border-primary transition-colors flex items-center justify-center gap-2"
             >
-              Daha Fazla Göster
+              Mehr anzeigen
               <ChevronDown className="w-5 h-5" />
             </button>
           )}

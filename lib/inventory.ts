@@ -1,5 +1,10 @@
 import { supabaseAdmin } from './supabase-admin'
 import { logger } from './logger'
+import {
+  fetchThresholdConfig,
+  resolveThreshold,
+  getStockSeverity,
+} from './inventory-threshold'
 
 // ═══════════════════════════════════════════════════════════
 // WEARO Inventory System
@@ -242,36 +247,37 @@ export async function adjustStock(
 
 // ─── LOW STOCK ALERTS ───────────────────────────────────────
 /**
- * Get all products below their stock threshold for a seller.
- * Uses product.low_stock_threshold (default 5).
+ * Get all products below their resolved stock threshold for a seller.
+ * Threshold resolution: product-level → category-level → global default.
  */
 export async function getLowStockAlerts(sellerId: string): Promise<StockAlert[]> {
-  const { data: products, error } = await supabaseAdmin
-    .from('products')
-    .select('id, title, stock_quantity, low_stock_threshold, sku, images')
-    .eq('seller_id', sellerId)
+  const [{ data: products, error }, config] = await Promise.all([
+    supabaseAdmin
+      .from('products')
+      .select('id, title, stock_quantity, images, low_stock_threshold, category')
+      .eq('seller_id', sellerId),
+    fetchThresholdConfig(),
+  ])
 
   if (error || !products) return []
 
   const alerts: StockAlert[] = []
 
   for (const product of products) {
-    const threshold = product.low_stock_threshold || 5
-    const stock = product.stock_quantity || 0
+    const stock     = (product as any).stock_quantity ?? 0
+    const threshold = resolveThreshold(config, product as any)
+    const severity  = getStockSeverity(stock, threshold)
 
-    if (stock <= threshold) {
-      let severity: 'critical' | 'warning' | 'info' = 'info'
-      if (stock === 0) severity = 'critical'
-      else if (stock <= Math.floor(threshold / 2)) severity = 'warning'
-
+    // Include out-of-stock (critical) and low-stock items
+    if (stock === 0 || severity !== null) {
       alerts.push({
-        productId: product.id,
-        title: product.title,
-        sku: product.sku || null,
+        productId:    (product as any).id,
+        title:        (product as any).title,
+        sku:          null,
         currentStock: stock,
         threshold,
-        severity,
-        image: product.images?.[0] || null,
+        severity:     (severity ?? 'info') as StockAlert['severity'],
+        image:        (product as any).images?.[0] ?? null,
       })
     }
   }
@@ -372,10 +378,13 @@ export async function getInventorySummary(sellerId: string): Promise<{
   averageStock: number
   categories: Array<{ category: string; productCount: number; totalStock: number }>
 }> {
-  const { data: products, error } = await supabaseAdmin
-    .from('products')
-    .select('id, stock_quantity, price, low_stock_threshold, category')
-    .eq('seller_id', sellerId)
+  const [{ data: products, error }, config] = await Promise.all([
+    supabaseAdmin
+      .from('products')
+      .select('id, stock_quantity, price, category, low_stock_threshold')
+      .eq('seller_id', sellerId),
+    fetchThresholdConfig(),
+  ])
 
   if (error || !products || products.length === 0) {
     return {
@@ -399,8 +408,8 @@ export async function getInventorySummary(sellerId: string): Promise<{
   let outOfStockCount = 0
 
   for (const p of products) {
-    const stock = p.stock_quantity || 0
-    const threshold = p.low_stock_threshold || 5
+    const stock     = (p as any).stock_quantity ?? 0
+    const threshold = resolveThreshold(config, p as any)
     if (stock === 0) outOfStockCount++
     else if (stock <= threshold) lowStockCount++
   }

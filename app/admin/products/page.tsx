@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { useSession } from "next-auth/react"
+import { getAdminToken } from '@/lib/admin-fetch'
 import { motion } from "framer-motion"
 import { Package, Check, X, Eye, Filter, Search, Image as ImageIcon, ChevronLeft, ChevronRight } from "lucide-react"
 import { Input } from "@/components/ui/input"
@@ -56,7 +57,7 @@ export default function AdminProductsPage() {
 
       const response = await fetch(url, {
         headers: {
-          'x-user-id': userId
+          'x-admin-token': getAdminToken()
         }
       })
 
@@ -80,7 +81,7 @@ export default function AdminProductsPage() {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
-          'x-user-id': userId
+          'x-admin-token': getAdminToken()
         },
         body: JSON.stringify({
           productId,
@@ -119,10 +120,10 @@ export default function AdminProductsPage() {
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'approved': return 'text-green-500 bg-green-500/10 border-green-500/20'
-      case 'pending': return 'text-yellow-500 bg-yellow-500/10 border-yellow-500/20'
-      case 'rejected': return 'text-red-500 bg-red-500/10 border-red-500/20'
-      default: return 'text-gray-500 bg-gray-500/10 border-gray-500/20'
+      case 'approved': return 'text-green-400 bg-green-500/20 border-green-500/30'
+      case 'pending': return 'text-yellow-400 bg-yellow-500/20 border-yellow-500/30'
+      case 'rejected': return 'text-red-400 bg-red-500/20 border-red-500/30'
+      default: return 'text-gray-400 bg-gray-500/20 border-gray-500/30'
     }
   }
 
@@ -133,10 +134,10 @@ export default function AdminProductsPage() {
         <div className="mb-8">
           <h1 className="text-4xl font-bold mb-2 flex items-center gap-3">
             <Package className="w-10 h-10 text-primary" />
-            Urun Moderasyonu
+            Produktmoderation
           </h1>
           <p className="text-muted-foreground">
-            Satici urunlerini onaylayın veya reddedin
+            Verkäuferprodukte genehmigen oder ablehnen
           </p>
         </div>
 
@@ -153,7 +154,7 @@ export default function AdminProductsPage() {
                     : 'bg-secondary text-secondary-foreground hover:bg-secondary/80'
                 }`}
               >
-                Tumu ({products.length})
+                Alle ({products.length})
               </button>
               <button
                 onClick={() => setFilter('pending')}
@@ -163,7 +164,7 @@ export default function AdminProductsPage() {
                     : 'bg-secondary text-secondary-foreground hover:bg-secondary/80'
                 }`}
               >
-                Bekleyen
+                Ausstehend
               </button>
               <button
                 onClick={() => setFilter('approved')}
@@ -173,7 +174,7 @@ export default function AdminProductsPage() {
                     : 'bg-secondary text-secondary-foreground hover:bg-secondary/80'
                 }`}
               >
-                Onaylanan
+                Genehmigt
               </button>
               <button
                 onClick={() => setFilter('rejected')}
@@ -183,7 +184,7 @@ export default function AdminProductsPage() {
                     : 'bg-secondary text-secondary-foreground hover:bg-secondary/80'
                 }`}
               >
-                Reddedilen
+                Abgelehnt
               </button>
             </div>
 
@@ -192,7 +193,7 @@ export default function AdminProductsPage() {
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
               <Input
                 type="text"
-                placeholder="Urun, magaza veya kategori ara..."
+                placeholder="Produkt, Shop oder Kategorie suchen..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="pl-10"
@@ -209,12 +210,12 @@ export default function AdminProductsPage() {
               transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
               className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full mx-auto"
             />
-            <p className="text-muted-foreground mt-4">Yukleniyor...</p>
+            <p className="text-muted-foreground mt-4">Wird geladen...</p>
           </div>
         ) : filteredProducts.length === 0 ? (
           <div className="text-center py-12 glass border border-border rounded-2xl">
             <Package className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
-            <p className="text-muted-foreground">Urun bulunamadi</p>
+            <p className="text-muted-foreground">Keine Produkte gefunden</p>
           </div>
         ) : (
           <>
@@ -243,8 +244,8 @@ export default function AdminProductsPage() {
                   {/* Status Badge */}
                   <div className={`absolute top-3 right-3 px-3 py-1 rounded-full text-xs font-semibold border ${getStatusColor(product.moderation_status)}`}>
                     {product.moderation_status === 'pending' && 'Bekleyen'}
-                    {product.moderation_status === 'approved' && 'Onaylandi'}
-                    {product.moderation_status === 'rejected' && 'Reddedildi'}
+                    {product.moderation_status === 'approved' && 'Genehmigt'}
+                    {product.moderation_status === 'rejected' && 'Abgelehnt'}
                   </div>
                 </div>
 
@@ -260,7 +261,7 @@ export default function AdminProductsPage() {
                       ₺{product.price.toFixed(2)}
                     </span>
                     <span className="text-sm text-muted-foreground">
-                      Stok: {product.stock_quantity}
+                      Bestand: {product.stock_quantity}
                     </span>
                   </div>
 
@@ -282,7 +283,7 @@ export default function AdminProductsPage() {
                       className="flex-1 px-4 py-2 bg-secondary hover:bg-secondary/80 rounded-xl font-medium transition-colors flex items-center justify-center gap-2"
                     >
                       <Eye className="w-4 h-4" />
-                      Detay
+                      Details
                     </button>
                     {product.moderation_status === 'pending' && (
                       <>
@@ -294,7 +295,7 @@ export default function AdminProductsPage() {
                           <Check className="w-4 h-4" />
                         </button>
                         <button
-                          onClick={() => handleAction(product.id, 'reject', 'Uygunsuz icerik')}
+                          onClick={() => handleAction(product.id, 'reject', 'Ungeeigneter Inhalt')}
                           disabled={actionLoading}
                           className="px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-xl font-medium transition-colors disabled:opacity-50"
                         >
@@ -317,7 +318,7 @@ export default function AdminProductsPage() {
                 className="px-4 py-2 glass border border-border rounded-xl hover:border-primary transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
               >
                 <ChevronLeft className="w-5 h-5" />
-                Önceki
+                Zurück
               </button>
 
               <div className="flex gap-2">
@@ -352,7 +353,7 @@ export default function AdminProductsPage() {
                 disabled={currentPage === totalPages}
                 className="px-4 py-2 glass border border-border rounded-xl hover:border-primary transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
               >
-                Sonraki
+                Weiter
                 <ChevronRight className="w-5 h-5" />
               </button>
             </div>
@@ -369,7 +370,7 @@ export default function AdminProductsPage() {
               className="glass border border-border rounded-2xl p-6 max-w-3xl w-full max-h-[90vh] overflow-y-auto"
             >
               <div className="flex justify-between items-start mb-6">
-                <h2 className="text-2xl font-bold">Urun Detaylari</h2>
+                <h2 className="text-2xl font-bold">Produktdetails</h2>
                 <button
                   onClick={() => setSelectedProduct(null)}
                   className="p-2 hover:bg-secondary rounded-lg transition-colors"
@@ -393,52 +394,52 @@ export default function AdminProductsPage() {
               {/* Product Details */}
               <div className="space-y-4">
                 <div>
-                  <label className="text-sm text-muted-foreground">Urun Adi</label>
+                  <label className="text-sm text-muted-foreground">Produktname</label>
                   <p className="font-semibold">{selectedProduct.title}</p>
                 </div>
 
                 <div>
-                  <label className="text-sm text-muted-foreground">Aciklama</label>
+                  <label className="text-sm text-muted-foreground">Beschreibung</label>
                   <p className="text-sm">{selectedProduct.description}</p>
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="text-sm text-muted-foreground">Fiyat</label>
+                    <label className="text-sm text-muted-foreground">Preis</label>
                     <p className="font-semibold text-primary">₺{selectedProduct.price.toFixed(2)}</p>
                   </div>
                   <div>
-                    <label className="text-sm text-muted-foreground">Stok</label>
+                    <label className="text-sm text-muted-foreground">Bestand</label>
                     <p className="font-semibold">{selectedProduct.stock_quantity}</p>
                   </div>
                   <div>
-                    <label className="text-sm text-muted-foreground">Kategori</label>
+                    <label className="text-sm text-muted-foreground">Kategorie</label>
                     <p className="font-semibold">{selectedProduct.category}</p>
                   </div>
                   <div>
-                    <label className="text-sm text-muted-foreground">Marka</label>
-                    <p className="font-semibold">{selectedProduct.brand || 'Belirtilmemis'}</p>
+                    <label className="text-sm text-muted-foreground">Marke</label>
+                    <p className="font-semibold">{selectedProduct.brand || 'Nicht angegeben'}</p>
                   </div>
                 </div>
 
                 <div>
-                  <label className="text-sm text-muted-foreground">Satici</label>
+                  <label className="text-sm text-muted-foreground">Verkäufer</label>
                   <p className="font-semibold">{selectedProduct.seller.shop_name}</p>
                   <p className="text-sm text-muted-foreground">{selectedProduct.seller.phone}</p>
                 </div>
 
                 <div>
-                  <label className="text-sm text-muted-foreground">Durum</label>
+                  <label className="text-sm text-muted-foreground">Status</label>
                   <span className={`inline-block px-3 py-1 rounded-full text-sm font-semibold border ${getStatusColor(selectedProduct.moderation_status)}`}>
                     {selectedProduct.moderation_status === 'pending' && 'Bekleyen'}
-                    {selectedProduct.moderation_status === 'approved' && 'Onaylandi'}
-                    {selectedProduct.moderation_status === 'rejected' && 'Reddedildi'}
+                    {selectedProduct.moderation_status === 'approved' && 'Genehmigt'}
+                    {selectedProduct.moderation_status === 'rejected' && 'Abgelehnt'}
                   </span>
                 </div>
 
                 {selectedProduct.moderation_notes && (
                   <div>
-                    <label className="text-sm text-muted-foreground">Moderasyon Notu</label>
+                    <label className="text-sm text-muted-foreground">Moderationshinweis</label>
                     <p className="text-sm">{selectedProduct.moderation_notes}</p>
                   </div>
                 )}
@@ -453,15 +454,15 @@ export default function AdminProductsPage() {
                     className="flex-1 px-6 py-3 bg-green-500 hover:bg-green-600 text-white rounded-xl font-semibold transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
                   >
                     <Check className="w-5 h-5" />
-                    Onayla
+                    Genehmigen
                   </button>
                   <button
-                    onClick={() => handleAction(selectedProduct.id, 'reject', 'Uygunsuz icerik')}
+                    onClick={() => handleAction(selectedProduct.id, 'reject', 'Ungeeigneter Inhalt')}
                     disabled={actionLoading}
                     className="flex-1 px-6 py-3 bg-red-500 hover:bg-red-600 text-white rounded-xl font-semibold transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
                   >
                     <X className="w-5 h-5" />
-                    Reddet
+                    Ablehnen
                   </button>
                 </div>
               )}

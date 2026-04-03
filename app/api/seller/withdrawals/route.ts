@@ -14,7 +14,7 @@ export async function GET(request: NextRequest) {
       .from('sellers')
       .select('id')
       .eq('user_id', userId)
-      .single()
+      .maybeSingle()
 
     if (!seller) {
       return NextResponse.json({ error: 'Seller not found' }, { status: 404 })

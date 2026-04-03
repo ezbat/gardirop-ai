@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { useSession } from 'next-auth/react'
 import { useRouter, usePathname } from 'next/navigation'
 import { Loader2 } from 'lucide-react'
@@ -15,6 +15,8 @@ export default function SellerLayout({ children }: { children: React.ReactNode }
   const [checking, setChecking] = useState(true)
   const [sidebarExpanded, setSidebarExpanded] = useState(true)
   const [settingsOpen, setSettingsOpen] = useState(false)
+  // Prevent duplicate redirects when the effect fires more than once
+  const redirectingRef = useRef(false)
 
   // Check if this is a public shop view page (e.g., /seller/123)
   const isShopView = pathname ? /^\/seller\/[^\/]+$/.test(pathname) : false
@@ -59,6 +61,7 @@ export default function SellerLayout({ children }: { children: React.ReactNode }
   }, [session, status, pathname, isShopView])
 
   const checkSellerAccess = async () => {
+    if (redirectingRef.current) return
     try {
       const response = await fetch('/api/seller/status', {
         method: 'POST',
@@ -69,18 +72,29 @@ export default function SellerLayout({ children }: { children: React.ReactNode }
       const data = await response.json()
 
       if (data.isSeller && data.seller) {
-        if (data.seller.status === 'approved') {
+        // Sellers are created with status='active' on approval.
+        // Accept both 'active' and 'approved' for forward-compatibility.
+        if (data.seller.status === 'active' || data.seller.status === 'approved') {
           setIsApprovedSeller(true)
-        } else if (data.seller.status === 'pending') {
-          router.push('/seller-application/pending')
         } else {
-          router.push('/')
+          // Suspended or other non-active status → send to onboarding hub
+          if (!redirectingRef.current) {
+            redirectingRef.current = true
+            router.push('/seller/onboarding')
+          }
         }
       } else {
-        router.push('/')
+        // No seller record: may have a pending application → send to onboarding hub
+        if (!redirectingRef.current) {
+          redirectingRef.current = true
+          router.push('/seller/onboarding')
+        }
       }
     } catch {
-      router.push('/')
+      if (!redirectingRef.current) {
+        redirectingRef.current = true
+        router.push('/')
+      }
     } finally {
       setChecking(false)
     }

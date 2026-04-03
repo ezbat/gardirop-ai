@@ -1,24 +1,34 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/app/api/auth/[...nextauth]/route'
-import { supabase } from '@/lib/supabase'
+import { supabaseAdmin } from '@/lib/supabase-admin'
 
+/**
+ * GET /api/orders/[id]
+ *
+ * Returns order details. Access control:
+ *   - Authenticated user: must own the order (user_id match)
+ *   - Guest: must provide ?session_id=stripe_checkout_session_id as proof of ownership
+ *
+ * This allows the order-confirmation page to load for both
+ * authenticated and guest buyers without compromising security.
+ */
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id: orderId } = await params
     const session = await getServerSession(authOptions)
+    const stripeSessionId = request.nextUrl.searchParams.get('session_id')
 
-    if (!session?.user?.id) {
+    // Must have at least one proof of identity
+    if (!session?.user?.id && !stripeSessionId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const { id } = await params
-    const orderId = id
-
-    // Get order with items
-    const { data: order, error } = await supabase
+    // Build query
+    let query = supabaseAdmin
       .from('orders')
       .select(`
         *,
@@ -34,14 +44,21 @@ export async function GET(
         )
       `)
       .eq('id', orderId)
-      .eq('user_id', session.user.id)
-      .single()
+
+    // Auth path: filter by user_id
+    // Guest path: filter by stripe_checkout_session_id
+    if (session?.user?.id) {
+      query = query.eq('user_id', session.user.id)
+    } else if (stripeSessionId) {
+      query = query.eq('stripe_checkout_session_id', stripeSessionId)
+    }
+
+    const { data: order, error } = await query.single()
 
     if (error || !order) {
       return NextResponse.json({ error: 'Order not found' }, { status: 404 })
     }
 
-    // Format response
     const formattedOrder = {
       id: order.id,
       order_number: order.order_number || `WR-${order.id.substring(0, 8).toUpperCase()}`,

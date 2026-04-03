@@ -1,35 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { supabase } from '@/lib/supabase'
 import { supabaseAdmin } from '@/lib/supabase-admin'
+import { requireAdmin } from '@/lib/admin-auth'
 import { createRequestLogger } from '@/lib/logger'
-
-async function verifyAdmin(userId: string): Promise<boolean> {
-  const { data: user } = await supabaseAdmin
-    .from('users')
-    .select('role')
-    .eq('id', userId)
-    .single()
-
-  return user?.role === 'admin'
-}
 
 export async function GET(request: NextRequest) {
   const reqLog = createRequestLogger(request)
 
   try {
-    const userId = request.headers.get('x-user-id')
+    const auth = requireAdmin(request)
+    if (auth.error) return auth.error
+
     const { searchParams } = new URL(request.url)
     const status = searchParams.get('status')
 
-    if (!userId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
-    if (!(await verifyAdmin(userId))) {
-      return NextResponse.json({ error: 'Forbidden: Admin access required' }, { status: 403 })
-    }
-
-    let query = supabase
+    let query = supabaseAdmin
       .from('withdrawal_requests')
       .select(`
         *,
@@ -58,22 +42,16 @@ export async function PATCH(request: NextRequest) {
   const reqLog = createRequestLogger(request)
 
   try {
-    const userId = request.headers.get('x-user-id')
+    const auth = requireAdmin(request)
+    if (auth.error) return auth.error
+
     const { requestId, status, adminNotes } = await request.json()
-
-    if (!userId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
-    if (!(await verifyAdmin(userId))) {
-      return NextResponse.json({ error: 'Forbidden: Admin access required' }, { status: 403 })
-    }
 
     if (!requestId || !status) {
       return NextResponse.json({ error: 'Request ID and status required' }, { status: 400 })
     }
 
-    const { data: withdrawalRequest, error: fetchError } = await supabase
+    const { data: withdrawalRequest, error: fetchError } = await supabaseAdmin
       .from('withdrawal_requests')
       .select('*, seller:sellers(id)')
       .eq('id', requestId)
@@ -112,12 +90,12 @@ export async function PATCH(request: NextRequest) {
       }
     }
 
-    const { data: updatedRequest, error: updateError } = await supabase
+    const { data: updatedRequest, error: updateError } = await supabaseAdmin
       .from('withdrawal_requests')
       .update({
         status,
         admin_notes: adminNotes,
-        processed_by: userId,
+        processed_by: 'admin',
         processed_at: new Date().toISOString()
       })
       .eq('id', requestId)
@@ -127,7 +105,7 @@ export async function PATCH(request: NextRequest) {
     if (updateError) throw updateError
 
     reqLog.audit({
-      actor_id: userId,
+      actor_id: 'admin',
       actor_type: 'admin',
       action: `withdrawal.${status}`,
       resource_type: 'withdrawal_request',

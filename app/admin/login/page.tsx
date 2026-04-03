@@ -1,394 +1,339 @@
-"use client"
+'use client'
 
-import { useState } from "react"
-import { useRouter } from "next/navigation"
-import { motion } from "framer-motion"
-import { Lock, Mail, Eye, EyeOff, Shield } from "lucide-react"
-import bcrypt from "bcryptjs"
-import FloatingParticles from "@/components/floating-particles"
-import { Input } from "@/components/ui/input"
+/**
+ * /admin/login — Admin authentication page.
+ *
+ * Minimal login form. No security implementation details leaked.
+ * Validates credentials server-side only.
+ */
 
-// ADMIN CREDENTIALS - DO NOT SHARE!
-const ADMIN_USERNAME = "m3000"
-const ADMIN_PASSWORD_HASH = "$2b$10$Y7PerECbK1trMPzSjpiUWu9UKQI3a9OFGz./ipdzcZoDFu/R1Kklm"
+import { useState } from 'react'
+import { useRouter } from 'next/navigation'
+import { motion } from 'framer-motion'
+import { Lock, Eye, EyeOff } from 'lucide-react'
+import { setAdminToken } from '@/lib/admin-fetch'
+
 export default function AdminLoginPage() {
   const router = useRouter()
-  const [step, setStep] = useState(1) // 1: credentials, 2: email code, 3: PIN
-  const [username, setUsername] = useState("")
-  const [password, setPassword] = useState("")
-  const [emailCode, setEmailCode] = useState("")
-  const [pin, setPin] = useState("")
+  const [step, setStep]           = useState(1)
+  const [username, setUsername]   = useState('')
+  const [password, setPassword]   = useState('')
+  const [code, setCode]           = useState('')
+  const [pin, setPin]             = useState('')
   const [showPassword, setShowPassword] = useState(false)
-  const [error, setError] = useState("")
-  const [success, setSuccess] = useState("")
-  const [loading, setLoading] = useState(false)
+  const [error, setError]         = useState('')
+  const [loading, setLoading]     = useState(false)
 
-  // Step 1: Verify username & password
+  // ── Step 1: Credentials (server-side validation) ────────────────────────
   const handleStep1 = async (e: React.FormEvent) => {
     e.preventDefault()
-    setError("")
+    setError('')
     setLoading(true)
 
     try {
-      if (username !== ADMIN_USERNAME) {
-        setError("Gecersiz kullanici adi veya sifre!")
+      const res = await fetch('/api/admin/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password }),
+      })
+      const data = await res.json()
+
+      if (!res.ok) {
+        setError('Anmeldung fehlgeschlagen')
         setLoading(false)
         return
       }
 
-      const isPasswordValid = await bcrypt.compare(password, ADMIN_PASSWORD_HASH)
-      if (!isPasswordValid) {
-        setError("Gecersiz kullanici adi veya sifre!")
-        setLoading(false)
+      // If login returns a token directly (simple mode), skip other steps
+      if (data.token) {
+        setAdminToken(data.token)
+        // Register device as trusted so layout doesn't show 404
+        try {
+          await fetch('/api/admin/device-trust', {
+            method: 'POST',
+            headers: { 'x-admin-token': data.token },
+          })
+        } catch {}
+        router.push('/admin')
         return
       }
 
-      // Send verification code to email
-      const response = await fetch('/api/admin/auth/send-code', {
+      // Trigger verification code
+      const codeRes = await fetch('/api/admin/auth/send-code', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username }),
       })
 
-      if (!response.ok) {
-        throw new Error('Failed to send verification code')
-      }
-
-      setSuccess("Dogrulama kodu email adresinize gonderildi!")
-      setStep(2)
-    } catch (error) {
-      console.error("Step 1 error:", error)
-      setError("Bir hata olustu!")
-    }
-
-    setLoading(false)
-  }
-
-  // Step 2: Verify email code
-  const handleStep2 = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setError("")
-    setSuccess("")
-    setLoading(true)
-
-    try {
-      const response = await fetch('/api/admin/auth/verify-code', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, code: emailCode }),
-      })
-
-      const data = await response.json()
-
-      if (!response.ok) {
-        setError(data.error)
+      if (!codeRes.ok) {
+        setError('Anmeldung fehlgeschlagen')
         setLoading(false)
         return
       }
 
-      setSuccess("Email dogrulamasi basarili!")
-      setStep(3)
-    } catch (error) {
-      console.error("Step 2 error:", error)
-      setError("Bir hata olustu!")
+      setStep(2)
+    } catch {
+      setError('Verbindungsfehler')
     }
-
     setLoading(false)
   }
 
-  // Step 3: Verify PIN
-  const handleStep3 = async (e: React.FormEvent) => {
+  // ── Step 2: Code verification ───────────────────────────────────────────
+  const handleStep2 = async (e: React.FormEvent) => {
     e.preventDefault()
-    setError("")
-    setSuccess("")
+    setError('')
     setLoading(true)
 
     try {
-      const response = await fetch('/api/admin/auth/verify-pin', {
+      const res = await fetch('/api/admin/auth/verify-code', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, code }),
+      })
+
+      if (!res.ok) {
+        setError('Verifizierung fehlgeschlagen')
+        setLoading(false)
+        return
+      }
+      setStep(3)
+    } catch {
+      setError('Verbindungsfehler')
+    }
+    setLoading(false)
+  }
+
+  // ── Step 3: PIN verification ────────────────────────────────────────────
+  const handleStep3 = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setError('')
+    setLoading(true)
+
+    try {
+      const res = await fetch('/api/admin/auth/verify-pin', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username, pin }),
       })
+      const data = await res.json()
 
-      const data = await response.json()
-
-      if (!response.ok) {
-        setError(data.error)
+      if (!res.ok) {
+        setError('Verifizierung fehlgeschlagen')
         setLoading(false)
         return
       }
 
-      // All verifications passed - create session
-      const token = btoa(JSON.stringify({
-        username,
-        timestamp: Date.now(),
-        hash: await bcrypt.hash(username + Date.now(), 10)
-      }))
+      // Store token from server
+      if (data.token) {
+        setAdminToken(data.token)
+      }
 
-      localStorage.setItem("admin_token", token)
-      localStorage.setItem("admin_user", JSON.stringify({ username: ADMIN_USERNAME, role: 'admin' }))
-
-      setSuccess("Giris basarili! Yonlendiriliyorsunuz...")
-      setTimeout(() => router.push("/admin/dashboard"), 1000)
-    } catch (error) {
-      console.error("Step 3 error:", error)
-      setError("Bir hata olustu!")
+      router.push('/admin')
+    } catch {
+      setError('Verbindungsfehler')
     }
-
     setLoading(false)
   }
 
-  return (
-    <div className="min-h-screen relative overflow-hidden flex items-center justify-center">
-      <FloatingParticles />
+  // ── Design tokens (dark, matches admin layout) ──────────────────────────
+  const BG   = '#0B0D14'
+  const SURF = '#111520'
+  const ELEV = '#1A1E2E'
+  const BDR  = '#2E3448'
+  const T1   = '#F0F2F8'
+  const T3   = '#7B83A0'
+  const ACC  = '#6366F1'
 
+  return (
+    <div
+      className="min-h-screen flex items-center justify-center"
+      style={{ background: BG }}
+    >
       <motion.div
-        initial={{ opacity: 0, y: 20 }}
+        initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
-        className="relative z-10 w-full max-w-md px-4"
+        transition={{ duration: 0.3 }}
+        style={{
+          width: 400,
+          background: SURF,
+          border: `1px solid ${BDR}`,
+          borderRadius: 16,
+          padding: 36,
+        }}
       >
-        <div className="glass border border-border rounded-2xl p-8">
-          <div className="text-center mb-8">
-            <div className="w-20 h-20 mx-auto mb-4 bg-primary/10 rounded-full flex items-center justify-center">
-              <Shield className="w-10 h-10 text-primary" />
-            </div>
-            <h1 className="text-3xl font-bold mb-2">Admin Girisi</h1>
-            <p className="text-muted-foreground">
-              {step === 1 && "Adim 1/3: Kimlik Dogrulama"}
-              {step === 2 && "Adim 2/3: Email Dogrulama"}
-              {step === 3 && "Adim 3/3: PIN Kodu"}
+        {/* Header */}
+        <div className="flex items-center gap-3 mb-7">
+          <div
+            className="w-10 h-10 rounded-[10px] flex items-center justify-center"
+            style={{ background: `${ACC}22` }}
+          >
+            <Lock size={20} color={ACC} />
+          </div>
+          <div>
+            <p className="font-bold text-lg m-0" style={{ color: T1 }}>
+              Anmeldung
+            </p>
+            <p className="text-xs m-0" style={{ color: T3 }}>
+              {step === 1 && 'Zugangsdaten eingeben'}
+              {step === 2 && 'Code eingeben'}
+              {step === 3 && 'Bestätigung'}
             </p>
           </div>
+        </div>
 
-          {/* Step 1: Username & Password */}
-          {step === 1 && (
-            <form onSubmit={handleStep1} className="space-y-6">
-            <div>
-              <label className="text-sm font-medium mb-2 block flex items-center gap-2">
-                <Shield className="w-4 h-4" />
-                Kullanici Adi
-              </label>
-              <Input
-                type="text"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                placeholder="Username"
+        {/* Step indicator */}
+        <div className="flex gap-1.5 mb-6">
+          {[1, 2, 3].map(s => (
+            <div
+              key={s}
+              className="h-1 flex-1 rounded-full transition-colors"
+              style={{ background: s <= step ? ACC : BDR }}
+            />
+          ))}
+        </div>
+
+        {/* ── Step 1 ────────────────────────────────────────────────── */}
+        {step === 1 && (
+          <form onSubmit={handleStep1} className="space-y-4">
+            <input
+              type="text"
+              value={username}
+              onChange={e => setUsername(e.target.value)}
+              placeholder="Benutzername"
+              required
+              autoComplete="off"
+              className="w-full text-sm outline-none"
+              style={{
+                background: ELEV,
+                border: `1px solid ${BDR}`,
+                borderRadius: 8,
+                padding: '11px 14px',
+                color: T1,
+              }}
+              autoFocus
+            />
+            <div className="relative">
+              <input
+                type={showPassword ? 'text' : 'password'}
+                value={password}
+                onChange={e => setPassword(e.target.value)}
+                placeholder="Passwort"
                 required
                 autoComplete="off"
+                className="w-full text-sm outline-none"
+                style={{
+                  background: ELEV,
+                  border: `1px solid ${BDR}`,
+                  borderRadius: 8,
+                  padding: '11px 14px',
+                  color: T1,
+                }}
               />
-            </div>
-
-            <div>
-              <label className="text-sm font-medium mb-2 block flex items-center gap-2">
-                <Lock className="w-4 h-4" />
-                Sifre
-              </label>
-              <div className="relative">
-                <Input
-                  type={showPassword ? "text" : "password"}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="••••••••"
-                  required
-                  autoComplete="off"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                >
-                  {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                </button>
-              </div>
-            </div>
-
-            {success && (
-              <motion.div
-                initial={{ opacity: 0, y: -10 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="p-4 bg-green-500/10 border border-green-500/20 rounded-xl text-green-500 text-sm text-center"
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-3 top-1/2 -translate-y-1/2"
+                style={{ color: T3 }}
               >
-                {success}
-              </motion.div>
-            )}
-
-            {error && (
-              <motion.div
-                initial={{ opacity: 0, y: -10 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="p-4 bg-red-500/10 border border-red-500/20 rounded-xl text-red-500 text-sm text-center"
-              >
-                {error}
-              </motion.div>
-            )}
-
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full px-6 py-3 bg-primary text-primary-foreground rounded-xl font-semibold hover:opacity-90 transition-opacity disabled:opacity-50 flex items-center justify-center gap-2"
-            >
-              {loading ? (
-                <>
-                  <motion.div
-                    animate={{ rotate: 360 }}
-                    transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-                    className="w-5 h-5 border-2 border-white border-t-transparent rounded-full"
-                  />
-                  Kontrol ediliyor...
-                </>
-              ) : (
-                <>
-                  <Lock className="w-5 h-5" />
-                  Devam Et
-                </>
-              )}
-            </button>
+                {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+              </button>
+            </div>
+            {error && <ErrorBanner msg={error} />}
+            <SubmitBtn loading={loading} label="Weiter" acc={ACC} />
           </form>
-          )}
+        )}
 
-          {/* Step 2: Email Verification */}
-          {step === 2 && (
-            <form onSubmit={handleStep2} className="space-y-6">
-              <div>
-                <label className="text-sm font-medium mb-2 block flex items-center gap-2">
-                  <Mail className="w-4 h-4" />
-                  Email Dogrulama Kodu
-                </label>
-                <Input
-                  type="text"
-                  value={emailCode}
-                  onChange={(e) => setEmailCode(e.target.value)}
-                  placeholder="6 haneli kod"
-                  required
-                  maxLength={6}
-                  autoComplete="off"
-                />
-                <p className="text-xs text-muted-foreground mt-2">
-                  Email adresinize gonderilen 6 haneli kodu girin
-                </p>
-              </div>
+        {/* ── Step 2 ────────────────────────────────────────────────── */}
+        {step === 2 && (
+          <form onSubmit={handleStep2} className="space-y-4">
+            <input
+              type="text"
+              value={code}
+              onChange={e => setCode(e.target.value)}
+              placeholder="Verifizierungscode"
+              required
+              maxLength={6}
+              autoComplete="off"
+              className="w-full text-sm outline-none text-center tracking-[0.3em]"
+              style={{
+                background: ELEV,
+                border: `1px solid ${BDR}`,
+                borderRadius: 8,
+                padding: '11px 14px',
+                color: T1,
+                fontSize: 18,
+              }}
+              autoFocus
+            />
+            <p className="text-xs text-center" style={{ color: T3 }}>
+              Code wurde gesendet
+            </p>
+            {error && <ErrorBanner msg={error} />}
+            <SubmitBtn loading={loading} label="Bestätigen" acc={ACC} />
+          </form>
+        )}
 
-              {success && (
-                <motion.div
-                  initial={{ opacity: 0, y: -10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="p-4 bg-green-500/10 border border-green-500/20 rounded-xl text-green-500 text-sm text-center"
-                >
-                  {success}
-                </motion.div>
-              )}
-
-              {error && (
-                <motion.div
-                  initial={{ opacity: 0, y: -10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="p-4 bg-red-500/10 border border-red-500/20 rounded-xl text-red-500 text-sm text-center"
-                >
-                  {error}
-                </motion.div>
-              )}
-
-              <button
-                type="submit"
-                disabled={loading}
-                className="w-full px-6 py-3 bg-primary text-primary-foreground rounded-xl font-semibold hover:opacity-90 transition-opacity disabled:opacity-50 flex items-center justify-center gap-2"
-              >
-                {loading ? (
-                  <>
-                    <motion.div
-                      animate={{ rotate: 360 }}
-                      transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-                      className="w-5 h-5 border-2 border-white border-t-transparent rounded-full"
-                    />
-                    Dogrulanıyor...
-                  </>
-                ) : (
-                  <>
-                    <Mail className="w-5 h-5" />
-                    Kodu Dogrula
-                  </>
-                )}
-              </button>
-            </form>
-          )}
-
-          {/* Step 3: PIN Verification */}
-          {step === 3 && (
-            <form onSubmit={handleStep3} className="space-y-6">
-              <div>
-                <label className="text-sm font-medium mb-2 block flex items-center gap-2">
-                  <Lock className="w-4 h-4" />
-                  Guvenlik PIN Kodu
-                </label>
-                <Input
-                  type="password"
-                  value={pin}
-                  onChange={(e) => setPin(e.target.value)}
-                  placeholder="4 haneli PIN"
-                  required
-                  maxLength={4}
-                  autoComplete="off"
-                />
-                <p className="text-xs text-muted-foreground mt-2">
-                  4 haneli guvenlik PIN kodunuzu girin
-                </p>
-              </div>
-
-              {success && (
-                <motion.div
-                  initial={{ opacity: 0, y: -10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="p-4 bg-green-500/10 border border-green-500/20 rounded-xl text-green-500 text-sm text-center"
-                >
-                  {success}
-                </motion.div>
-              )}
-
-              {error && (
-                <motion.div
-                  initial={{ opacity: 0, y: -10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="p-4 bg-red-500/10 border border-red-500/20 rounded-xl text-red-500 text-sm text-center"
-                >
-                  {error}
-                </motion.div>
-              )}
-
-              <button
-                type="submit"
-                disabled={loading}
-                className="w-full px-6 py-3 bg-primary text-primary-foreground rounded-xl font-semibold hover:opacity-90 transition-opacity disabled:opacity-50 flex items-center justify-center gap-2"
-              >
-                {loading ? (
-                  <>
-                    <motion.div
-                      animate={{ rotate: 360 }}
-                      transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-                      className="w-5 h-5 border-2 border-white border-t-transparent rounded-full"
-                    />
-                    Dogrulanıyor...
-                  </>
-                ) : (
-                  <>
-                    <Shield className="w-5 h-5" />
-                    Giris Tamamla
-                  </>
-                )}
-              </button>
-            </form>
-          )}
-
-          <div className="mt-6 p-4 bg-blue-500/10 border border-blue-500/20 rounded-xl text-sm">
-            <p className="text-blue-500 font-semibold mb-2">🔒 3 Katmanlı Güvenlik:</p>
-            <ul className="text-muted-foreground space-y-1 text-xs">
-              <li>• 1. Kullanıcı adı + Şifre (bcrypt)</li>
-              <li>• 2. Email dogrulama kodu (5 dakika gecerli)</li>
-              <li>• 3. 4 haneli PIN kodu</li>
-              <li>• Otomatik session timeout (24 saat)</li>
-            </ul>
-          </div>
-        </div>
+        {/* ── Step 3 ────────────────────────────────────────────────── */}
+        {step === 3 && (
+          <form onSubmit={handleStep3} className="space-y-4">
+            <input
+              type="password"
+              value={pin}
+              onChange={e => setPin(e.target.value)}
+              placeholder="PIN"
+              required
+              maxLength={6}
+              autoComplete="off"
+              className="w-full text-sm outline-none text-center tracking-[0.3em]"
+              style={{
+                background: ELEV,
+                border: `1px solid ${BDR}`,
+                borderRadius: 8,
+                padding: '11px 14px',
+                color: T1,
+                fontSize: 18,
+              }}
+              autoFocus
+            />
+            {error && <ErrorBanner msg={error} />}
+            <SubmitBtn loading={loading} label="Anmelden" acc={ACC} />
+          </form>
+        )}
       </motion.div>
     </div>
+  )
+}
+
+function ErrorBanner({ msg }: { msg: string }) {
+  return (
+    <motion.p
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      className="text-sm text-center py-2 px-3 rounded-lg"
+      style={{ background: 'rgba(239,68,68,0.12)', color: '#FCA5A5' }}
+    >
+      {msg}
+    </motion.p>
+  )
+}
+
+function SubmitBtn({ loading, label, acc }: { loading: boolean; label: string; acc: string }) {
+  return (
+    <button
+      type="submit"
+      disabled={loading}
+      className="w-full text-sm font-semibold border-none"
+      style={{
+        background: acc,
+        color: '#fff',
+        borderRadius: 8,
+        padding: '11px 0',
+        cursor: loading ? 'not-allowed' : 'pointer',
+        opacity: loading ? 0.65 : 1,
+        transition: 'opacity 150ms',
+      }}
+    >
+      {loading ? 'Laden...' : label}
+    </button>
   )
 }

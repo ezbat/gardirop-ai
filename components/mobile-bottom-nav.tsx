@@ -10,12 +10,12 @@ export default function MobileBottomNav() {
   const { navigateTo } = usePageTransition()
 
   // Hide on certain pages
-  const hiddenPaths = ['/onboarding', '/auth', '/seller']
+  const hiddenPaths = ['/onboarding', '/auth', '/seller', '/admin']
   if (hiddenPaths.some(p => pathname?.startsWith(p))) return null
 
   const items = [
     { icon: Store, label: 'Home', href: '/store', active: pathname === '/store' || pathname === '/' },
-    { icon: Grid3X3, label: 'Kategorien', href: '/explore', active: pathname === '/explore' },
+    { icon: Grid3X3, label: 'Kategorien', href: '/categories', active: pathname === '/categories' || pathname === '/explore' },
     { icon: Zap, label: 'Angebote', href: '/store', active: false, amber: true },
     { icon: Play, label: 'Reels', href: '/reels', active: pathname === '/reels' },
     { icon: User, label: 'Konto', href: '/profile', active: pathname?.startsWith('/profile') },

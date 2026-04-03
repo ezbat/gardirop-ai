@@ -1,24 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { supabase } from '@/lib/supabase'
+import { supabaseAdmin } from '@/lib/supabase-admin'
+import { requireAdmin } from '@/lib/admin-auth'
 
 // GET: Fetch all users
 export async function GET(request: NextRequest) {
   try {
-    const userId = request.headers.get('x-user-id')
-
-    if (!userId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
-    // Admin check
-    if (userId !== 'm3000') {
-      return NextResponse.json({ error: 'Forbidden: Admin access required' }, { status: 403 })
-    }
+    const auth = requireAdmin(request)
+    if (auth.error) return auth.error
 
     const { searchParams } = new URL(request.url)
     const role = searchParams.get('role')
 
-    let query = supabase
+    let query = supabaseAdmin
       .from('users')
       .select('*')
       .order('created_at', { ascending: false })
@@ -44,16 +37,8 @@ export async function GET(request: NextRequest) {
 // PATCH: Update user (ban/unban, change role)
 export async function PATCH(request: NextRequest) {
   try {
-    const userId = request.headers.get('x-user-id')
-
-    if (!userId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
-    // Admin check
-    if (userId !== 'm3000') {
-      return NextResponse.json({ error: 'Forbidden: Admin access required' }, { status: 403 })
-    }
+    const auth = requireAdmin(request)
+    if (auth.error) return auth.error
 
     const { targetUserId, action, notes } = await request.json()
 
@@ -85,7 +70,7 @@ export async function PATCH(request: NextRequest) {
       }
     }
 
-    const { error } = await supabase
+    const { error } = await supabaseAdmin
       .from('users')
       .update(updateData)
       .eq('id', targetUserId)
@@ -96,8 +81,8 @@ export async function PATCH(request: NextRequest) {
     }
 
     // Log admin action
-    await supabase.from('admin_actions').insert({
-      admin_id: userId,
+    await supabaseAdmin.from('admin_actions').insert({
+      admin_id: 'admin',
       action_type: action,
       target_type: 'user',
       target_id: targetUserId,

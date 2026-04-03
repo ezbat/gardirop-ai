@@ -34,8 +34,8 @@ const BENEFITS = [
   },
   {
     icon: Shield,
-    title: 'Sicherer Marktplatz',
-    body: 'Käuferverifizierung und Plattformrichtlinien schützen sowohl Seller als auch Käufer.',
+    title: 'Sicherer Store',
+    body: 'Käuferverifizierung und Store-Richtlinien schützen sowohl Seller als auch Käufer.',
     color: 'rgba(239,68,68,0.12)',
     iconColor: '#FCA5A5',
   },
@@ -93,7 +93,7 @@ const FAQS = [
   },
   {
     q: 'Welche Produkte kann ich verkaufen?',
-    a: 'Wir unterstützen eine breite Produktpalette — Mode, Elektronik, Haus & Küche, Beauty, Handmade und mehr. Produkte müssen den geltenden Gesetzen und unseren Plattformrichtlinien entsprechen. Verbotene Kategorien werden im Onboarding kommuniziert.',
+    a: 'Wir unterstützen eine breite Produktpalette — Mode, Elektronik, Haus & Küche, Beauty, Handmade und mehr. Produkte müssen den geltenden Gesetzen und unseren Store-Richtlinien entsprechen. Verbotene Kategorien werden im Onboarding kommuniziert.',
   },
   {
     q: 'Wie funktioniert die Auszahlung?',
@@ -121,7 +121,7 @@ function FAQItem({ q, a }: { q: string; a: string }) {
       <button
         onClick={() => setOpen((v) => !v)}
         className="w-full flex items-center justify-between gap-3 px-5 py-4 text-left
-          hover:bg-gray-50 transition-colors duration-150 focus:outline-none
+          hover:bg-white/5 transition-colors duration-150 focus:outline-none
           focus-visible:ring-2 focus-visible:ring-amber-400 rounded-xl"
       >
         <span className="text-[15px] font-semibold" style={{ color: '#1A1A1A' }}>{q}</span>

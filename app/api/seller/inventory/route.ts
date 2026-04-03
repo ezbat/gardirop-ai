@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/app/api/auth/[...nextauth]/route'
 import { supabaseAdmin } from '@/lib/supabase-admin'
+import { isSellerOperational } from '@/lib/seller-status'
+import { fetchThresholdConfig, resolveThreshold } from '@/lib/inventory-threshold'
 import {
   getInventorySummary,
   getLowStockAlerts,
@@ -35,9 +37,9 @@ export async function GET(request: NextRequest) {
       .from('sellers')
       .select('id, status')
       .eq('user_id', session.user.id)
-      .single()
+      .maybeSingle()
 
-    if (!seller || seller.status !== 'approved') {
+    if (!seller || !isSellerOperational(seller.status)) {
       return NextResponse.json({ error: 'Seller not found or not approved' }, { status: 404 })
     }
 
@@ -68,24 +70,30 @@ export async function GET(request: NextRequest) {
     }
 
     if (section === 'all' || section === 'products') {
-      const { data: products } = await supabaseAdmin
-        .from('products')
-        .select('id, title, stock_quantity, low_stock_threshold, sku, price, category, images, moderation_status')
-        .eq('seller_id', seller.id)
-        .order('stock_quantity', { ascending: true })
+      const [{ data: products }, thresholdConfig] = await Promise.all([
+        supabaseAdmin
+          .from('products')
+          .select('id, title, stock_quantity, price, category, images, moderation_status, low_stock_threshold')
+          .eq('seller_id', seller.id)
+          .order('stock_quantity', { ascending: true }),
+        fetchThresholdConfig(),
+      ])
 
-      response.products = (products || []).map((p: any) => ({
-        id: p.id,
-        title: p.title,
-        stock: p.stock_quantity || 0,
-        threshold: p.low_stock_threshold || 5,
-        sku: p.sku || null,
-        price: parseFloat(p.price || '0'),
-        category: p.category || 'Sonstige',
-        image: p.images?.[0] || null,
-        status: p.moderation_status,
-        value: (p.stock_quantity || 0) * parseFloat(p.price || '0'),
-      }))
+      response.products = (products || []).map((p: any) => {
+        const thr = resolveThreshold(thresholdConfig, p)
+        return {
+          id:        p.id,
+          title:     p.title,
+          stock:     p.stock_quantity || 0,
+          threshold: thr,
+          sku:       null,
+          price:     parseFloat(p.price || '0'),
+          category:  p.category || 'Sonstige',
+          image:     p.images?.[0] || null,
+          status:    p.moderation_status,
+          value:     (p.stock_quantity || 0) * parseFloat(p.price || '0'),
+        }
+      })
     }
 
     return NextResponse.json({
@@ -129,9 +137,9 @@ export async function POST(request: NextRequest) {
       .from('sellers')
       .select('id, status')
       .eq('user_id', session.user.id)
-      .single()
+      .maybeSingle()
 
-    if (!seller || seller.status !== 'approved') {
+    if (!seller || !isSellerOperational(seller.status)) {
       return NextResponse.json({ error: 'Seller not found or not approved' }, { status: 404 })
     }
 
@@ -145,7 +153,7 @@ export async function POST(request: NextRequest) {
         .select('id')
         .eq('id', productId)
         .eq('seller_id', seller.id)
-        .single()
+        .maybeSingle()
 
       if (!product) {
         return NextResponse.json({ error: 'Product not found or access denied' }, { status: 404 })

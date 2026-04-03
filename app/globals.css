@@ -67,12 +67,12 @@ body {
   --secondary: oklch(0.22 0.03 260);
   --secondary-foreground: oklch(0.92 0.01 85);
   --muted: oklch(0.2 0.02 260);
-  --muted-foreground: oklch(0.65 0.02 85);
+  --muted-foreground: oklch(0.72 0.02 85);
   --accent: oklch(0.78 0.14 85);
   --accent-foreground: oklch(0.12 0.03 260);
   --destructive: oklch(0.55 0.22 25);
   --destructive-foreground: oklch(0.95 0.01 85);
-  --border: oklch(0.28 0.03 260);
+  --border: oklch(0.38 0.03 260);
   --input: oklch(0.22 0.03 260);
   --ring: oklch(0.78 0.14 85);
 
@@ -283,16 +283,32 @@ html, body {
   pointer-events: none;
 }
 
-/* Glass morphism */
+/* Glass morphism — site is dark-first, so base glass is dark */
 .glass {
-  background: oklch(1 0 0 / 0.1);
+  background: rgba(255, 255, 255, 0.10);
   backdrop-filter: blur(10px);
-  border: 1px solid oklch(1 0 0 / 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.18);
 }
 
-.dark .glass {
-  background: oklch(0 0 0 / 0.2);
-  border: 1px solid oklch(1 0 0 / 0.1);
+/* Form inputs inside glass containers */
+.glass input,
+.glass textarea,
+.glass select {
+  background: rgba(255, 255, 255, 0.08) !important;
+  border-color: rgba(255, 255, 255, 0.25) !important;
+  color: rgba(255, 255, 255, 0.92) !important;
+}
+
+.glass input::placeholder,
+.glass textarea::placeholder {
+  color: rgba(255, 255, 255, 0.40) !important;
+}
+
+.glass input:focus,
+.glass textarea:focus,
+.glass select:focus {
+  border-color: oklch(0.78 0.14 85) !important;
+  background: rgba(255, 255, 255, 0.12) !important;
 }
 
 /* Mobile-friendly touch targets */
@@ -356,9 +372,122 @@ html, body {
 }
 
 .dark .glass-premium {
-  background: rgba(0, 0, 0, 0.3);
+  background: rgba(255, 255, 255, 0.06);
   backdrop-filter: blur(20px) saturate(180%);
-  border: 1px solid rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+}
+
+/* ========================================
+   READABILITY SAFETY NET (dark-first site)
+   ======================================== */
+
+/* ── Light-surface attribute ─────────────────────────────
+   Pages/sections with [data-light-surface] use a white/light
+   background. Forces dark text, dark borders, readable inputs. */
+[data-dark-text] input,
+[data-dark-text] textarea,
+[data-dark-text] select,
+[data-light-surface] input,
+[data-light-surface] textarea,
+[data-light-surface] select {
+  color: #1A1A1A !important;
+  border-color: #D1D5DB !important;
+}
+[data-dark-text] input::placeholder,
+[data-dark-text] textarea::placeholder,
+[data-light-surface] input::placeholder,
+[data-light-surface] textarea::placeholder {
+  color: #9CA3AF !important;
+}
+[data-light-surface] label {
+  color: #374151 !important;
+}
+[data-light-surface] button:disabled {
+  color: #9CA3AF !important;
+}
+
+/* ── Dark surface rules (default) ────────────────────── */
+
+/* Ghost/outline buttons — ensure visible text */
+.glass.border {
+  color: rgba(255, 255, 255, 0.88);
+}
+
+/* Toggle/pill buttons (unselected) */
+button.glass,
+a.glass {
+  color: rgba(255, 255, 255, 0.82);
+  border-color: rgba(255, 255, 255, 0.20);
+}
+
+button.glass:hover,
+a.glass:hover {
+  border-color: rgba(255, 255, 255, 0.35);
+  background: rgba(255, 255, 255, 0.12);
+}
+
+/* Labels & helper text on dark surfaces */
+label {
+  color: rgba(255, 255, 255, 0.88);
+}
+
+/* Badges and status pills — ensure minimum contrast */
+[class*="badge"],
+[class*="pill"] {
+  border-color: rgba(255, 255, 255, 0.15);
+}
+
+/* Tabs — inactive state must be visible */
+[role="tab"]:not([aria-selected="true"]) {
+  color: rgba(255, 255, 255, 0.60);
+}
+
+/* Disabled buttons — still readable */
+button:disabled {
+  color: rgba(255, 255, 255, 0.40);
+}
+
+/* ── Select <option> fix (always needs dark text on white bg) ─ */
+select option {
+  background: #1A1A1A;
+  color: #F5F5F5;
+}
+
+/* ── Hover/focus/active state visibility ──────────────── */
+/* Ensure interactive hover states are clearly visible on dark bg */
+a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible {
+  outline: 2px solid oklch(0.78 0.14 85 / 0.6);
+  outline-offset: 2px;
+}
+
+/* ── Table readability on dark surfaces ───────────────── */
+table th {
+  color: rgba(255, 255, 255, 0.70);
+  font-weight: 600;
+}
+table td {
+  color: rgba(255, 255, 255, 0.88);
+}
+table tr {
+  border-color: rgba(255, 255, 255, 0.08);
+}
+table tr:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+/* ── Checkbox / Radio visibility on dark ──────────────── */
+input[type="checkbox"],
+input[type="radio"] {
+  accent-color: oklch(0.78 0.14 85);
+}
+
+/* ── Alert/warning blocks ─────────────────────────────── */
+[role="alert"] {
+  border-width: 1px;
 }
 
 /* ========================================
@@ -702,6 +831,112 @@ button, .button {
   animation: score-fill 1.5s ease-out forwards;
 }
 
+/* ========================================
+   WEARO PREMIUM MOTION SYSTEM
+   ======================================== */
+
+/* Signature easing tokens */
+:root {
+  --ease-premium: cubic-bezier(0.16, 1, 0.3, 1);  /* overshoot decel */
+  --ease-anticipate: cubic-bezier(0.36, 0, 0.66, -0.56); /* pull-back */
+  --ease-bounce: cubic-bezier(0.34, 1.56, 0.64, 1);  /* spring */
+  --ease-smooth: cubic-bezier(0.25, 0.1, 0.25, 1);   /* standard */
+}
+
+/* Entrance: anticipation → overshoot → settle */
+@keyframes premium-enter {
+  0%   { opacity: 0; transform: translateY(16px) scale(0.97); }
+  40%  { opacity: 1; transform: translateY(-4px) scale(1.01); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.premium-enter {
+  animation: premium-enter 0.6s var(--ease-premium) forwards;
+  opacity: 0;
+}
+
+/* Follow-through exit */
+@keyframes premium-exit {
+  0%   { opacity: 1; transform: translateY(0) scale(1); }
+  30%  { opacity: 1; transform: translateY(4px) scale(1.01); }
+  100% { opacity: 0; transform: translateY(-20px) scale(0.95); }
+}
+
+.premium-exit {
+  animation: premium-exit 0.4s var(--ease-smooth) forwards;
+}
+
+/* Staggered premium entrance for lists */
+.premium-stagger > * {
+  animation: premium-enter 0.5s var(--ease-premium) forwards;
+  opacity: 0;
+}
+.premium-stagger > *:nth-child(1) { animation-delay: 0.05s; }
+.premium-stagger > *:nth-child(2) { animation-delay: 0.10s; }
+.premium-stagger > *:nth-child(3) { animation-delay: 0.15s; }
+.premium-stagger > *:nth-child(4) { animation-delay: 0.20s; }
+.premium-stagger > *:nth-child(5) { animation-delay: 0.25s; }
+.premium-stagger > *:nth-child(6) { animation-delay: 0.30s; }
+.premium-stagger > *:nth-child(7) { animation-delay: 0.35s; }
+.premium-stagger > *:nth-child(8) { animation-delay: 0.40s; }
+
+/* Scale-up with spring for modals/popovers */
+@keyframes spring-scale {
+  0%   { transform: scale(0.85); opacity: 0; }
+  60%  { transform: scale(1.03); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+.spring-scale {
+  animation: spring-scale 0.4s var(--ease-bounce) forwards;
+}
+
+/* Subtle pulse for "new" badges / CTA attention */
+@keyframes attention-pulse {
+  0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(217,119,6,0.4); }
+  50% { transform: scale(1.03); box-shadow: 0 0 0 8px rgba(217,119,6,0); }
+}
+
+.attention-pulse {
+  animation: attention-pulse 2s var(--ease-smooth) infinite;
+}
+
+/* Slide-in from right (for side panels / drawers) */
+@keyframes slide-in-right {
+  from { transform: translateX(100%); opacity: 0; }
+  to   { transform: translateX(0); opacity: 1; }
+}
+
+.slide-in-right {
+  animation: slide-in-right 0.35s var(--ease-premium) forwards;
+}
+
+/* Number count-up tick */
+@keyframes number-tick {
+  0%   { transform: translateY(100%); opacity: 0; }
+  60%  { transform: translateY(-5%); opacity: 1; }
+  100% { transform: translateY(0); opacity: 1; }
+}
+
+.number-tick {
+  animation: number-tick 0.5s var(--ease-bounce) forwards;
+}
+
+/* Reduced motion: disable all custom animations */
+@media (prefers-reduced-motion: reduce) {
+  .premium-enter,
+  .premium-exit,
+  .premium-stagger > *,
+  .spring-scale,
+  .attention-pulse,
+  .slide-in-right,
+  .number-tick {
+    animation: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+  }
+}
+
 /* Seller sidebar glass */
 .seller-sidebar-glass {
   background: oklch(0.06 0.02 260 / 0.95);
@@ -723,18 +958,31 @@ button, .button {
   background: oklch(0.12 0.02 260 / 0.7);
 }
 
-/* Light mode seller overrides */
-:root .seller-card {
-  background: oklch(1 0 0 / 0.7);
-  border: 1px solid oklch(0 0 0 / 0.08);
+/* Light mode seller overrides — NOT used in dark-first site */
+/* Kept for reference; .dark class is always active */
+
+/* ── Light-surface select options ─────────────────────── */
+[data-light-surface] select option,
+[data-dark-text] select option {
+  background: #FFFFFF;
+  color: #1A1A1A;
 }
 
-:root .seller-card:hover {
-  border-color: oklch(0 0 0 / 0.12);
-  background: oklch(1 0 0 / 0.85);
+/* ── Light-surface hover/focus states ─────────────────── */
+[data-light-surface] a:focus-visible,
+[data-light-surface] button:focus-visible {
+  outline-color: oklch(0.78 0.14 85);
 }
 
-:root .seller-sidebar-glass {
-  background: oklch(0.98 0.005 85 / 0.95);
-  border-right: 1px solid oklch(0 0 0 / 0.08);
+[data-light-surface] table th {
+  color: #374151;
+}
+[data-light-surface] table td {
+  color: #1F2937;
+}
+[data-light-surface] table tr {
+  border-color: #E5E7EB;
+}
+[data-light-surface] table tr:hover {
+  background: #F9FAFB;
 }

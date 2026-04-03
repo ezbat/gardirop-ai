@@ -1,91 +1,207 @@
 -- ============================================================
--- Migration 027: seller_applications
+-- Migration 027: seller_applications  (idempotent — re-runnable)
 -- Tracks multi-step seller onboarding applications.
 -- Status lifecycle:
 --   submitted → under_review → approved | rejected | needs_info
+--
+-- Safe to run on both fresh DBs and DBs that already have an
+-- older seller_applications table (adds missing columns).
 -- ============================================================
 
+-- ── 1. Create table if it doesn't exist yet ───────────────────────────────────
 CREATE TABLE IF NOT EXISTS public.seller_applications (
-  id                       UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id                  UUID         REFERENCES auth.users(id) ON DELETE SET NULL,
-
-  status                   VARCHAR(32)  NOT NULL DEFAULT 'submitted'
-    CONSTRAINT seller_app_status_chk
-    CHECK (status IN ('submitted','under_review','approved','rejected','needs_info')),
-
-  -- ── Step 1: Contact ───────────────────────────────────────────────────
-  full_name                VARCHAR(200) NOT NULL,
-  email                    VARCHAR(300) NOT NULL,
-  phone                    VARCHAR(50),
-  country                  VARCHAR(100) NOT NULL,
-  applicant_type           VARCHAR(16)  NOT NULL
-    CONSTRAINT seller_app_type_chk
-    CHECK (applicant_type IN ('individual','company')),
-
-  -- ── Step 2a: Individual identity ─────────────────────────────────────
-  -- Collected to identify the natural person behind the seller account.
-  -- Required for payment/payout onboarding and regulatory traceability.
-  legal_full_name          VARCHAR(200),
-  date_of_birth            DATE,           -- optional at application; may be requested by payout provider
-  residence_country        VARCHAR(100),
-
-  -- ── Step 2b: Company identity ────────────────────────────────────────
-  -- Business details needed to identify registered traders.
-  -- Required for compliance and payout processing.
-  company_name             VARCHAR(300),
-  company_reg_number       VARCHAR(100),   -- optional; strengthens identity verification
-  vat_id                   VARCHAR(100),   -- optional at application stage
-  company_address          JSONB,          -- { line1, line2?, city, postal_code, country }
-  business_type            VARCHAR(100),
-
-  -- ── Step 3: Store / brand profile ────────────────────────────────────
-  store_name               VARCHAR(200) NOT NULL,
-  brand_name               VARCHAR(200),
-  product_categories       TEXT[]       DEFAULT '{}',
-  store_description        TEXT,
-  website_url              VARCHAR(500),
-  social_links             JSONB,          -- { instagram?, tiktok?, youtube? }
-  estimated_monthly_orders VARCHAR(50),
-  avg_order_value          VARCHAR(50),
-  product_origin           VARCHAR(32)
-    CONSTRAINT seller_app_origin_chk
-    CHECK (product_origin IN ('own_brand','resale','handmade','other')),
-  product_origin_detail    VARCHAR(300),
-
-  -- ── Step 4: Operations & compliance ──────────────────────────────────
-  return_address           JSONB,          -- { line1, city, postal_code, country }
-  support_email            VARCHAR(300),
-  shipping_countries       TEXT[]       DEFAULT '{}',
-  fulfillment_model        VARCHAR(32)
-    CONSTRAINT seller_app_fulfillment_chk
-    CHECK (fulfillment_model IN ('self','warehouse','dropshipping')),
-
-  -- ── Declarations (all required to submit) ────────────────────────────
-  decl_accurate_info          BOOLEAN NOT NULL DEFAULT FALSE,
-  decl_terms_agreed           BOOLEAN NOT NULL DEFAULT FALSE,
-  decl_verification_consent   BOOLEAN NOT NULL DEFAULT FALSE,
-  decl_product_compliance     BOOLEAN NOT NULL DEFAULT FALSE,
-  decl_privacy_acknowledged   BOOLEAN NOT NULL DEFAULT FALSE,
-  decl_is_trader              BOOLEAN          DEFAULT FALSE, -- optional trader self-declaration
-
-  -- ── Admin / review ───────────────────────────────────────────────────
-  reviewer_notes           TEXT,
-  reviewed_by              UUID,
-  reviewed_at              TIMESTAMPTZ,
-  rejection_reason         TEXT,
-
-  created_at               TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  updated_at               TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  id         UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id    UUID        REFERENCES auth.users(id) ON DELETE SET NULL,
+  status     VARCHAR(32) NOT NULL DEFAULT 'submitted',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- ── Indexes ──────────────────────────────────────────────────────────────────
-CREATE INDEX IF NOT EXISTS idx_seller_app_status    ON public.seller_applications(status);
-CREATE INDEX IF NOT EXISTS idx_seller_app_email     ON public.seller_applications(email);
-CREATE INDEX IF NOT EXISTS idx_seller_app_uid       ON public.seller_applications(user_id)
-  WHERE user_id IS NOT NULL;
-CREATE INDEX IF NOT EXISTS idx_seller_app_created   ON public.seller_applications(created_at DESC);
+-- Add created_at / updated_at if old table used applied_at instead
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='seller_applications' AND column_name='created_at') THEN
+    ALTER TABLE public.seller_applications ADD COLUMN created_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
+    -- back-fill from applied_at if that column exists
+    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='seller_applications' AND column_name='applied_at') THEN
+      UPDATE public.seller_applications SET created_at = applied_at WHERE applied_at IS NOT NULL;
+    END IF;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='seller_applications' AND column_name='updated_at') THEN
+    ALTER TABLE public.seller_applications ADD COLUMN updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
+  END IF;
+END $$;
 
--- ── Auto-update timestamp ─────────────────────────────────────────────────────
+-- ── 2. Add every column that may be missing (idempotent) ─────────────────────
+DO $$
+BEGIN
+  -- status CHECK constraint (recreate safely)
+  ALTER TABLE public.seller_applications
+    DROP CONSTRAINT IF EXISTS seller_app_status_chk;
+  ALTER TABLE public.seller_applications
+    ADD CONSTRAINT seller_app_status_chk
+    CHECK (status IN ('submitted','under_review','approved','rejected','needs_info'));
+
+  -- Step 1: Contact
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='seller_applications' AND column_name='full_name') THEN
+    ALTER TABLE public.seller_applications ADD COLUMN full_name VARCHAR(200);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='seller_applications' AND column_name='email') THEN
+    ALTER TABLE public.seller_applications ADD COLUMN email VARCHAR(300);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='seller_applications' AND column_name='phone') THEN
+    ALTER TABLE public.seller_applications ADD COLUMN phone VARCHAR(50);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='seller_applications' AND column_name='country') THEN
+    ALTER TABLE public.seller_applications ADD COLUMN country VARCHAR(100);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='seller_applications' AND column_name='applicant_type') THEN
+    ALTER TABLE public.seller_applications ADD COLUMN applicant_type VARCHAR(16);
+  END IF;
+
+  -- Step 2a: Individual identity
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='seller_applications' AND column_name='legal_full_name') THEN
+    ALTER TABLE public.seller_applications ADD COLUMN legal_full_name VARCHAR(200);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='seller_applications' AND column_name='date_of_birth') THEN
+    ALTER TABLE public.seller_applications ADD COLUMN date_of_birth DATE;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='seller_applications' AND column_name='residence_country') THEN
+    ALTER TABLE public.seller_applications ADD COLUMN residence_country VARCHAR(100);
+  END IF;
+
+  -- Step 2b: Company identity
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='seller_applications' AND column_name='company_name') THEN
+    ALTER TABLE public.seller_applications ADD COLUMN company_name VARCHAR(300);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='seller_applications' AND column_name='company_reg_number') THEN
+    ALTER TABLE public.seller_applications ADD COLUMN company_reg_number VARCHAR(100);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='seller_applications' AND column_name='vat_id') THEN
+    ALTER TABLE public.seller_applications ADD COLUMN vat_id VARCHAR(100);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='seller_applications' AND column_name='company_address') THEN
+    ALTER TABLE public.seller_applications ADD COLUMN company_address JSONB;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='seller_applications' AND column_name='business_type') THEN
+    ALTER TABLE public.seller_applications ADD COLUMN business_type VARCHAR(100);
+  END IF;
+
+  -- Step 3: Store profile
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='seller_applications' AND column_name='store_name') THEN
+    ALTER TABLE public.seller_applications ADD COLUMN store_name VARCHAR(200);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='seller_applications' AND column_name='brand_name') THEN
+    ALTER TABLE public.seller_applications ADD COLUMN brand_name VARCHAR(200);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='seller_applications' AND column_name='product_categories') THEN
+    ALTER TABLE public.seller_applications ADD COLUMN product_categories TEXT[] DEFAULT '{}';
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='seller_applications' AND column_name='store_description') THEN
+    ALTER TABLE public.seller_applications ADD COLUMN store_description TEXT;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='seller_applications' AND column_name='website_url') THEN
+    ALTER TABLE public.seller_applications ADD COLUMN website_url VARCHAR(500);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='seller_applications' AND column_name='social_links') THEN
+    ALTER TABLE public.seller_applications ADD COLUMN social_links JSONB;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='seller_applications' AND column_name='estimated_monthly_orders') THEN
+    ALTER TABLE public.seller_applications ADD COLUMN estimated_monthly_orders VARCHAR(50);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='seller_applications' AND column_name='avg_order_value') THEN
+    ALTER TABLE public.seller_applications ADD COLUMN avg_order_value VARCHAR(50);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='seller_applications' AND column_name='product_origin') THEN
+    ALTER TABLE public.seller_applications ADD COLUMN product_origin VARCHAR(32);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='seller_applications' AND column_name='product_origin_detail') THEN
+    ALTER TABLE public.seller_applications ADD COLUMN product_origin_detail VARCHAR(300);
+  END IF;
+
+  -- Step 4: Operations
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='seller_applications' AND column_name='return_address') THEN
+    ALTER TABLE public.seller_applications ADD COLUMN return_address JSONB;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='seller_applications' AND column_name='support_email') THEN
+    ALTER TABLE public.seller_applications ADD COLUMN support_email VARCHAR(300);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='seller_applications' AND column_name='shipping_countries') THEN
+    ALTER TABLE public.seller_applications ADD COLUMN shipping_countries TEXT[] DEFAULT '{}';
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='seller_applications' AND column_name='fulfillment_model') THEN
+    ALTER TABLE public.seller_applications ADD COLUMN fulfillment_model VARCHAR(32);
+  END IF;
+
+  -- Declarations
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='seller_applications' AND column_name='decl_accurate_info') THEN
+    ALTER TABLE public.seller_applications ADD COLUMN decl_accurate_info BOOLEAN NOT NULL DEFAULT FALSE;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='seller_applications' AND column_name='decl_terms_agreed') THEN
+    ALTER TABLE public.seller_applications ADD COLUMN decl_terms_agreed BOOLEAN NOT NULL DEFAULT FALSE;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='seller_applications' AND column_name='decl_verification_consent') THEN
+    ALTER TABLE public.seller_applications ADD COLUMN decl_verification_consent BOOLEAN NOT NULL DEFAULT FALSE;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='seller_applications' AND column_name='decl_product_compliance') THEN
+    ALTER TABLE public.seller_applications ADD COLUMN decl_product_compliance BOOLEAN NOT NULL DEFAULT FALSE;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='seller_applications' AND column_name='decl_privacy_acknowledged') THEN
+    ALTER TABLE public.seller_applications ADD COLUMN decl_privacy_acknowledged BOOLEAN NOT NULL DEFAULT FALSE;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='seller_applications' AND column_name='decl_is_trader') THEN
+    ALTER TABLE public.seller_applications ADD COLUMN decl_is_trader BOOLEAN DEFAULT FALSE;
+  END IF;
+
+  -- Admin / review
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='seller_applications' AND column_name='reviewer_notes') THEN
+    ALTER TABLE public.seller_applications ADD COLUMN reviewer_notes TEXT;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='seller_applications' AND column_name='reviewed_by') THEN
+    ALTER TABLE public.seller_applications ADD COLUMN reviewed_by UUID;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='seller_applications' AND column_name='reviewed_at') THEN
+    ALTER TABLE public.seller_applications ADD COLUMN reviewed_at TIMESTAMPTZ;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='seller_applications' AND column_name='rejection_reason') THEN
+    ALTER TABLE public.seller_applications ADD COLUMN rejection_reason TEXT;
+  END IF;
+
+EXCEPTION WHEN OTHERS THEN
+  RAISE NOTICE 'seller_applications column migration warning: %', SQLERRM;
+END $$;
+
+-- ── 3. Indexes — all wrapped in existence checks ─────────────────────────────
+DO $$
+BEGIN
+  -- status
+  IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE schemaname='public' AND tablename='seller_applications' AND indexname='idx_seller_app_status') THEN
+    CREATE INDEX idx_seller_app_status ON public.seller_applications(status);
+  END IF;
+
+  -- user_id
+  IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE schemaname='public' AND tablename='seller_applications' AND indexname='idx_seller_app_uid') THEN
+    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='seller_applications' AND column_name='user_id') THEN
+      CREATE INDEX idx_seller_app_uid ON public.seller_applications(user_id) WHERE user_id IS NOT NULL;
+    END IF;
+  END IF;
+
+  -- created_at
+  IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE schemaname='public' AND tablename='seller_applications' AND indexname='idx_seller_app_created') THEN
+    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='seller_applications' AND column_name='created_at') THEN
+      CREATE INDEX idx_seller_app_created ON public.seller_applications(created_at DESC);
+    END IF;
+  END IF;
+
+  -- email
+  IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE schemaname='public' AND tablename='seller_applications' AND indexname='idx_seller_app_email') THEN
+    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='seller_applications' AND column_name='email') THEN
+      CREATE INDEX idx_seller_app_email ON public.seller_applications(email);
+    END IF;
+  END IF;
+END $$;
+
+-- ── 4. Trigger ────────────────────────────────────────────────────────────────
 CREATE OR REPLACE FUNCTION public.fn_seller_app_updated_at()
 RETURNS TRIGGER LANGUAGE plpgsql AS $$
 BEGIN NEW.updated_at = NOW(); RETURN NEW; END;
@@ -96,29 +212,25 @@ CREATE TRIGGER trg_seller_app_updated_at
   BEFORE UPDATE ON public.seller_applications
   FOR EACH ROW EXECUTE FUNCTION public.fn_seller_app_updated_at();
 
--- ── Row Level Security ────────────────────────────────────────────────────────
+-- ── 5. RLS ────────────────────────────────────────────────────────────────────
 ALTER TABLE public.seller_applications ENABLE ROW LEVEL SECURITY;
 
--- Authenticated users can submit an application (guest submissions handled via service_role API)
+DROP POLICY IF EXISTS "seller_app_insert_own"       ON public.seller_applications;
+DROP POLICY IF EXISTS "seller_app_read_own"         ON public.seller_applications;
+DROP POLICY IF EXISTS "seller_app_service_role_all" ON public.seller_applications;
+
 CREATE POLICY "seller_app_insert_own"
   ON public.seller_applications FOR INSERT TO authenticated
-  WITH CHECK (user_id IS NULL OR user_id = auth.uid());
+  WITH CHECK (user_id IS NULL OR user_id::text = auth.uid()::text);
 
--- Users can view their own submitted application
 CREATE POLICY "seller_app_read_own"
   ON public.seller_applications FOR SELECT TO authenticated
-  USING (user_id = auth.uid());
+  USING (user_id::text = auth.uid()::text);
 
--- Service role (admin backend) has unrestricted access
 CREATE POLICY "seller_app_service_role_all"
   ON public.seller_applications TO service_role
   USING (true) WITH CHECK (true);
 
+-- ── 6. Comments ───────────────────────────────────────────────────────────────
 COMMENT ON TABLE public.seller_applications IS
   'Seller onboarding applications. Review pipeline: submitted → under_review → approved / rejected / needs_info';
-COMMENT ON COLUMN public.seller_applications.company_address IS
-  'JSONB: { line1 text, line2 text?, city text, postal_code text, country text }';
-COMMENT ON COLUMN public.seller_applications.return_address IS
-  'JSONB: { line1 text, city text, postal_code text?, country text }';
-COMMENT ON COLUMN public.seller_applications.social_links IS
-  'JSONB: { instagram text?, tiktok text?, youtube text? }';

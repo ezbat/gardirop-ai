@@ -22,7 +22,7 @@ interface StoreFiltersProps {
 
 export default function StoreFilters({
   onFilterChange,
-  availableColors = ['Siyah', 'Beyaz', 'Kırmızı', 'Mavi', 'Yeşil', 'Sarı', 'Gri', 'Kahverengi', 'Pembe', 'Mor'],
+  availableColors = ['Schwarz', 'Weiß', 'Rot', 'Blau', 'Grün', 'Gelb', 'Grau', 'Braun', 'Rosa', 'Lila'],
   availableSizes = ['XS', 'S', 'M', 'L', 'XL', 'XXL', '36', '37', '38', '39', '40', '41', '42', '43', '44'],
   availableBrands = []
 }: StoreFiltersProps) {
@@ -92,7 +92,7 @@ export default function StoreFilters({
         className="flex items-center gap-2 px-4 py-2 glass border border-border rounded-xl hover:border-primary transition-colors"
       >
         <SlidersHorizontal className="w-5 h-5" />
-        Filtrele
+        Filtern
         {activeFilterCount > 0 && (
           <span className="px-2 py-0.5 bg-primary text-primary-foreground text-xs rounded-full">
             {activeFilterCount}
@@ -123,7 +123,7 @@ export default function StoreFilters({
             >
               {/* Header */}
               <div className="sticky top-0 glass border-b border-border p-4 flex items-center justify-between">
-                <h2 className="text-xl font-bold">Filtreler</h2>
+                <h2 className="text-xl font-bold">Filter</h2>
                 <button
                   onClick={() => setShowFilters(false)}
                   className="p-2 hover:bg-secondary rounded-lg transition-colors"
@@ -135,23 +135,23 @@ export default function StoreFilters({
               <div className="p-4 space-y-6">
                 {/* Sort By */}
                 <div>
-                  <h3 className="font-bold mb-3">Sıralama</h3>
+                  <h3 className="font-bold mb-3">Sortierung</h3>
                   <select
                     value={sortBy}
                     onChange={(e) => setSortBy(e.target.value)}
                     className="w-full px-4 py-3 glass border border-border rounded-xl focus:border-primary outline-none"
                   >
-                    <option value="newest">En Yeni</option>
-                    <option value="price-low">Fiyat: Düşükten Yükseğe</option>
-                    <option value="price-high">Fiyat: Yüksekten Düşüğe</option>
-                    <option value="popular">En Popüler</option>
-                    <option value="rating">En Yüksek Puan</option>
+                    <option value="newest">Neueste</option>
+                    <option value="price-low">Preis: Aufsteigend</option>
+                    <option value="price-high">Preis: Absteigend</option>
+                    <option value="popular">Beliebteste</option>
+                    <option value="rating">Höchste Bewertung</option>
                   </select>
                 </div>
 
                 {/* Price Range */}
                 <div>
-                  <h3 className="font-bold mb-3">Fiyat Aralığı</h3>
+                  <h3 className="font-bold mb-3">Preisbereich</h3>
                   <div className="space-y-3">
                     <div className="flex items-center gap-3">
                       <input
@@ -190,7 +190,7 @@ export default function StoreFilters({
 
                 {/* Colors */}
                 <div>
-                  <h3 className="font-bold mb-3">Renk</h3>
+                  <h3 className="font-bold mb-3">Farbe</h3>
                   <div className="flex flex-wrap gap-2">
                     {availableColors.map(color => (
                       <button
@@ -210,7 +210,7 @@ export default function StoreFilters({
 
                 {/* Sizes */}
                 <div>
-                  <h3 className="font-bold mb-3">Beden</h3>
+                  <h3 className="font-bold mb-3">Größe</h3>
                   <div className="grid grid-cols-4 gap-2">
                     {availableSizes.map(size => (
                       <button
@@ -231,7 +231,7 @@ export default function StoreFilters({
                 {/* Brands */}
                 {availableBrands.length > 0 && (
                   <div>
-                    <h3 className="font-bold mb-3">Marka</h3>
+                    <h3 className="font-bold mb-3">Marke</h3>
                     <div className="space-y-2 max-h-60 overflow-y-auto">
                       {availableBrands.map(brand => (
                         <label
@@ -258,13 +258,13 @@ export default function StoreFilters({
                   onClick={applyFilters}
                   className="w-full px-6 py-3 bg-primary text-primary-foreground rounded-xl font-semibold hover:opacity-90 transition-opacity"
                 >
-                  Uygula
+                  Anwenden
                 </button>
                 <button
                   onClick={resetFilters}
                   className="w-full px-6 py-3 glass border border-border rounded-xl font-semibold hover:border-primary transition-colors"
                 >
-                  Sıfırla
+                  Zurücksetzen
                 </button>
               </div>
             </motion.div>

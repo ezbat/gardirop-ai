@@ -9,21 +9,10 @@ export default function OnboardingGuard({ children }: { children: React.ReactNod
   const [isReady, setIsReady] = useState(false)
 
   useEffect(() => {
-    // Skip check if already on onboarding page
-    if (pathname === '/onboarding') {
-      setIsReady(true)
-      return
-    }
-
-    // Check if onboarding completed
-    const completed = localStorage.getItem('onboarding-complete')
-
-    if (completed !== 'true' && pathname !== '/onboarding') {
-      // First time user -> redirect to onboarding
-      router.push('/onboarding')
-    } else {
-      setIsReady(true)
-    }
+    // Onboarding is optional — never block storefront browsing.
+    // If user is on the onboarding page, let it render normally.
+    // Otherwise, always let them through immediately.
+    setIsReady(true)
   }, [pathname, router])
 
   // Show nothing while checking (prevents flash)

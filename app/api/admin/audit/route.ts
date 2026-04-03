@@ -1,23 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { queryAuditLogs } from '@/lib/logger'
-
-async function verifyAdmin(userId: string): Promise<boolean> {
-  const { data: user } = await supabaseAdmin
-    .from('users')
-    .select('role')
-    .eq('id', userId)
-    .single()
-
-  return user?.role === 'admin'
-}
+import { requireAdmin } from '@/lib/admin-auth'
 
 export async function GET(request: NextRequest) {
-  const userId = request.headers.get('x-user-id')
-
-  if (!userId || !(await verifyAdmin(userId))) {
-    return NextResponse.json({ error: 'Admin access required' }, { status: 403 })
-  }
+  const auth = requireAdmin(request)
+  if (auth.error) return auth.error
 
   const { searchParams } = new URL(request.url)
 

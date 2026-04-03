@@ -1,21 +1,26 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { supabase } from '@/lib/supabase'
+import { supabaseAdmin } from '@/lib/supabase-admin'
+import { requireAdmin } from '@/lib/admin-auth'
 
 export async function POST(request: NextRequest) {
+  // ── Auth: require admin token ──────────────────────────────────────────────
+  const auth = requireAdmin(request)
+  if (auth.error) return auth.error
+
   try {
-    const { applicationId, adminId, action, rejectionReason } = await request.json()
-    
-    if (!applicationId || !adminId || !action) {
+    const { applicationId, action, rejectionReason } = await request.json()
+
+    if (!applicationId || !action) {
       return NextResponse.json({ error: 'Missing data' }, { status: 400 })
     }
 
     // Get application
-    const { data: application, error: appError } = await supabase
+    const { data: application, error: appError } = await supabaseAdmin
       .from('seller_applications')
-      .select('*')
+      .select('id, user_id, shop_name, shop_description, business_type, tax_number, phone, address, city, postal_code, country, iban, bank_name, account_holder_name, id_card_front_url, id_card_back_url, address_document_url, business_certificate_url, logo_url')
       .eq('id', applicationId)
       .single()
-    
+
     if (appError || !application) {
       return NextResponse.json({ error: 'Application not found' }, { status: 404 })
     }
@@ -28,7 +33,7 @@ export async function POST(request: NextRequest) {
         .replace(/^-+|-+$/g, '')
         + '-' + Date.now().toString().slice(-6)
 
-      const { data: seller, error: sellerError } = await supabase
+      const { data: seller, error: sellerError } = await supabaseAdmin
         .from('sellers')
         .insert({
           user_id: application.user_id,
@@ -59,26 +64,25 @@ export async function POST(request: NextRequest) {
 
       if (sellerError) throw sellerError
 
-      // Update application status
-      await supabase
+      // Update application status — adminId derived from auth, not request body
+      await supabaseAdmin
         .from('seller_applications')
         .update({
           status: 'approved',
           reviewed_at: new Date().toISOString(),
-          reviewed_by: adminId
+          reviewed_by: 'admin'
         })
         .eq('id', applicationId)
 
       return NextResponse.json({ success: true, seller })
     } else if (action === 'reject') {
-      // Update application status
-      await supabase
+      await supabaseAdmin
         .from('seller_applications')
         .update({
           status: 'rejected',
-          rejection_reason: rejectionReason || 'Başvurunuz uygun bulunmadı',
+          rejection_reason: rejectionReason || 'Bewerbung wurde nicht genehmigt',
           reviewed_at: new Date().toISOString(),
-          reviewed_by: adminId
+          reviewed_by: 'admin'
         })
         .eq('id', applicationId)
 
@@ -87,7 +91,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ error: 'Invalid action' }, { status: 400 })
   } catch (error) {
-    console.error('Admin approval error:', error)
+    console.error('[admin/sellers/approve] Error:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

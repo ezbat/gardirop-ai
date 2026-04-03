@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/app/api/auth/[...nextauth]/route'
-import { supabase } from '@/lib/supabase'
+import { supabaseAdmin } from '@/lib/supabase-admin'
 
 export async function GET(request: NextRequest) {
   try {
@@ -15,7 +15,7 @@ export async function GET(request: NextRequest) {
 
     // Get user's orders with items and products
     // Only show paid orders (exclude pending/unpaid orders)
-    const { data: orders, error } = await supabase
+    const { data: orders, error } = await supabaseAdmin
       .from('orders')
       .select(`
         *,

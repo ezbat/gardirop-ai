@@ -313,7 +313,7 @@ async function scenario4_duplicateWebhook(): Promise<TestResult> {
     // If idempotency works (post-migration-007): count stays 1, duplicate=true
     // If old RPC (pre-migration-007): external_reference_id not available,
     // but the RPC will still create a second tx. We check for both outcomes.
-    const isDuplicate = second.duplicate === true
+    const isDuplicate = (second as any).duplicate === true
     const countStayed = countAfterSecond === 1
 
     if (isDuplicate && countStayed) {

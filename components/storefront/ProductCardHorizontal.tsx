@@ -81,7 +81,7 @@ export function ProductCardHorizontal({
           {product.brand && (
             <p
               className="text-[9px] font-bold uppercase tracking-wider truncate mb-[1px]"
-              style={{ color: '#CCCCCC' }}
+              style={{ color: '#777777' }}
             >
               {product.brand}
             </p>
@@ -90,7 +90,7 @@ export function ProductCardHorizontal({
             {product.title}
           </p>
           {product.sellerName && (
-            <p className="text-[9px] mt-[1px] truncate" style={{ color: '#AAAAAA' }}>
+            <p className="text-[9px] mt-[1px] truncate" style={{ color: '#777777' }}>
               von {product.sellerName}
             </p>
           )}
@@ -105,13 +105,13 @@ export function ProductCardHorizontal({
                   width="9"
                   height="9"
                   viewBox="0 0 24 24"
-                  fill={i < Math.round(product.rating!) ? '#D97706' : '#E5E5E5'}
+                  fill={i < Math.round(product.rating!) ? '#D97706' : '#CCCCCC'}
                 >
                   <path d="M12 2l3.09 6.26L22 9.27l-5 4.87L18.18 21 12 17.77 5.82 21 7 14.14 2 9.27l6.91-1.01L12 2z" />
                 </svg>
               ))}
               {product.reviewCount != null && (
-                <span className="text-[8px]" style={{ color: '#CCCCCC' }}>
+                <span className="text-[8px]" style={{ color: '#777777' }}>
                   ({product.reviewCount})
                 </span>
               )}
@@ -120,12 +120,12 @@ export function ProductCardHorizontal({
 
           <div className="flex items-baseline gap-[4px]">
             <span
-              className={`text-[13px] font-bold ${outOfStock ? 'text-[#CCCCCC]' : 'text-[#1A1A1A]'}`}
+              className={`text-[13px] font-bold ${outOfStock ? 'text-[#999999]' : 'text-[#1A1A1A]'}`}
             >
               {fmtPrice(product.price, product.currency)}
             </span>
             {product.compareAtPrice != null && product.compareAtPrice > product.price && (
-              <span className="text-[10px] line-through" style={{ color: '#CCCCCC' }}>
+              <span className="text-[10px] line-through" style={{ color: '#777777' }}>
                 {fmtPrice(product.compareAtPrice, product.currency)}
               </span>
             )}

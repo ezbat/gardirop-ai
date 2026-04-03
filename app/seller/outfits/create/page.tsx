@@ -66,11 +66,10 @@ export default function CreateOutfitPage() {
         .from('sellers')
         .select('id')
         .eq('user_id', session?.user?.id)
-        .single()
+        .maybeSingle()
 
       if (error || !seller) {
-        alert(t('error'))
-        router.push('/seller-application')
+        console.error('[seller/outfits/create] seller not found — layout should have redirected')
         return
       }
 

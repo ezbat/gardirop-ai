@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/app/api/auth/[...nextauth]/route'
 import { supabaseAdmin } from '@/lib/supabase-admin'
+import { isSellerOperational } from '@/lib/seller-status'
 import {
   getFullFinancialSummary,
   getDailyRevenue,
@@ -43,13 +44,13 @@ export async function GET(request: NextRequest) {
       .from('sellers')
       .select('id, commission_rate, status, stripe_charges_enabled')
       .eq('user_id', userId)
-      .single()
+      .maybeSingle()
 
     if (sellerError || !seller) {
       return NextResponse.json({ error: 'Seller not found' }, { status: 404 })
     }
 
-    if (seller.status !== 'approved') {
+    if (!isSellerOperational(seller.status)) {
       return NextResponse.json({ error: 'Seller not approved' }, { status: 403 })
     }
 

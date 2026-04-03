@@ -8,13 +8,19 @@ import {
   Heart, MessageCircle, Grid3x3, Bookmark, Menu, Settings, Bell, LogOut,
   Share2, Instagram, Shirt, X, ChevronRight, BarChart3, Lock, Users, Ban,
   MessageSquare, Activity, Clock, Archive, Star, Image, UserPlus, TrendingUp,
-  Store, Package, Languages, Check, Globe,
+  Store, Package, Languages, Check, Globe, User,
 } from "lucide-react"
 import Link from "next/link"
 import PostDetailModal from "@/components/post-detail-modal"
 import { supabase } from "@/lib/supabase"
 import { useLanguage } from "@/lib/language-context"
 import CurrencySelector from "@/components/currency-selector"
+import dynamic from "next/dynamic"
+
+const CargoSceneLazy = dynamic(
+  () => import("@/components/cargo-scene/CargoScene"),
+  { ssr: false, loading: () => <div className="w-full h-[280px] rounded-2xl bg-[#0a0c12]" /> },
+)
 
 interface UserProfile {
   id: string
@@ -60,7 +66,7 @@ interface Stats {
 }
 
 export default function ProfilePage() {
-  const { data: session } = useSession()
+  const { data: session, status: authStatus } = useSession()
   const router = useRouter()
   const { language, setLanguage, t } = useLanguage()
   const userId = session?.user?.id
@@ -84,6 +90,8 @@ export default function ProfilePage() {
       loadStats()
       loadPendingRequests()
       checkSellerStatus()
+    } else {
+      setLoading(false)
     }
   }, [userId])
 
@@ -164,30 +172,49 @@ export default function ProfilePage() {
   }
 
   const deletePost = async (postId: string) => {
-    if (!confirm('Gönderiyi silmek istediğinize emin misiniz?')) return
+    if (!confirm('Möchtest du diesen Beitrag wirklich löschen?')) return
     try {
       await supabase.from('posts').delete().eq('id', postId)
       setUserPosts(prev => prev.filter(p => p.id !== postId))
       setIsModalOpen(false)
       loadStats()
-    } catch (error) { console.error('Delete post error:', error); alert('Silme başarısız!') }
+    } catch (error) { console.error('Delete post error:', error); alert('Löschen fehlgeschlagen!') }
   }
 
   const handleShare = async () => {
     const profileUrl = `${window.location.origin}/profile/${userId}`
     if (navigator.share) {
-      try { await navigator.share({ title: `${userProfile?.name}'in Profili`, url: profileUrl }) }
+      try { await navigator.share({ title: `${userProfile?.name} – Profil`, url: profileUrl }) }
       catch { /* cancelled */ }
     } else {
       navigator.clipboard.writeText(profileUrl)
-      alert('Profil linki kopyalandı!')
+      alert('Profil-Link wurde kopiert!')
     }
   }
 
-  if (loading) {
+  if (authStatus === 'loading' || loading) {
     return (
       <div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--lux-bg)' }}>
         <div className="w-8 h-8 rounded-full border-2 border-t-transparent animate-spin" style={{ borderColor: 'var(--accent-primary)', borderTopColor: 'transparent' }} />
+      </div>
+    )
+  }
+
+  if (!session?.user) {
+    return (
+      <div className="min-h-screen flex items-center justify-center" style={{ background: '#FAFAFA' }}>
+        <div className="text-center">
+          <User className="w-12 h-12 mx-auto mb-4" style={{ color: '#9CA3AF' }} />
+          <h2 className="text-xl font-bold mb-2" style={{ color: '#111' }}>Anmelden</h2>
+          <p className="text-sm mb-6" style={{ color: '#666' }}>Melde dich an, um dein Profil zu sehen.</p>
+          <button
+            onClick={() => router.push('/auth/signin')}
+            className="px-6 py-3 rounded-xl text-sm font-semibold text-white"
+            style={{ background: '#1A1A1A' }}
+          >
+            Jetzt anmelden
+          </button>
+        </div>
       </div>
     )
   }
@@ -426,6 +453,11 @@ export default function ProfilePage() {
             )}
           </div>
         </div>
+
+        {/* ═══ WEARO CARGO SCENE ══════════════════════════════ */}
+        <div className="mt-6 px-4 pb-6">
+          <CargoSceneLazy variant="profile" className="w-full" />
+        </div>
       </div>
 
       {/* ═══ SETTINGS DRAWER ════════════════════════════════ */}
@@ -478,7 +510,7 @@ export default function ProfilePage() {
                   <div className="rounded-[16px] overflow-hidden" style={{ background: 'var(--lux-layer-1)', border: '1px solid rgba(255,255,255,0.06)' }}>
                     <MenuItem icon={BarChart3} label="Statistiken" href="/settings/stats" />
                     <MenuItem icon={TrendingUp} label="Nutzungsstatistiken" href="/wear-tracking" />
-                    <MenuItem icon={Store} label={isSeller ? 'Mein Shop' : 'Verkäufer werden'} href={isSeller ? '/seller/dashboard' : '/seller-application'} />
+                    <MenuItem icon={Store} label={isSeller ? 'Mein Shop' : 'Verkäufer werden'} href={isSeller ? '/seller/dashboard' : '/sell/apply'} />
                     <MenuItem icon={Settings} label="Profil bearbeiten" href="/profile/edit" />
                   </div>
                 </div>
@@ -553,7 +585,7 @@ export default function ProfilePage() {
                 {/* Logout */}
                 <div className="pt-[8px]">
                   <button
-                    onClick={() => signOut()}
+                    onClick={() => signOut({ callbackUrl: '/' })}
                     className="w-full px-[16px] py-[14px] flex items-center gap-[12px] rounded-[16px]"
                     style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.15)', transition: 'background 200ms' }}
                     onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(239,68,68,0.15)')}

@@ -13,7 +13,7 @@ export async function GET(request: NextRequest) {
       .from('sellers')
       .select('id')
       .eq('user_id', userId)
-      .single()
+      .maybeSingle()
 
     if (!seller) {
       return NextResponse.json({ error: 'Seller not found' }, { status: 404 })
@@ -51,7 +51,7 @@ export async function POST(request: NextRequest) {
       .from('sellers')
       .select('id')
       .eq('user_id', userId)
-      .single()
+      .maybeSingle()
 
     if (!seller) {
       return NextResponse.json({ error: 'Seller not found' }, { status: 404 })
@@ -67,7 +67,7 @@ export async function POST(request: NextRequest) {
         reason
       }])
       .select()
-      .single()
+      .maybeSingle()
 
     if (error) throw error
 

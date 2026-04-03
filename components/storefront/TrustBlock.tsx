@@ -72,7 +72,7 @@ export function TrustBlock() {
               key={l.href}
               href={l.href}
               className="text-[11px] transition-colors"
-              style={{ color: 'rgba(255,255,255,0.35)' }}
+              style={{ color: 'rgba(255,255,255,0.55)' }}
               onMouseEnter={(e) => (e.currentTarget.style.color = 'rgba(255,255,255,0.7)')}
               onMouseLeave={(e) => (e.currentTarget.style.color = 'rgba(255,255,255,0.35)')}
             >
@@ -81,7 +81,7 @@ export function TrustBlock() {
           ))}
         </div>
 
-        <p className="text-center mt-[20px] text-[10px]" style={{ color: 'rgba(255,255,255,0.2)' }}>
+        <p className="text-center mt-[20px] text-[10px]" style={{ color: 'rgba(255,255,255,0.45)' }}>
           © {new Date().getFullYear()} WEARO. Alle Rechte vorbehalten.
         </p>
       </div>

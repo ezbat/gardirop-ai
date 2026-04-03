@@ -23,7 +23,7 @@ export async function GET(req: NextRequest) {
       .select('id')
       .eq('user_id', session.user.id)
       .eq('id', sellerId)
-      .single()
+      .maybeSingle()
 
     if (!seller) {
       return NextResponse.json({ error: 'Not authorized' }, { status: 403 })

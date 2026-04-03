@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { createAdminNotification } from '@/lib/notifications'
+import { sendEmail, sendAdminEmail } from '@/lib/email'
+import { getApplicationReceivedEmail, getAdminNewApplicationEmail } from '@/lib/email-templates'
 
 // ── Supabase (service-role bypasses RLS so unauthenticated applicants can also submit) ──
 
@@ -189,15 +192,53 @@ export async function POST(req: NextRequest) {
         decl_is_trader:            Boolean(body.decl_is_trader),
       })
       .select('id, status, created_at')
-      .single()
+      .maybeSingle()
 
-    if (error) {
+    if (error || !data) {
       console.error('[api/seller/apply] db error:', error)
       return NextResponse.json(
         { success: false, error: 'Bewerbung konnte nicht gespeichert werden. Bitte erneut versuchen.' },
         { status: 500 },
       )
     }
+
+    // Best-effort admin notification
+    createAdminNotification('new_seller_application', {
+      body: `Neue Bewerbung von ${str(body.full_name)} (${str(body.store_name)}) wartet auf Prüfung.`,
+      link: '/admin/seller-applications',
+    })
+
+    // Best-effort email: applicant confirmation
+    void (async () => {
+      try {
+        const email = getApplicationReceivedEmail({
+          applicantName: str(body.full_name),
+          storeName: str(body.store_name),
+        })
+        await sendEmail({
+          to: str(body.email).toLowerCase(),
+          subject: email.subject,
+          html: email.html,
+          tag: 'application_received',
+        })
+      } catch {}
+    })()
+
+    // Best-effort email: admin notification
+    void (async () => {
+      try {
+        const adminEmail = getAdminNewApplicationEmail({
+          applicantName: str(body.full_name),
+          storeName: str(body.store_name),
+          email: str(body.email).toLowerCase(),
+        })
+        await sendAdminEmail({
+          subject: adminEmail.subject,
+          html: adminEmail.html,
+          tag: 'admin_new_application',
+        })
+      } catch {}
+    })()
 
     return NextResponse.json({
       success: true,

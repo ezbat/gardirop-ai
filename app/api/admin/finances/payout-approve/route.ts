@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { holdPayout, releasePayout, processPayoutBatch, getDuePayouts } from '@/lib/payout-engine'
+import { createSellerNotification } from '@/lib/notifications'
+import { requireAdmin } from '@/lib/admin-auth'
 
 /**
  * GET /api/admin/finances/payout-approve
@@ -11,21 +13,8 @@ import { holdPayout, releasePayout, processPayoutBatch, getDuePayouts } from '@/
  */
 export async function GET(request: NextRequest) {
   try {
-    const userId = request.headers.get('x-user-id')
-    if (!userId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
-    if (userId !== 'm3000') {
-      const { data: user } = await supabaseAdmin
-        .from('users')
-        .select('role')
-        .eq('id', userId)
-        .single()
-      if (user?.role !== 'admin') {
-        return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-      }
-    }
+    const auth = requireAdmin(request)
+    if (auth.error) return auth.error
 
     const { data: batches } = await supabaseAdmin
       .from('payout_batches')
@@ -48,21 +37,8 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const userId = request.headers.get('x-user-id')
-    if (!userId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
-    if (userId !== 'm3000') {
-      const { data: user } = await supabaseAdmin
-        .from('users')
-        .select('role')
-        .eq('id', userId)
-        .single()
-      if (user?.role !== 'admin') {
-        return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-      }
-    }
+    const auth = requireAdmin(request)
+    if (auth.error) return auth.error
 
     const body = await request.json()
     const { action, batchId, reason } = body
@@ -75,16 +51,41 @@ export async function POST(request: NextRequest) {
 
     switch (action) {
       case 'hold':
-        result = await holdPayout(batchId, reason || 'Admin hold', userId)
+        result = await holdPayout(batchId, reason || 'Admin hold', 'admin')
         break
       case 'release':
-        result = await releasePayout(batchId, userId)
+        result = await releasePayout(batchId, 'admin')
         break
       case 'process':
         result = await processPayoutBatch(batchId)
         break
       default:
         return NextResponse.json({ error: `Unknown action: ${action}` }, { status: 400 })
+    }
+
+    // Best-effort seller notification for process action
+    if (action === 'process') {
+      const { data: batch } = await supabaseAdmin
+        .from('payout_batches')
+        .select('seller_id, net_amount')
+        .eq('id', batchId)
+        .maybeSingle()
+
+      if (batch?.seller_id) {
+        if (result.success) {
+          createSellerNotification(batch.seller_id, 'payout_paid', {
+            body: batch.net_amount
+              ? `€${Number(batch.net_amount).toFixed(2)} wurde erfolgreich überwiesen.`
+              : 'Deine Auszahlung wurde erfolgreich überwiesen.',
+            link: '/seller/payouts',
+          })
+        } else {
+          createSellerNotification(batch.seller_id, 'payout_failed', {
+            body: result.error ?? 'Bei deiner Auszahlung ist ein Fehler aufgetreten.',
+            link: '/seller/payouts',
+          })
+        }
+      }
     }
 
     if (!result.success) {

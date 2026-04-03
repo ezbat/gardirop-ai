@@ -1,31 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { supabase } from '@/lib/supabase'
+import { supabaseAdmin } from '@/lib/supabase-admin'
+import { createSellerNotification } from '@/lib/notifications'
+import { requireAdmin } from '@/lib/admin-auth'
 
 // GET: Fetch all products with moderation status filter
 export async function GET(request: NextRequest) {
   try {
+    const auth = requireAdmin(request)
+    if (auth.error) return auth.error
+
     const { searchParams } = new URL(request.url)
     const status = searchParams.get('status') // pending, approved, rejected
-    const userId = request.headers.get('x-user-id')
 
-    if (!userId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
-    // Admin check (simplified for m3000)
-    if (userId !== 'm3000') {
-      const { data: user } = await supabase
-        .from('users')
-        .select('role')
-        .eq('id', userId)
-        .single()
-
-      if (user?.role !== 'admin') {
-        return NextResponse.json({ error: 'Forbidden: Admin access required' }, { status: 403 })
-      }
-    }
-
-    let query = supabase
+    let query = supabaseAdmin
       .from('products')
       .select(`
         *,
@@ -54,26 +41,11 @@ export async function GET(request: NextRequest) {
 // PATCH: Update product moderation status
 export async function PATCH(request: NextRequest) {
   try {
-    const userId = request.headers.get('x-user-id')
+    const auth = requireAdmin(request)
+    if (auth.error) return auth.error
+
     const body = await request.json()
     const { productId, action, notes } = body
-
-    if (!userId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
-    // Admin check (simplified for m3000)
-    if (userId !== 'm3000') {
-      const { data: user } = await supabase
-        .from('users')
-        .select('role')
-        .eq('id', userId)
-        .single()
-
-      if (user?.role !== 'admin') {
-        return NextResponse.json({ error: 'Forbidden: Admin access required' }, { status: 403 })
-      }
-    }
 
     if (!productId || !action) {
       return NextResponse.json({ error: 'productId and action are required' }, { status: 400 })
@@ -85,7 +57,7 @@ export async function PATCH(request: NextRequest) {
     // Update product moderation status
     const updateData: any = {
       moderation_status: status,
-      moderated_by: userId,
+      moderated_by: 'admin',
       moderated_at: new Date().toISOString(),
     }
 
@@ -93,7 +65,7 @@ export async function PATCH(request: NextRequest) {
       updateData.moderation_notes = notes
     }
 
-    const { data: product, error: productError } = await supabase
+    const { data: product, error: productError } = await supabaseAdmin
       .from('products')
       .update(updateData)
       .eq('id', productId)
@@ -106,13 +78,30 @@ export async function PATCH(request: NextRequest) {
     }
 
     // Log admin action
-    await supabase.from('admin_actions').insert({
-      admin_id: userId,
+    await supabaseAdmin.from('admin_actions').insert({
+      admin_id: 'admin',
       action_type: `${status}_product`,
       target_type: 'product',
       target_id: productId,
       details: { status, notes },
     })
+
+    // Best-effort seller notification
+    if (product?.seller_id) {
+      if (action === 'approve') {
+        createSellerNotification(product.seller_id, 'product_approved', {
+          body: `"${product.title ?? 'Dein Produkt'}" ist jetzt im Shop sichtbar.`,
+          link: `/seller/products/${productId}`,
+        })
+      } else {
+        createSellerNotification(product.seller_id, 'product_rejected', {
+          body: notes
+            ? `"${product.title ?? 'Dein Produkt'}" wurde abgelehnt. Grund: ${notes}`
+            : `"${product.title ?? 'Dein Produkt'}" wurde leider nicht genehmigt.`,
+          link: `/seller/products/${productId}`,
+        })
+      }
+    }
 
     return NextResponse.json({ product })
   } catch (error) {

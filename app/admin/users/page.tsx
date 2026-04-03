@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { useSession } from "next-auth/react"
+import { getAdminToken } from "@/lib/admin-fetch"
 import { motion } from "framer-motion"
 import { Users, Ban, CheckCircle, Shield, Search, Mail, Calendar } from "lucide-react"
 import { Input } from "@/components/ui/input"
@@ -44,7 +45,7 @@ export default function AdminUsersPage() {
 
       const response = await fetch(url, {
         headers: {
-          'x-user-id': userId
+          'x-admin-token': getAdminToken()
         }
       })
 
@@ -74,7 +75,7 @@ export default function AdminUsersPage() {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
-          'x-user-id': userId
+          'x-admin-token': getAdminToken()
         },
         body: JSON.stringify({
           targetUserId,

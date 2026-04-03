@@ -34,29 +34,29 @@ export default function AdminFeaturesPage() {
 
   const loadFeatures = async () => {
     try {
-      // Burada tüm özelliklerin istatistiklerini yükleyeceğiz
+      // Hier laden wir die Statistiken aller Funktionen
       const featureList: FeatureStats[] = [
         {
-          name: "Kuponlar",
+          name: "Gutscheine",
           icon: Gift,
           count: 0,
-          description: "İndirim kuponları ve kampanyalar",
+          description: "Rabattgutscheine und Aktionen",
           link: "/admin/coupons",
           color: "text-green-500"
         },
         {
-          name: "Kargo Takip",
+          name: "Versandverfolgung",
           icon: Truck,
           count: 0,
-          description: "Sipariş kargo takip sistemi",
+          description: "Bestellungs-Versandverfolgungssystem",
           link: "/admin/shipping-tracking",
           color: "text-blue-500"
         },
         {
-          name: "İade Talepleri",
+          name: "Rückgabeanträge",
           icon: ShoppingCart,
           count: 0,
-          description: "Ürün iade ve değişim talepleri",
+          description: "Produkt-Rückgabe und Umtauschanfragen",
           link: "/admin/refunds",
           color: "text-red-500"
         },
@@ -64,71 +64,71 @@ export default function AdminFeaturesPage() {
           name: "Flash Sale",
           icon: Zap,
           count: 0,
-          description: "Hızlı satış kampanyaları",
+          description: "Schnellverkaufsaktionen",
           link: "/admin/flash-sales",
           color: "text-yellow-500"
         },
         {
-          name: "Ürün İncelemeleri",
+          name: "Produktbewertungen",
           icon: Star,
           count: 0,
-          description: "Müşteri yorumları ve puanları",
+          description: "Kundenbewertungen und Rezensionen",
           link: "/admin/reviews",
           color: "text-orange-500"
         },
         {
-          name: "Canlı Yayınlar",
+          name: "Livestreams",
           icon: Video,
           count: 0,
-          description: "Live shopping etkinlikleri",
+          description: "Live-Shopping-Veranstaltungen",
           link: "/admin/live-streams",
           color: "text-purple-500"
         },
         {
-          name: "Grup Alımları",
+          name: "Gruppenkäufe",
           icon: Users,
           count: 0,
-          description: "Toplu satın alma kampanyaları",
+          description: "Sammelbestellungsaktionen",
           link: "/admin/group-buys",
           color: "text-indigo-500"
         },
         {
-          name: "Sadakat Programı",
+          name: "Treueprogramm",
           icon: Award,
           count: 0,
-          description: "Müşteri puan ve ödül sistemi",
+          description: "Kunden-Punkte- und Belohnungssystem",
           link: "/admin/loyalty",
           color: "text-pink-500"
         },
         {
-          name: "Bildirimler",
+          name: "Benachrichtigungen",
           icon: Bell,
           count: 0,
-          description: "Sistem bildirimleri",
+          description: "Systembenachrichtigungen",
           link: "/admin/notifications",
           color: "text-cyan-500"
         },
         {
-          name: "E-posta Kampanyaları",
+          name: "E-Mail-Kampagnen",
           icon: Mail,
           count: 0,
-          description: "Pazarlama e-postaları",
+          description: "Marketing-E-Mails",
           link: "/admin/email-campaigns",
           color: "text-teal-500"
         },
         {
-          name: "SMS Kampanyaları",
+          name: "SMS-Kampagnen",
           icon: Phone,
           count: 0,
-          description: "Toplu SMS gönderimi",
+          description: "Massen-SMS-Versand",
           link: "/admin/sms-campaigns",
           color: "text-rose-500"
         },
         {
-          name: "Dolandırıcılık",
+          name: "Betrugserkennung",
           icon: Shield,
           count: 0,
-          description: "Güvenlik ve dolandırıcılık tespiti",
+          description: "Sicherheit und Betrugserkennung",
           link: "/admin/fraud-detection",
           color: "text-red-600"
         },
@@ -136,31 +136,31 @@ export default function AdminFeaturesPage() {
           name: "Analytics",
           icon: BarChart3,
           count: 0,
-          description: "Platform analitiği ve raporlar",
+          description: "Plattform-Analysen und Berichte",
           link: "/admin/analytics",
           color: "text-blue-600"
         },
         {
-          name: "Etkinlikler",
+          name: "Veranstaltungen",
           icon: Calendar,
           count: 0,
-          description: "Mağaza etkinlikleri",
+          description: "Shop-Veranstaltungen",
           link: "/admin/events",
           color: "text-violet-500"
         },
         {
-          name: "Wishlist",
+          name: "Wunschliste",
           icon: Heart,
           count: 0,
-          description: "Müşteri istek listeleri",
+          description: "Kunden-Wunschlisten",
           link: "/admin/wishlists",
           color: "text-red-400"
         },
         {
-          name: "Çoklu Dil",
+          name: "Mehrsprachigkeit",
           icon: Globe,
           count: 0,
-          description: "Dil ve çeviri yönetimi",
+          description: "Sprach- und Übersetzungsverwaltung",
           link: "/admin/translations",
           color: "text-emerald-500"
         }
@@ -189,8 +189,8 @@ export default function AdminFeaturesPage() {
         <div className="container mx-auto max-w-7xl">
           <div className="text-center mb-8">
             <Package className="w-16 h-16 text-primary mx-auto mb-4" />
-            <h1 className="font-serif text-4xl font-bold mb-2">Platform Özellikleri</h1>
-            <p className="text-muted-foreground">Tüm özellikleri buradan yönetin</p>
+            <h1 className="font-serif text-4xl font-bold mb-2">Plattform-Funktionen</h1>
+            <p className="text-muted-foreground">Verwalten Sie alle Funktionen von hier</p>
           </div>
 
           {/* Features Grid */}
@@ -227,119 +227,119 @@ export default function AdminFeaturesPage() {
             <div className="glass border border-border rounded-2xl p-6">
               <div className="flex items-center gap-3 mb-2">
                 <TrendingUp className="w-8 h-8 text-green-500" />
-                <p className="text-sm text-muted-foreground">Toplam Özellik</p>
+                <p className="text-sm text-muted-foreground">Gesamtfunktionen</p>
               </div>
               <p className="text-3xl font-bold">{features.length}</p>
-              <p className="text-xs text-muted-foreground mt-2">Aktif sistemler</p>
+              <p className="text-xs text-muted-foreground mt-2">Aktive Systeme</p>
             </div>
 
             <div className="glass border border-border rounded-2xl p-6">
               <div className="flex items-center gap-3 mb-2">
                 <Users className="w-8 h-8 text-blue-500" />
-                <p className="text-sm text-muted-foreground">Veritabanı Tabloları</p>
+                <p className="text-sm text-muted-foreground">Datenbanktabellen</p>
               </div>
               <p className="text-3xl font-bold">150+</p>
-              <p className="text-xs text-muted-foreground mt-2">Tüm sistemler için</p>
+              <p className="text-xs text-muted-foreground mt-2">Für alle Systeme</p>
             </div>
 
             <div className="glass border border-border rounded-2xl p-6">
               <div className="flex items-center gap-3 mb-2">
                 <Shield className="w-8 h-8 text-purple-500" />
-                <p className="text-sm text-muted-foreground">Güvenlik Katmanları</p>
+                <p className="text-sm text-muted-foreground">Sicherheitsebenen</p>
               </div>
               <p className="text-3xl font-bold">5+</p>
-              <p className="text-xs text-muted-foreground mt-2">Koruma sistemleri</p>
+              <p className="text-xs text-muted-foreground mt-2">Schutzsysteme</p>
             </div>
           </div>
 
           {/* Feature Categories */}
           <div className="mt-12">
-            <h2 className="text-2xl font-bold mb-6">Özellik Kategorileri</h2>
+            <h2 className="text-2xl font-bold mb-6">Funktionskategorien</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="glass border border-border rounded-2xl p-6">
-                <h3 className="text-lg font-bold mb-4">E-Ticaret</h3>
+                <h3 className="text-lg font-bold mb-4">E-Commerce</h3>
                 <ul className="space-y-2 text-sm">
                   <li className="flex items-center gap-2">
                     <div className="w-2 h-2 rounded-full bg-primary" />
-                    Ürün yönetimi ve varyantlar
+                    Produktverwaltung und Varianten
                   </li>
                   <li className="flex items-center gap-2">
                     <div className="w-2 h-2 rounded-full bg-primary" />
-                    Sipariş takibi ve yönetimi
+                    Bestellverfolgung und -verwaltung
                   </li>
                   <li className="flex items-center gap-2">
                     <div className="w-2 h-2 rounded-full bg-primary" />
-                    Ödeme ve kargo entegrasyonu
+                    Zahlungs- und Versandintegration
                   </li>
                   <li className="flex items-center gap-2">
                     <div className="w-2 h-2 rounded-full bg-primary" />
-                    İade ve değişim sistemi
+                    Rückgabe- und Umtauschsystem
                   </li>
                 </ul>
               </div>
 
               <div className="glass border border-border rounded-2xl p-6">
-                <h3 className="text-lg font-bold mb-4">Pazarlama</h3>
+                <h3 className="text-lg font-bold mb-4">Marketing</h3>
                 <ul className="space-y-2 text-sm">
                   <li className="flex items-center gap-2">
                     <div className="w-2 h-2 rounded-full bg-green-500" />
-                    Kupon ve promosyon kampanyaları
+                    Gutschein- und Werbeaktionen
                   </li>
                   <li className="flex items-center gap-2">
                     <div className="w-2 h-2 rounded-full bg-green-500" />
-                    E-posta ve SMS pazarlama
+                    E-Mail- und SMS-Marketing
                   </li>
                   <li className="flex items-center gap-2">
                     <div className="w-2 h-2 rounded-full bg-green-500" />
-                    Sadakat programı
+                    Treueprogramm
                   </li>
                   <li className="flex items-center gap-2">
                     <div className="w-2 h-2 rounded-full bg-green-500" />
-                    Affiliate sistemi
+                    Affiliate-System
                   </li>
                 </ul>
               </div>
 
               <div className="glass border border-border rounded-2xl p-6">
-                <h3 className="text-lg font-bold mb-4">Sosyal & İçerik</h3>
+                <h3 className="text-lg font-bold mb-4">Social & Inhalte</h3>
                 <ul className="space-y-2 text-sm">
                   <li className="flex items-center gap-2">
                     <div className="w-2 h-2 rounded-full bg-purple-500" />
-                    Canlı yayın (Live Shopping)
+                    Livestream (Live Shopping)
                   </li>
                   <li className="flex items-center gap-2">
                     <div className="w-2 h-2 rounded-full bg-purple-500" />
-                    Mağaza stories
+                    Shop-Stories
                   </li>
                   <li className="flex items-center gap-2">
                     <div className="w-2 h-2 rounded-full bg-purple-500" />
-                    Ürün incelemeleri
+                    Produktbewertungen
                   </li>
                   <li className="flex items-center gap-2">
                     <div className="w-2 h-2 rounded-full bg-purple-500" />
-                    Topluluk soru-cevap
+                    Community-Fragen & Antworten
                   </li>
                 </ul>
               </div>
 
               <div className="glass border border-border rounded-2xl p-6">
-                <h3 className="text-lg font-bold mb-4">Analitik & Raporlama</h3>
+                <h3 className="text-lg font-bold mb-4">Analysen & Berichte</h3>
                 <ul className="space-y-2 text-sm">
                   <li className="flex items-center gap-2">
                     <div className="w-2 h-2 rounded-full bg-blue-500" />
-                    Satış analitiği
+                    Verkaufsanalysen
                   </li>
                   <li className="flex items-center gap-2">
                     <div className="w-2 h-2 rounded-full bg-blue-500" />
-                    Müşteri segmentasyonu
+                    Kundensegmentierung
                   </li>
                   <li className="flex items-center gap-2">
                     <div className="w-2 h-2 rounded-full bg-blue-500" />
-                    Performans metrikleri
+                    Leistungskennzahlen
                   </li>
                   <li className="flex items-center gap-2">
                     <div className="w-2 h-2 rounded-full bg-blue-500" />
-                    Zamanlanmış raporlar
+                    Geplante Berichte
                   </li>
                 </ul>
               </div>

@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/app/api/auth/[...nextauth]/route'
 import { supabaseAdmin } from '@/lib/supabase-admin'
+import { isSellerOperational } from '@/lib/seller-status'
+import { fetchThresholdConfig, resolveThreshold } from '@/lib/inventory-threshold'
 import {
   getSellerRevenue,
   getDailyRevenue,
@@ -23,31 +25,23 @@ import {
  */
 export async function GET(request: NextRequest) {
   try {
-    // Support both auth methods: NextAuth session and x-user-id header
-    let userId: string | null = null
-
     const session = await getServerSession(authOptions)
-    if (session?.user?.id) {
-      userId = session.user.id
-    } else {
-      userId = request.headers.get('x-user-id')
-    }
-
-    if (!userId) {
+    if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
+    const userId = session.user.id
     const { searchParams } = new URL(request.url)
     const period = parseInt(searchParams.get('period') || '7')
 
     // Get seller info with commission rate
     const { data: seller } = await supabaseAdmin
       .from('sellers')
-      .select('id, commission_rate')
+      .select('id, commission_rate, status')
       .eq('user_id', userId)
-      .single()
+      .maybeSingle()
 
-    if (!seller) {
+    if (!seller || !isSellerOperational(seller.status)) {
       return NextResponse.json({ error: 'Seller not found' }, { status: 404 })
     }
 
@@ -92,7 +86,7 @@ export async function GET(request: NextRequest) {
       // All products (for low stock)
       supabaseAdmin
         .from('products')
-        .select('id, title, stock_quantity, price, low_stock_threshold, sku, images')
+        .select('id, title, stock_quantity, price, images, low_stock_threshold, category')
         .eq('seller_id', sellerId),
       // Outfit count
       supabaseAdmin
@@ -124,23 +118,28 @@ export async function GET(request: NextRequest) {
         .limit(10),
     ])
 
-    // Low stock products (using real threshold from DB)
+    // Low stock products — resolved threshold per product
+    const thresholdConfig = await fetchThresholdConfig()
     const lowStockProducts = (products.data || [])
       .filter((p: any) => {
-        const threshold = p.low_stock_threshold || 5
-        return p.stock_quantity <= threshold
+        const stock = p.stock_quantity ?? 0
+        const thr   = resolveThreshold(thresholdConfig, p)
+        return stock <= thr
       })
-      .sort((a: any, b: any) => a.stock_quantity - b.stock_quantity)
+      .sort((a: any, b: any) => (a.stock_quantity ?? 0) - (b.stock_quantity ?? 0))
       .slice(0, 5)
-      .map((p: any) => ({
-        id: p.id,
-        title: p.title,
-        stock_quantity: p.stock_quantity,
-        low_stock_threshold: p.low_stock_threshold || 5,
-        price: p.price,
-        sku: p.sku,
-        image: p.images?.[0] || null,
-      }))
+      .map((p: any) => {
+        const thr = resolveThreshold(thresholdConfig, p)
+        return {
+          id:                  p.id,
+          title:               p.title,
+          stock_quantity:      p.stock_quantity ?? 0,
+          low_stock_threshold: thr,
+          price:               p.price,
+          sku:                 null,
+          image:               p.images?.[0] ?? null,
+        }
+      })
 
     // Format daily stats for chart display
     const formattedDailyStats = dailyStats.map(d => ({

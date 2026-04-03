@@ -78,7 +78,7 @@ export default function FinancialTestsPage() {
   }
 
   return (
-    <div style={{ minHeight: '100vh', backgroundColor: '#F5F5F5', fontFamily: 'system-ui, -apple-system, sans-serif' }}>
+    <div style={{ minHeight: '100vh', backgroundColor: '#0B0D14', fontFamily: 'system-ui, -apple-system, sans-serif', color: '#F0F2F8' }}>
       {/* Header */}
       <div style={{ backgroundColor: '#1A1A2E', color: 'white', padding: '20px 24px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8 }}>
@@ -88,15 +88,15 @@ export default function FinancialTestsPage() {
           <Shield size={24} style={{ color: '#F59E0B' }} />
           <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0 }}>Financial Integrity Tests</h1>
         </div>
-        <p style={{ color: '#9CA3AF', fontSize: 14, margin: 0 }}>
+        <p style={{ color: 'rgba(255,255,255,0.45)', fontSize: 14, margin: 0 }}>
           8 scenarios proving ledger balance, commission accuracy, refund safety, and webhook idempotency
         </p>
       </div>
 
       <div style={{ maxWidth: 960, margin: '0 auto', padding: '24px 16px' }}>
         {/* Environment Card */}
-        <div style={{ backgroundColor: 'white', borderRadius: 12, padding: 20, marginBottom: 20, border: '1px solid #E5E7EB' }}>
-          <h3 style={{ fontSize: 14, fontWeight: 600, color: '#6B7280', marginBottom: 12, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+        <div style={{ backgroundColor: '#141420', borderRadius: 12, padding: 20, marginBottom: 20, border: '1px solid rgba(255,255,255,0.08)' }}>
+          <h3 style={{ fontSize: 14, fontWeight: 600, color: 'rgba(255,255,255,0.55)', marginBottom: 12, textTransform: 'uppercase', letterSpacing: 0.5 }}>
             Test Environment
           </h3>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12 }}>
@@ -107,9 +107,9 @@ export default function FinancialTestsPage() {
               { label: 'Payout Hold', value: '7 days' },
               { label: 'Cart Reserve', value: '15 min' },
             ].map(item => (
-              <div key={item.label} style={{ padding: '10px 14px', backgroundColor: '#F9FAFB', borderRadius: 8 }}>
-                <div style={{ fontSize: 11, color: '#9CA3AF', fontWeight: 500 }}>{item.label}</div>
-                <div style={{ fontSize: 15, fontWeight: 600, color: '#1F2937' }}>{item.value}</div>
+              <div key={item.label} style={{ padding: '10px 14px', backgroundColor: 'rgba(255,255,255,0.04)', borderRadius: 8 }}>
+                <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.45)', fontWeight: 500 }}>{item.label}</div>
+                <div style={{ fontSize: 15, fontWeight: 600, color: '#F0F2F8' }}>{item.value}</div>
               </div>
             ))}
           </div>
@@ -140,19 +140,19 @@ export default function FinancialTestsPage() {
         </button>
 
         {error && (
-          <div style={{ backgroundColor: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 10, padding: 16, marginBottom: 20 }}>
+          <div style={{ backgroundColor: 'rgba(220,38,38,0.1)', border: '1px solid rgba(220,38,38,0.25)', borderRadius: 10, padding: 16, marginBottom: 20 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#DC2626', fontWeight: 600 }}>
               <XCircle size={18} /> Test Execution Failed
             </div>
-            <p style={{ color: '#991B1B', marginTop: 8, fontSize: 14 }}>{error}</p>
+            <p style={{ color: '#FCA5A5', marginTop: 8, fontSize: 14 }}>{error}</p>
           </div>
         )}
 
         {report && (
           <>
             {/* 4 Proofs */}
-            <div style={{ backgroundColor: 'white', borderRadius: 12, padding: 20, marginBottom: 20, border: '1px solid #E5E7EB' }}>
-              <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 16, color: '#1F2937' }}>
+            <div style={{ backgroundColor: '#141420', borderRadius: 12, padding: 20, marginBottom: 20, border: '1px solid rgba(255,255,255,0.08)' }}>
+              <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 16, color: '#F0F2F8' }}>
                 4 Proofs
               </h3>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12 }}>
@@ -179,7 +179,7 @@ export default function FinancialTestsPage() {
                         {proof.label}
                       </span>
                     </div>
-                    <p style={{ fontSize: 12, color: '#6B7280', margin: 0 }}>{proof.desc}</p>
+                    <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.55)', margin: 0 }}>{proof.desc}</p>
                   </div>
                 ))}
               </div>
@@ -191,7 +191,7 @@ export default function FinancialTestsPage() {
               borderRadius: 12, padding: 20, marginBottom: 20,
               border: `1px solid ${report.globalIntegrityCheck.balanced ? '#BBF7D0' : '#FECACA'}`,
             }}>
-              <h3 style={{ fontSize: 14, fontWeight: 700, color: '#1F2937', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
+              <h3 style={{ fontSize: 14, fontWeight: 700, color: '#F0F2F8', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
                 {report.globalIntegrityCheck.balanced
                   ? <CheckCircle size={18} style={{ color: '#16A34A' }} />
                   : <AlertTriangle size={18} style={{ color: '#DC2626' }} />
@@ -200,15 +200,15 @@ export default function FinancialTestsPage() {
               </h3>
               <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap' }}>
                 <div>
-                  <span style={{ fontSize: 12, color: '#6B7280' }}>Total Debit</span>
+                  <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.55)' }}>Total Debit</span>
                   <div style={{ fontSize: 18, fontWeight: 700 }}>{report.globalIntegrityCheck.totalDebit.toFixed(2)} EUR</div>
                 </div>
                 <div>
-                  <span style={{ fontSize: 12, color: '#6B7280' }}>Total Credit</span>
+                  <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.55)' }}>Total Credit</span>
                   <div style={{ fontSize: 18, fontWeight: 700 }}>{report.globalIntegrityCheck.totalCredit.toFixed(2)} EUR</div>
                 </div>
                 <div>
-                  <span style={{ fontSize: 12, color: '#6B7280' }}>Difference</span>
+                  <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.55)' }}>Difference</span>
                   <div style={{ fontSize: 18, fontWeight: 700, color: report.globalIntegrityCheck.diff === 0 ? '#16A34A' : '#DC2626' }}>
                     {report.globalIntegrityCheck.diff.toFixed(2)} EUR
                   </div>
@@ -217,9 +217,9 @@ export default function FinancialTestsPage() {
             </div>
 
             {/* Summary */}
-            <div style={{ backgroundColor: 'white', borderRadius: 12, padding: 20, marginBottom: 20, border: '1px solid #E5E7EB' }}>
+            <div style={{ backgroundColor: '#141420', borderRadius: 12, padding: 20, marginBottom: 20, border: '1px solid rgba(255,255,255,0.08)' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <h3 style={{ fontSize: 16, fontWeight: 700, color: '#1F2937', margin: 0 }}>
+                <h3 style={{ fontSize: 16, fontWeight: 700, color: '#F0F2F8', margin: 0 }}>
                   Results: {report.summary.passed}/{report.summary.total} passed
                 </h3>
                 <span style={{
@@ -254,36 +254,36 @@ export default function FinancialTestsPage() {
                     : <XCircle size={20} style={{ color: '#DC2626', flexShrink: 0 }} />
                   }
                   <div style={{ flex: 1 }}>
-                    <div style={{ fontWeight: 700, fontSize: 14, color: '#1F2937' }}>{scenario.scenario}</div>
-                    <div style={{ fontSize: 13, color: '#6B7280', marginTop: 2 }}>{scenario.description}</div>
+                    <div style={{ fontWeight: 700, fontSize: 14, color: '#F0F2F8' }}>{scenario.scenario}</div>
+                    <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.55)', marginTop: 2 }}>{scenario.description}</div>
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-                    <Clock size={14} style={{ color: '#9CA3AF' }} />
-                    <span style={{ fontSize: 12, color: '#9CA3AF' }}>{scenario.durationMs}ms</span>
+                    <Clock size={14} style={{ color: 'rgba(255,255,255,0.45)' }} />
+                    <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.45)' }}>{scenario.durationMs}ms</span>
                   </div>
                 </button>
 
                 {expandedScenario === scenario.scenario && (
                   <div style={{ borderTop: '1px solid #E5E7EB', padding: '16px 20px' }}>
                     {scenario.error && (
-                      <div style={{ backgroundColor: '#FEF2F2', padding: 12, borderRadius: 8, marginBottom: 12, fontSize: 13, color: '#991B1B' }}>
+                      <div style={{ backgroundColor: '#FEF2F2', padding: 12, borderRadius: 8, marginBottom: 12, fontSize: 13, color: '#FCA5A5' }}>
                         Error: {scenario.error}
                       </div>
                     )}
                     <table style={{ width: '100%', fontSize: 13, borderCollapse: 'collapse' }}>
                       <thead>
                         <tr style={{ borderBottom: '1px solid #E5E7EB' }}>
-                          <th style={{ textAlign: 'left', padding: '8px 0', color: '#6B7280', fontWeight: 600 }}>Assertion</th>
-                          <th style={{ textAlign: 'right', padding: '8px 0', color: '#6B7280', fontWeight: 600 }}>Expected</th>
-                          <th style={{ textAlign: 'right', padding: '8px 0', color: '#6B7280', fontWeight: 600 }}>Actual</th>
+                          <th style={{ textAlign: 'left', padding: '8px 0', color: 'rgba(255,255,255,0.55)', fontWeight: 600 }}>Assertion</th>
+                          <th style={{ textAlign: 'right', padding: '8px 0', color: 'rgba(255,255,255,0.55)', fontWeight: 600 }}>Expected</th>
+                          <th style={{ textAlign: 'right', padding: '8px 0', color: 'rgba(255,255,255,0.55)', fontWeight: 600 }}>Actual</th>
                           <th style={{ textAlign: 'center', padding: '8px 0', width: 40 }}></th>
                         </tr>
                       </thead>
                       <tbody>
                         {scenario.assertions.map((a, i) => (
                           <tr key={i} style={{ borderBottom: '1px solid #F3F4F6' }}>
-                            <td style={{ padding: '8px 0', color: '#374151' }}>{a.label}</td>
-                            <td style={{ textAlign: 'right', padding: '8px 0', color: '#6B7280', fontFamily: 'monospace' }}>
+                            <td style={{ padding: '8px 0', color: '#F0F2F8' }}>{a.label}</td>
+                            <td style={{ textAlign: 'right', padding: '8px 0', color: 'rgba(255,255,255,0.55)', fontFamily: 'monospace' }}>
                               {String(a.expected)}
                             </td>
                             <td style={{ textAlign: 'right', padding: '8px 0', fontFamily: 'monospace', fontWeight: 600, color: a.passed ? '#16A34A' : '#DC2626' }}>
@@ -305,7 +305,7 @@ export default function FinancialTestsPage() {
             ))}
 
             {/* Timestamp */}
-            <p style={{ textAlign: 'center', color: '#9CA3AF', fontSize: 12, marginTop: 24 }}>
+            <p style={{ textAlign: 'center', color: 'rgba(255,255,255,0.45)', fontSize: 12, marginTop: 24 }}>
               Run ID: {report.runId} | {new Date(report.timestamp).toLocaleString()}
             </p>
           </>

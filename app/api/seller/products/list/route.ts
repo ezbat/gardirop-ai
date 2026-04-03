@@ -1,20 +1,33 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { supabase } from '@/lib/supabase'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/app/api/auth/[...nextauth]/route'
+import { supabaseAdmin } from '@/lib/supabase-admin'
+import { isSellerOperational } from '@/lib/seller-status'
 
 export async function GET(request: NextRequest) {
   try {
-    const searchParams = request.nextUrl.searchParams
-    const sellerId = searchParams.get('sellerId')
-
-    if (!sellerId) {
-      return NextResponse.json({ error: 'Seller ID required' }, { status: 400 })
+    // 1. Authenticate
+    const session = await getServerSession(authOptions)
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Nicht authentifiziert' }, { status: 401 })
     }
 
-    // Get products for this seller
-    const { data: products, error } = await supabase
+    // 2. Verify seller
+    const { data: seller } = await supabaseAdmin
+      .from('sellers')
+      .select('id, status')
+      .eq('user_id', session.user.id)
+      .maybeSingle()
+
+    if (!seller || !isSellerOperational(seller.status)) {
+      return NextResponse.json({ error: 'Kein aktives Verkäuferkonto' }, { status: 403 })
+    }
+
+    // 3. Get products for this seller (scoped to their own seller_id)
+    const { data: products, error } = await supabaseAdmin
       .from('products')
       .select('*')
-      .eq('seller_id', sellerId)
+      .eq('seller_id', seller.id)
       .order('created_at', { ascending: false })
 
     if (error) {

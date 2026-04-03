@@ -49,10 +49,10 @@ export default function SellerOutfitsPage() {
         .from('sellers')
         .select('id')
         .eq('user_id', session?.user?.id)
-        .single()
+        .maybeSingle()
 
       if (error || !seller) {
-        router.push('/seller-application')
+        console.error('[seller/outfits] seller not found — layout should have redirected')
         return
       }
 

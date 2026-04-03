@@ -56,11 +56,11 @@ export function ProductRow({
         {/* Section header */}
         <div className="flex items-end justify-between mb-[18px]">
           <div>
-            <h2 className="text-[18px] font-bold leading-none" style={{ color: '#1A1A1A' }}>
+            <h2 className="text-[18px] font-bold leading-none" style={{ color: '#FFFFFF' }}>
               {title}
             </h2>
             {subtitle && (
-              <p className="text-[11px] mt-[4px]" style={{ color: '#999' }}>
+              <p className="text-[11px] mt-[4px]" style={{ color: 'rgba(255,255,255,0.6)' }}>
                 {subtitle}
               </p>
             )}
@@ -72,9 +72,9 @@ export function ProductRow({
                   onClick={() => scrollBy(-1)}
                   className="w-[28px] h-[28px] rounded-full flex items-center justify-center
                     transition-colors duration-150"
-                  style={{ background: '#F0F0F0', color: '#555' }}
-                  onMouseEnter={(e) => (e.currentTarget.style.background = '#E5E5E5')}
-                  onMouseLeave={(e) => (e.currentTarget.style.background = '#F0F0F0')}
+                  style={{ background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.65)' }}
+                  onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(255,255,255,0.1)')}
+                  onMouseLeave={(e) => (e.currentTarget.style.background = 'rgba(255,255,255,0.06)')}
                   aria-label="Zurück scrollen"
                 >
                   <ChevronLeft className="w-[14px] h-[14px]" />
@@ -83,9 +83,9 @@ export function ProductRow({
                   onClick={() => scrollBy(1)}
                   className="w-[28px] h-[28px] rounded-full flex items-center justify-center
                     transition-colors duration-150"
-                  style={{ background: '#F0F0F0', color: '#555' }}
-                  onMouseEnter={(e) => (e.currentTarget.style.background = '#E5E5E5')}
-                  onMouseLeave={(e) => (e.currentTarget.style.background = '#F0F0F0')}
+                  style={{ background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.65)' }}
+                  onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(255,255,255,0.1)')}
+                  onMouseLeave={(e) => (e.currentTarget.style.background = 'rgba(255,255,255,0.06)')}
                   aria-label="Weiter scrollen"
                 >
                   <ChevronRight className="w-[14px] h-[14px]" />

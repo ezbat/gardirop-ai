@@ -1,25 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-admin'
+import { requireAdmin } from '@/lib/admin-auth'
 import { queryRiskScores } from '@/lib/risk-engine'
 import { queryFraudSignals } from '@/lib/anti-fraud'
 import type { RiskLevel, RiskAction, EntityType } from '@/lib/risk-engine'
 
-async function verifyAdmin(userId: string): Promise<boolean> {
-  const { data: user } = await supabaseAdmin
-    .from('users')
-    .select('role')
-    .eq('id', userId)
-    .single()
-
-  return user?.role === 'admin'
-}
-
 export async function GET(request: NextRequest) {
-  const userId = request.headers.get('x-user-id')
-
-  if (!userId || !(await verifyAdmin(userId))) {
-    return NextResponse.json({ error: 'Admin access required' }, { status: 403 })
-  }
+  const auth = requireAdmin(request)
+  if (auth.error) return auth.error
 
   const { searchParams } = new URL(request.url)
   const view = searchParams.get('view') || 'risk_scores'
@@ -54,11 +42,8 @@ export async function GET(request: NextRequest) {
 
 // Review/override a risk score
 export async function PATCH(request: NextRequest) {
-  const userId = request.headers.get('x-user-id')
-
-  if (!userId || !(await verifyAdmin(userId))) {
-    return NextResponse.json({ error: 'Admin access required' }, { status: 403 })
-  }
+  const auth = requireAdmin(request)
+  if (auth.error) return auth.error
 
   const { scoreId, action, notes } = await request.json()
 
@@ -70,7 +55,7 @@ export async function PATCH(request: NextRequest) {
     .from('risk_scores')
     .update({
       action_taken: action,
-      reviewed_by: userId,
+      reviewed_by: 'admin',
       reviewed_at: new Date().toISOString(),
       review_notes: notes || null,
     })

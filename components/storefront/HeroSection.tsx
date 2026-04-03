@@ -1,195 +1,207 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
-import Link from 'next/link'
-import { motion, AnimatePresence, useReducedMotion } from 'framer-motion'
-import { ChevronLeft, ChevronRight } from 'lucide-react'
+/**
+ * HeroSection — Premium editorial hero.
+ *
+ * Not a generic product carousel. A single branded atmospheric moment
+ * with subtle ambient animation, editorial typography, and a social-commerce identity.
+ */
 
-interface HeroSlide {
-  id: string
-  headline: string
-  subline: string
-  cta: string
-  href: string
-  gradient: string
+import { useEffect, useState } from 'react'
+import Link from 'next/link'
+import { motion, useReducedMotion } from 'framer-motion'
+import { ArrowRight, Sparkles } from 'lucide-react'
+
+// ─── Ambient gradient orbs (purely decorative, lightly animated) ─────────────
+
+function AmbientOrbs() {
+  return (
+    <div className="absolute inset-0 overflow-hidden pointer-events-none">
+      {/* Primary warm orb */}
+      <motion.div
+        animate={{ x: [0, 30, -10, 0], y: [0, -20, 10, 0], scale: [1, 1.1, 0.95, 1] }}
+        transition={{ duration: 20, repeat: Infinity, ease: 'linear' }}
+        className="absolute"
+        style={{
+          width: '60%', height: '120%',
+          right: '-10%', top: '-20%',
+          background: 'radial-gradient(ellipse, rgba(217,119,6,0.12) 0%, transparent 65%)',
+          filter: 'blur(40px)',
+        }}
+      />
+      {/* Secondary cool orb */}
+      <motion.div
+        animate={{ x: [0, -20, 15, 0], y: [0, 15, -10, 0] }}
+        transition={{ duration: 25, repeat: Infinity, ease: 'linear' }}
+        className="absolute"
+        style={{
+          width: '50%', height: '100%',
+          left: '-5%', bottom: '-10%',
+          background: 'radial-gradient(ellipse, rgba(99,102,241,0.07) 0%, transparent 65%)',
+          filter: 'blur(50px)',
+        }}
+      />
+      {/* Subtle grain overlay */}
+      <div
+        className="absolute inset-0 opacity-[0.03]"
+        style={{
+          backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")`,
+          backgroundSize: '128px 128px',
+        }}
+      />
+    </div>
+  )
 }
 
-// Tasteful static slides — no fake product data, just brand/navigation CTAs
-const SLIDES: HeroSlide[] = [
-  {
-    id: 'arrivals',
-    headline: 'Neue Saison,\nneue Entdeckungen',
-    subline: 'Die neuesten Styles und Trends — direkt von geprüften Sellern.',
-    cta: 'Neuheiten entdecken',
-    href: '/store',
-    gradient: 'linear-gradient(135deg, #0C1017 0%, #1a2744 50%, #0C1017 100%)',
-  },
-  {
-    id: 'deals',
-    headline: 'Top-Angebote\njetzt entdecken',
-    subline: 'Echte Preisreduzierungen — keine Tricks, nur Qualität.',
-    cta: 'Angebote ansehen',
-    href: '/store?cat=sale',
-    gradient: 'linear-gradient(135deg, #1a0800 0%, #7c2d12 50%, #1a0800 100%)',
-  },
-]
+// ─── Component ───────────────────────────────────────────────────────────────
 
 export function HeroSection() {
   const prefersReduced = useReducedMotion()
-  const [current, setCurrent] = useState(0)
-  const [direction, setDirection] = useState(1)
-
-  const next = useCallback(() => {
-    setDirection(1)
-    setCurrent((c) => (c + 1) % SLIDES.length)
-  }, [])
-
-  const prev = useCallback(() => {
-    setDirection(-1)
-    setCurrent((c) => (c - 1 + SLIDES.length) % SLIDES.length)
-  }, [])
-
-  // Auto-advance every 6 s
-  useEffect(() => {
-    if (prefersReduced) return
-    const id = setInterval(next, 6000)
-    return () => clearInterval(id)
-  }, [next, prefersReduced])
-
-  const slide = SLIDES[current]
-
-  const slideVariants = {
-    enter: (dir: number) => ({ opacity: 0, x: prefersReduced ? 0 : dir * 60 }),
-    center: { opacity: 1, x: 0 },
-    exit: (dir: number) => ({ opacity: 0, x: prefersReduced ? 0 : dir * -60 }),
-  }
+  const [mounted, setMounted] = useState(false)
+  useEffect(() => { setMounted(true) }, [])
 
   return (
     <section
       className="relative overflow-hidden"
-      style={{ height: 'clamp(280px, 42vw, 520px)' }}
-      aria-label="Hero Banner"
+      style={{
+        background: 'linear-gradient(165deg, #080A10 0%, #0E1320 45%, #12162A 100%)',
+        minHeight: 'clamp(340px, 48vw, 520px)',
+      }}
+      aria-label="Hero"
     >
-      <AnimatePresence initial={false} custom={direction} mode="sync">
-        <motion.div
-          key={slide.id}
-          custom={direction}
-          variants={slideVariants}
-          initial="enter"
-          animate="center"
-          exit="exit"
-          transition={{ duration: prefersReduced ? 0 : 0.5, ease: 'easeInOut' }}
-          className="absolute inset-0 flex items-center"
-          style={{ background: slide.gradient }}
-        >
-          {/* Subtle geometric accent */}
-          <div
-            className="absolute right-0 top-0 h-full opacity-10"
-            style={{
-              width: '50%',
-              background:
-                'radial-gradient(ellipse at 80% 50%, rgba(217,119,6,0.6) 0%, transparent 70%)',
-            }}
-          />
-          <div
-            className="absolute bottom-0 left-0 right-0 h-[120px] opacity-30"
-            style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.5), transparent)' }}
-          />
+      {/* Ambient background */}
+      {mounted && !prefersReduced && <AmbientOrbs />}
 
-          {/* Content */}
-          <div className="relative z-10 max-w-7xl mx-auto px-6 md:px-12 w-full">
-            <motion.div
-              initial={prefersReduced ? {} : { opacity: 0, y: 24 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.45, delay: 0.15, ease: 'easeOut' }}
+      {/* Bottom fade */}
+      <div
+        className="absolute bottom-0 left-0 right-0 h-24 z-10"
+        style={{ background: 'linear-gradient(to top, #0B0D14, transparent)' }}
+      />
+
+      {/* Content */}
+      <div className="relative z-20 max-w-6xl mx-auto px-6 md:px-12 flex items-center"
+        style={{ minHeight: 'clamp(340px, 48vw, 520px)' }}>
+
+        <div className="w-full py-16 md:py-0">
+          {/* Brand tag */}
+          <motion.div
+            initial={prefersReduced ? {} : { opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.1 }}
+            className="flex items-center gap-2 mb-6"
+          >
+            <div
+              className="flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-semibold tracking-wide"
+              style={{
+                background: 'rgba(217,119,6,0.12)',
+                border: '1px solid rgba(217,119,6,0.2)',
+                color: '#D97706',
+              }}
             >
-              <p
-                className="text-[11px] uppercase font-bold mb-[12px] tracking-[0.12em]"
-                style={{ color: '#D97706' }}
-              >
-                WEARO Marketplace
-              </p>
-              <h1
-                className="font-black leading-tight mb-[16px] whitespace-pre-line"
-                style={{
-                  color: '#FFFFFF',
-                  fontSize: 'clamp(28px, 4vw, 56px)',
-                  textShadow: '0 2px 12px rgba(0,0,0,0.4)',
-                }}
-              >
-                {slide.headline}
-              </h1>
-              <p
-                className="mb-[28px] max-w-[480px]"
-                style={{
-                  color: 'rgba(255,255,255,0.75)',
-                  fontSize: 'clamp(13px, 1.5vw, 16px)',
-                }}
-              >
-                {slide.subline}
-              </p>
+              <Sparkles className="w-3 h-3" />
+              Dein Store entdecken
+            </div>
+          </motion.div>
 
-              <Link
-                href={slide.href}
-                className="inline-flex items-center gap-[8px] px-[24px] py-[12px]
-                  rounded-[8px] font-bold transition-all duration-150
-                  hover:brightness-110 active:scale-[0.98]"
-                style={{
-                  background: '#D97706',
-                  color: '#FFFFFF',
-                  fontSize: 'clamp(13px, 1.2vw, 15px)',
-                  boxShadow: '0 4px 16px rgba(217,119,6,0.4)',
-                }}
-              >
-                {slide.cta}
-                <ChevronRight className="w-[14px] h-[14px]" />
-              </Link>
-            </motion.div>
-          </div>
-        </motion.div>
-      </AnimatePresence>
-
-      {/* Navigation arrows */}
-      {SLIDES.length > 1 && (
-        <>
-          <button
-            onClick={prev}
-            className="absolute left-[16px] top-1/2 -translate-y-1/2 z-20
-              w-[36px] h-[36px] rounded-full flex items-center justify-center
-              transition-all duration-150 hover:scale-110"
-            style={{ background: 'rgba(255,255,255,0.15)', color: '#FFF' }}
-            aria-label="Vorheriger Slide"
-          >
-            <ChevronLeft className="w-[18px] h-[18px]" />
-          </button>
-          <button
-            onClick={next}
-            className="absolute right-[16px] top-1/2 -translate-y-1/2 z-20
-              w-[36px] h-[36px] rounded-full flex items-center justify-center
-              transition-all duration-150 hover:scale-110"
-            style={{ background: 'rgba(255,255,255,0.15)', color: '#FFF' }}
-            aria-label="Nächster Slide"
-          >
-            <ChevronRight className="w-[18px] h-[18px]" />
-          </button>
-        </>
-      )}
-
-      {/* Dot indicators */}
-      <div className="absolute bottom-[16px] left-1/2 -translate-x-1/2 z-20 flex gap-[6px]">
-        {SLIDES.map((s, i) => (
-          <button
-            key={s.id}
-            onClick={() => { setDirection(i > current ? 1 : -1); setCurrent(i) }}
-            className="rounded-full transition-all duration-200"
+          {/* Headline */}
+          <motion.h1
+            initial={prefersReduced ? {} : { opacity: 0, y: 24 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.55, delay: 0.2, ease: 'easeOut' }}
+            className="font-black leading-[1.05] mb-5"
             style={{
-              width: current === i ? '20px' : '6px',
-              height: '6px',
-              background: current === i ? '#D97706' : 'rgba(255,255,255,0.4)',
+              color: '#FFFFFF',
+              fontSize: 'clamp(32px, 5vw, 64px)',
+              letterSpacing: '-0.02em',
             }}
-            aria-label={`Slide ${i + 1}`}
-          />
-        ))}
+          >
+            Entdecke Stil,{' '}
+            <span style={{ color: '#D97706' }}>
+              kuratiert
+            </span>
+            <br className="hidden sm:block" />
+            {' '}für dich.
+          </motion.h1>
+
+          {/* Subline */}
+          <motion.p
+            initial={prefersReduced ? {} : { opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.35 }}
+            className="mb-8 max-w-md"
+            style={{
+              color: 'rgba(255,255,255,0.65)',
+              fontSize: 'clamp(14px, 1.6vw, 17px)',
+              lineHeight: 1.6,
+            }}
+          >
+            Einzigartige Produkte von geprüften Sellern —
+            Mode, Accessoires und mehr. Keine Massenware, nur Qualität.
+          </motion.p>
+
+          {/* CTAs */}
+          <motion.div
+            initial={prefersReduced ? {} : { opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.45, delay: 0.5 }}
+            className="flex flex-wrap items-center gap-3"
+          >
+            <Link
+              href="/store"
+              className="inline-flex items-center gap-2 px-6 py-3 rounded-xl font-semibold text-sm
+                transition-all duration-200 hover:brightness-110 hover:shadow-lg active:scale-[0.98]"
+              style={{
+                background: '#D97706',
+                color: '#FFFFFF',
+                boxShadow: '0 4px 24px rgba(217,119,6,0.3)',
+              }}
+            >
+              Jetzt entdecken
+              <ArrowRight className="w-4 h-4" />
+            </Link>
+            <Link
+              href="/categories"
+              className="inline-flex items-center gap-2 px-6 py-3 rounded-xl font-semibold text-sm
+                transition-all duration-200 hover:bg-white/10 active:scale-[0.98]"
+              style={{
+                background: 'rgba(255,255,255,0.06)',
+                color: 'rgba(255,255,255,0.7)',
+                border: '1px solid rgba(255,255,255,0.1)',
+              }}
+            >
+              Kategorien
+            </Link>
+          </motion.div>
+
+          {/* Social proof line */}
+          <motion.div
+            initial={prefersReduced ? {} : { opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.5, delay: 0.7 }}
+            className="flex items-center gap-4 mt-10"
+          >
+            {/* Avatars */}
+            <div className="flex -space-x-2">
+              {['#D97706', '#6366F1', '#EC4899', '#10B981'].map((c, i) => (
+                <div
+                  key={i}
+                  className="w-7 h-7 rounded-full border-2 flex items-center justify-center text-[9px] font-bold text-white"
+                  style={{ background: c, borderColor: '#0E1320' }}
+                >
+                  {['S', 'M', 'L', 'A'][i]}
+                </div>
+              ))}
+            </div>
+            <div>
+              <p className="text-[12px] font-medium" style={{ color: 'rgba(255,255,255,0.65)' }}>
+                <span style={{ color: 'rgba(255,255,255,0.8)' }}>500+</span> aktive Seller
+              </p>
+              <p className="text-[11px]" style={{ color: 'rgba(255,255,255,0.45)' }}>
+                Geprüft & verifiziert
+              </p>
+            </div>
+          </motion.div>
+        </div>
       </div>
     </section>
   )

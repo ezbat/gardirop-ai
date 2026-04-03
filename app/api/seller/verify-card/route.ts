@@ -114,7 +114,7 @@ export async function POST(request: NextRequest) {
       .from('sellers')
       .select('id, card_verified')
       .eq('user_id', userId)
-      .single()
+      .maybeSingle()
 
     if (sellerError || !seller) {
       return NextResponse.json({ error: 'Satıcı bulunamadı' }, { status: 404 })

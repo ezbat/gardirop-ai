@@ -25,14 +25,14 @@ export default function VerifiedBadge({
     <div className={`inline-flex items-center ${className}`}>
       <div
         className="relative group"
-        title={showTooltip ? "Doğrulanmış Satıcı" : undefined}
+        title={showTooltip ? "Verifizierter Verkäufer" : undefined}
       >
         <BadgeCheck
           className={`${sizeClasses[size]} text-blue-500 fill-blue-500`}
         />
         {showTooltip && (
           <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 bg-black text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-10">
-            Doğrulanmış Satıcı
+            Verifizierter Verkäufer
           </div>
         )}
       </div>

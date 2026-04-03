@@ -20,7 +20,7 @@ export default function TermsOfServicePage() {
             </p>
 
             <div className="space-y-8 text-foreground">
-              {/* 1. Kabul ve Onay */}
+              {/* 1. Akzeptanz und Zustimmung */}
               <section>
                 <h2 className="text-2xl font-bold mb-4">{t('acceptanceOfTerms')}</h2>
                 <p className="text-muted-foreground">
@@ -28,7 +28,7 @@ export default function TermsOfServicePage() {
                 </p>
               </section>
 
-              {/* 2. Hizmet Tanımı */}
+              {/* 2. Dienstbeschreibung */}
               <section>
                 <h2 className="text-2xl font-bold mb-4">{t('serviceDescription')}</h2>
                 <p className="text-muted-foreground mb-3">
@@ -42,7 +42,7 @@ export default function TermsOfServicePage() {
                 </ul>
               </section>
 
-              {/* 3. Kullanıcı Hesapları */}
+              {/* 3. Benutzerkonten */}
               <section>
                 <h2 className="text-2xl font-bold mb-4">{t('userAccounts')}</h2>
                 <div className="space-y-3 text-muted-foreground">
@@ -52,7 +52,7 @@ export default function TermsOfServicePage() {
                 </div>
               </section>
 
-              {/* 4. Satıcı Koşulları */}
+              {/* 4. Verkäuferbedingungen */}
               <section>
                 <h2 className="text-2xl font-bold mb-4">{t('sellerTerms')}</h2>
                 <div className="space-y-3 text-muted-foreground">
@@ -64,7 +64,7 @@ export default function TermsOfServicePage() {
                 </div>
               </section>
 
-              {/* 5. Sipariş ve Ödeme */}
+              {/* 5. Bestellungen und Zahlungen */}
               <section>
                 <h2 className="text-2xl font-bold mb-4">{t('ordersAndPayments')}</h2>
                 <div className="space-y-3 text-muted-foreground">
@@ -75,7 +75,7 @@ export default function TermsOfServicePage() {
                 </div>
               </section>
 
-              {/* 6. Teslimat ve İade */}
+              {/* 6. Lieferung und Rückgabe */}
               <section>
                 <h2 className="text-2xl font-bold mb-4">{t('shippingAndReturns')}</h2>
                 <div className="space-y-3 text-muted-foreground">
@@ -85,7 +85,7 @@ export default function TermsOfServicePage() {
                 </div>
               </section>
 
-              {/* 7. Fikri Mülkiyet */}
+              {/* 7. Geistiges Eigentum */}
               <section>
                 <h2 className="text-2xl font-bold mb-4">{t('intellectualProperty')}</h2>
                 <p className="text-muted-foreground mb-3">
@@ -98,7 +98,7 @@ export default function TermsOfServicePage() {
                 </ul>
               </section>
 
-              {/* 8. Yasak Davranışlar */}
+              {/* 8. Verbotenes Verhalten */}
               <section>
                 <h2 className="text-2xl font-bold mb-4">{t('prohibitedConduct')}</h2>
                 <ul className="list-disc list-inside space-y-2 text-muted-foreground">
@@ -111,7 +111,7 @@ export default function TermsOfServicePage() {
                 </ul>
               </section>
 
-              {/* 9. Sorumluluk Reddi */}
+              {/* 9. Haftungsausschluss */}
               <section>
                 <h2 className="text-2xl font-bold mb-4">{t('disclaimer')}</h2>
                 <p className="text-muted-foreground">
@@ -119,7 +119,7 @@ export default function TermsOfServicePage() {
                 </p>
               </section>
 
-              {/* 10. Sorumluluk Sınırlaması */}
+              {/* 10. Haftungsbeschränkung */}
               <section>
                 <h2 className="text-2xl font-bold mb-4">{t('limitationOfLiability')}</h2>
                 <p className="text-muted-foreground">
@@ -127,7 +127,7 @@ export default function TermsOfServicePage() {
                 </p>
               </section>
 
-              {/* 11. Tazminat */}
+              {/* 11. Schadensersatz */}
               <section>
                 <h2 className="text-2xl font-bold mb-4">{t('indemnification')}</h2>
                 <p className="text-muted-foreground">
@@ -135,7 +135,7 @@ export default function TermsOfServicePage() {
                 </p>
               </section>
 
-              {/* 12. Uyuşmazlık Çözümü */}
+              {/* 12. Streitbeilegung */}
               <section>
                 <h2 className="text-2xl font-bold mb-4">{t('disputeResolutionLegal')}</h2>
                 <div className="space-y-3 text-muted-foreground">
@@ -145,7 +145,7 @@ export default function TermsOfServicePage() {
                 </div>
               </section>
 
-              {/* 13. Değişiklikler */}
+              {/* 13. Änderungen */}
               <section>
                 <h2 className="text-2xl font-bold mb-4">{t('modificationsToTerms')}</h2>
                 <p className="text-muted-foreground">
@@ -153,7 +153,7 @@ export default function TermsOfServicePage() {
                 </p>
               </section>
 
-              {/* 14. Fesih */}
+              {/* 14. Kündigung */}
               <section>
                 <h2 className="text-2xl font-bold mb-4">{t('termination')}</h2>
                 <p className="text-muted-foreground">
@@ -161,7 +161,7 @@ export default function TermsOfServicePage() {
                 </p>
               </section>
 
-              {/* 15. Çeşitli Hükümler */}
+              {/* 15. Verschiedene Bestimmungen */}
               <section>
                 <h2 className="text-2xl font-bold mb-4">{t('miscellaneous')}</h2>
                 <div className="space-y-3 text-muted-foreground">
@@ -172,7 +172,7 @@ export default function TermsOfServicePage() {
                 </div>
               </section>
 
-              {/* 16. İletişim */}
+              {/* 16. Kontakt */}
               <section>
                 <h2 className="text-2xl font-bold mb-4">{t('contact')}</h2>
                 <p className="text-muted-foreground mb-3">{t('contactTermsDesc')}</p>

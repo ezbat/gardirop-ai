@@ -8,7 +8,17 @@ export async function POST(request: NextRequest) {
   try {
     const { username, code } = await request.json()
 
-    if (username !== 'm3000') {
+    // Verify admin user exists in DB (no hardcoded usernames)
+    const { supabaseAdmin } = await import('@/lib/supabase-admin')
+    const { data: adminUser } = await supabaseAdmin
+      .from('users')
+      .select('id, role')
+      .eq('name', username)
+      .eq('role', 'admin')
+      .maybeSingle()
+
+    if (!adminUser) {
+      await new Promise(r => setTimeout(r, 200 + Math.random() * 300))
       return NextResponse.json({ error: 'Invalid user' }, { status: 401 })
     }
 

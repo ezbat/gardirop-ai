@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/app/api/auth/[...nextauth]/route' // ← YENİ!
 import { supabaseAdmin } from '@/lib/supabase-admin'
+import { isSellerOperational } from '@/lib/seller-status'
 
 export async function POST(request: Request) {
   try {
@@ -43,24 +44,28 @@ export async function POST(request: Request) {
       .select('*')
       .eq('id', sellerId)
       .eq('user_id', userId)
-      .single()
+      .maybeSingle()
 
     if (sellerError || !seller) {
       console.log('❌ Seller not found or unauthorized')
       return NextResponse.json({ error: 'Seller not found' }, { status: 403 })
     }
 
-    if (seller.status !== 'approved') {
+    if (!isSellerOperational(seller.status)) {
       return NextResponse.json({ error: 'Seller account not approved' }, { status: 403 })
     }
 
-    // Enforce Stripe verification for product listing
-    if (!seller.stripe_account_id || !seller.stripe_charges_enabled || !seller.stripe_payouts_enabled) {
+    // Enforce Stripe verification for product listing (production only)
+    const isProduction = process.env.NODE_ENV === 'production'
+    if (isProduction && (!seller.stripe_account_id || !seller.stripe_charges_enabled || !seller.stripe_payouts_enabled)) {
       return NextResponse.json({
         error: 'Stripe-Verifizierung erforderlich. Bitte schließen Sie die Verifizierung ab, bevor Sie Produkte einstellen.',
         code: 'STRIPE_VERIFICATION_REQUIRED',
         action: 'COMPLETE_ONBOARDING'
       }, { status: 403 })
+    }
+    if (!isProduction && (!seller.stripe_account_id || !seller.stripe_charges_enabled || !seller.stripe_payouts_enabled)) {
+      console.warn('[products/create] Stripe not verified — skipping enforcement in development')
     }
 
     console.log('✅ Seller verified:', seller.shop_name)
@@ -130,10 +135,11 @@ export async function POST(request: Request) {
         sizes: sizes || [],
         stock_quantity: parseInt(stockQuantity) || 0,
         images: imageUrls,
-        status: 'active'
+        status: 'active',
+        moderation_status: 'pending'
       })
       .select()
-      .single()
+      .maybeSingle()
 
     if (productError) {
       console.error('❌ Product creation error:', productError)

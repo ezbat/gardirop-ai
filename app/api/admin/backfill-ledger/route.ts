@@ -45,6 +45,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import crypto from 'crypto'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { recordPaymentReceived } from '@/lib/ledger-engine'
+import { requireAdmin } from '@/lib/admin-auth'
 
 // ─── Tunables ────────────────────────────────────────────────────────
 const SCAN_LIMIT    = 200  // how many recent paid orders to inspect
@@ -96,63 +97,6 @@ function productionGate(): NextResponse | null {
     return NextResponse.json({ success: false, error: 'Not found' }, { status: 404 })
   }
   return null
-}
-
-// ─── Auth ────────────────────────────────────────────────────────────
-type AuthFailure = { ok: false; status: 401 | 403 | 429 | 500; error: string }
-type AuthSuccess = { ok: true }
-type AuthResult  = AuthSuccess | AuthFailure
-
-function authorize(request: NextRequest, ip: string): AuthResult {
-  // 1. Ensure ADMIN_TOKEN is actually configured
-  const expected = process.env.ADMIN_TOKEN
-  if (!expected) {
-    console.error('[Backfill] ADMIN_TOKEN is not configured in environment')
-    return { ok: false, status: 500, error: 'ADMIN_TOKEN not configured' }
-  }
-
-  // 2. Token must be present
-  const token = request.headers.get('x-admin-token')
-  if (!token) {
-    return { ok: false, status: 401, error: 'Unauthorized' }
-  }
-
-  // 3. Timing-safe comparison — prevents timing attacks
-  //    Length mismatch must also be masked to avoid leaking token length.
-  const tokenBuf    = Buffer.from(token)
-  const expectedBuf = Buffer.from(expected)
-
-  if (tokenBuf.length !== expectedBuf.length) {
-    // Don't short-circuit with `return` before doing a dummy timingSafeEqual
-    // to keep timing consistent; but length mismatch is never valid.
-    crypto.timingSafeEqual(
-      Buffer.alloc(expectedBuf.length),
-      expectedBuf,
-    )
-    return { ok: false, status: 401, error: 'Unauthorized' }
-  }
-
-  if (!crypto.timingSafeEqual(tokenBuf, expectedBuf)) {
-    return { ok: false, status: 401, error: 'Unauthorized' }
-  }
-
-  // 4. IP allowlist (opt-in — only active when env var is set)
-  const allowedIps = process.env.ADMIN_ALLOWED_IPS
-  if (allowedIps) {
-    const list = allowedIps.split(',').map(s => s.trim()).filter(Boolean)
-    if (list.length > 0 && !list.includes(ip)) {
-      console.warn(`[Backfill] Rejected request from disallowed IP: ${ip}`)
-      return { ok: false, status: 403, error: 'Forbidden' }
-    }
-  }
-
-  // 5. Rate limit
-  if (isRateLimited(ip)) {
-    console.warn(`[Backfill] Rate limit exceeded for IP: ${ip}`)
-    return { ok: false, status: 429, error: 'Too many requests — try again later' }
-  }
-
-  return { ok: true }
 }
 
 // ─── Audit logging ───────────────────────────────────────────────────
@@ -246,11 +190,10 @@ export async function GET(request: NextRequest) {
   const gate = productionGate()
   if (gate) return gate
 
-  const ip   = getClientIp(request)
-  const auth = authorize(request, ip)
-  if (!auth.ok) {
-    return NextResponse.json({ success: false, error: auth.error }, { status: auth.status })
-  }
+  const auth = requireAdmin(request)
+  if (auth.error) return auth.error
+
+  const ip = getClientIp(request)
 
   const result = await findMissing()
   if (result.error) {
@@ -275,13 +218,11 @@ export async function POST(request: NextRequest) {
   const gate = productionGate()
   if (gate) return gate
 
+  const auth = requireAdmin(request)
+  if (auth.error) return auth.error
+
   const ip        = getClientIp(request)
   const requestId = crypto.randomUUID()
-  const auth      = authorize(request, ip)
-
-  if (!auth.ok) {
-    return NextResponse.json({ success: false, error: auth.error }, { status: auth.status })
-  }
 
   console.log(`[Backfill] Starting ledger backfill requestId=${requestId} ip=${ip}`)
 
@@ -353,7 +294,7 @@ export async function POST(request: NextRequest) {
       continue
     }
 
-    if (result.duplicate) {
+    if ((result as any).duplicate) {
       console.log(`[Backfill] SKIP (idempotency key already used): ${orderId}`)
       summary.skipped++
     } else {

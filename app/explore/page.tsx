@@ -14,8 +14,6 @@ import {
 import FloatingParticles from "@/components/floating-particles"
 import PostDetailModal from "@/components/post-detail-modal"
 import ReelsFeed from "@/components/reels/reels-feed"
-import { supabase } from "@/lib/supabase"
-import { createNotification } from "@/lib/notifications"
 import { useLanguage } from "@/lib/language-context"
 
 interface Post {
@@ -113,6 +111,15 @@ function GridItem({ post, index, onClick, onLike, onBookmark, userId }: {
         </div>
       )}
 
+      {/* Promoted badge */}
+      {(post as any).is_promoted && !hasProducts && (
+        <div className="absolute top-2 left-2 flex items-center gap-1 px-1.5 py-0.5 rounded-md"
+          style={{ background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }}>
+          <Sparkles className="w-3 h-3 text-amber-400" />
+          <span className="text-white/70 text-[9px] font-semibold">Gesponsert</span>
+        </div>
+      )}
+
       {/* Hover overlay */}
       <AnimatePresence>
         {isHovered && (
@@ -201,7 +208,7 @@ export default function ExplorePage() {
   const [searchQuery, setSearchQuery] = useState('')
   const [searchResults, setSearchResults] = useState<Post[]>([])
   const [isSearching, setIsSearching] = useState(false)
-  const [activeFilter, setActiveFilter] = useState<string>('all')
+  const [activeFilter, setActiveFilter] = useState<string>('trending')
   const [showFilters, setShowFilters] = useState(false)
   const [page, setPage] = useState(0)
   const [hasMore, setHasMore] = useState(true)
@@ -222,13 +229,11 @@ export default function ExplorePage() {
   ], [])
 
   const filterCategories = useMemo(() => [
-    { id: 'all', label: t('all') || 'Alle', icon: Sparkles },
-    { id: 'trending', label: t('trending') || 'Trending', icon: TrendingUp },
-    { id: 'forYou', label: t('forYou') || 'Für dich', icon: Crown },
-    { id: 'new', label: t('newLabel') || 'Neu', icon: Zap },
+    { id: 'trending', label: 'Trending', icon: TrendingUp },
+    { id: 'new', label: 'Neu', icon: Zap },
+    { id: 'following', label: 'Folge ich', icon: Users },
     { id: 'shop', label: 'Shop', icon: ShoppingBag },
-    { id: 'popular', label: t('popular') || 'Beliebt', icon: Flame },
-  ], [t])
+  ], [])
 
   // Load posts
   useEffect(() => {
@@ -241,49 +246,30 @@ export default function ExplorePage() {
   const loadPosts = async () => {
     setLoading(true)
     try {
-      let query = supabase
-        .from('posts')
-        .select('*, product_tags:post_product_tags(id, product_id, product:products!product_id(id, title, price, images))')
+      // Use the new feed API — seller-only posts, engagement-ranked
+      const filterParam = activeFilter === 'all' ? 'trending' : activeFilter
+      const res = await fetch(`/api/feed?filter=${filterParam}&limit=30`)
+      const data = await res.json()
 
-      // Apply filter logic
-      if (activeFilter === 'trending') {
-        query = query.order('likes_count', { ascending: false })
-      } else if (activeFilter === 'new') {
-        query = query.order('created_at', { ascending: false })
-      } else if (activeFilter === 'shop') {
-        // Posts that have product tags
-        query = query.order('created_at', { ascending: false })
-      } else if (activeFilter === 'popular') {
-        query = query.order('view_count', { ascending: false })
-      } else {
-        query = query.order('created_at', { ascending: false })
-      }
+      if (!data.success) throw new Error(data.error)
 
-      const { data: postsData, error: postsError } = await query.limit(30)
-      if (postsError) throw postsError
+      // Map feed response to Post shape expected by GridItem
+      const mapped = (data.posts || [])
+        .filter((p: any) => !p.is_video)
+        .map((p: any) => ({
+          ...p,
+          user: p.seller
+            ? { id: p.user_id, name: p.seller.shop_name, avatar_url: p.seller.logo_url, username: p.seller.shop_name }
+            : { id: p.user_id, name: 'Unknown', avatar_url: null },
+          product_tags: (p.linked_products || []).map((pr: any) => ({
+            id: pr.id,
+            product_id: pr.id,
+            product: { id: pr.id, title: pr.title, price: pr.price, images: pr.images || [] },
+          })),
+        }))
 
-      // Filter video vs image posts
-      let filtered = (postsData || []).filter(p => !p.is_video)
-
-      // For shop filter, only show posts with product tags
-      if (activeFilter === 'shop') {
-        filtered = filtered.filter(p => p.product_tags && p.product_tags.length > 0)
-      }
-
-      const postsWithUsers = await Promise.all(filtered.map(async (post) => {
-        const { data: userData } = await supabase.from('users').select('id, name, username, avatar_url').eq('id', post.user_id).single()
-        let liked_by_user = false
-        let bookmarked_by_user = false
-        if (userId) {
-          const { data: likeData } = await supabase.from('likes').select('id').eq('post_id', post.id).eq('user_id', userId).maybeSingle()
-          liked_by_user = !!likeData
-          const { data: bookmarkData } = await supabase.from('bookmarks').select('id').eq('post_id', post.id).eq('user_id', userId).maybeSingle()
-          bookmarked_by_user = !!bookmarkData
-        }
-        return { ...post, user: userData || { id: post.user_id, name: 'Unknown', avatar_url: null }, liked_by_user, bookmarked_by_user }
-      }))
-      setPosts(postsWithUsers)
-      setHasMore(filtered.length >= 30)
+      setPosts(mapped)
+      setHasMore(data.hasMore || false)
     } catch (error) {
       console.error('Load posts error:', error)
     } finally {
@@ -294,15 +280,18 @@ export default function ExplorePage() {
   // Load reel preview thumbnails for horizontal scroll
   const loadReelPreviews = async () => {
     try {
-      const { data, error } = await supabase
-        .from('posts')
-        .select('id, video_url, thumbnail_url, image_url, caption, user_id, likes_count, comments_count, view_count, created_at, is_video')
-        .eq('is_video', true)
-        .order('view_count', { ascending: false })
-        .limit(10)
-
-      if (!error && data) {
-        setReelPosts(data as any)
+      const res = await fetch('/api/feed?filter=trending&limit=10')
+      const data = await res.json()
+      if (data.success) {
+        const videos = (data.posts || [])
+          .filter((p: any) => p.is_video || p.video_url)
+          .map((p: any) => ({
+            ...p,
+            user: p.seller
+              ? { id: p.user_id, name: p.seller.shop_name, avatar_url: p.seller.logo_url }
+              : { id: p.user_id, name: 'Unknown', avatar_url: null },
+          }))
+        setReelPosts(videos)
       }
     } catch (err) {
       console.error('Load reel previews error:', err)
@@ -323,19 +312,29 @@ export default function ExplorePage() {
     setIsSearching(true)
     searchTimeoutRef.current = setTimeout(async () => {
       try {
-        const { data, error } = await supabase
-          .from('posts')
-          .select('*')
-          .or(`caption.ilike.%${query}%`)
-          .order('likes_count', { ascending: false })
-          .limit(20)
+        // Use feed API — results are seller posts, enriched with seller info
+        const res = await fetch(`/api/feed?filter=new&limit=30`)
+        const data = await res.json()
 
-        if (!error && data) {
-          const withUsers = await Promise.all(data.map(async (post) => {
-            const { data: userData } = await supabase.from('users').select('id, name, username, avatar_url').eq('id', post.user_id).single()
-            return { ...post, user: userData || { id: post.user_id, name: 'Unknown', avatar_url: null } }
-          }))
-          setSearchResults(withUsers)
+        if (data.success) {
+          const lowerQuery = query.toLowerCase()
+          const filtered = (data.posts || [])
+            .filter((p: any) => {
+              const caption = (p.caption || '').toLowerCase()
+              const tags = (p.hashtags || []).join(' ').toLowerCase()
+              const sellerName = (p.seller?.shop_name || '').toLowerCase()
+              return caption.includes(lowerQuery) || tags.includes(lowerQuery) || sellerName.includes(lowerQuery)
+            })
+            .map((p: any) => ({
+              ...p,
+              user: p.seller
+                ? { id: p.user_id, name: p.seller.shop_name, avatar_url: p.seller.logo_url }
+                : { id: p.user_id, name: 'Unknown', avatar_url: null },
+              product_tags: (p.linked_product_ids || []).length > 0
+                ? p.linked_product_ids.map((pid: string) => ({ id: pid, product_id: pid }))
+                : [],
+            }))
+          setSearchResults(filtered)
         }
       } catch (err) {
         console.error('Search error:', err)
@@ -357,13 +356,10 @@ export default function ExplorePage() {
   const toggleLike = async (postId: string, postUserId: string, currentlyLiked: boolean) => {
     if (!userId) return
     try {
-      if (currentlyLiked) {
-        await supabase.from('likes').delete().eq('post_id', postId).eq('user_id', userId)
-        setPosts(prev => prev.map(post => post.id === postId ? { ...post, likes_count: post.likes_count - 1, liked_by_user: false } : post))
-      } else {
-        await supabase.from('likes').insert({ post_id: postId, user_id: userId })
-        setPosts(prev => prev.map(post => post.id === postId ? { ...post, likes_count: post.likes_count + 1, liked_by_user: true } : post))
-        if (postUserId !== userId) await createNotification(postUserId, userId, 'like', 'liked your post')
+      const res = await fetch(`/api/posts/${postId}/like`, { method: 'POST' })
+      const data = await res.json()
+      if (data.success) {
+        setPosts(prev => prev.map(post => post.id === postId ? { ...post, likes_count: data.liked ? post.likes_count + 1 : post.likes_count - 1, liked_by_user: data.liked } : post))
       }
     } catch (error) {
       console.error('Toggle like error:', error)
@@ -373,7 +369,7 @@ export default function ExplorePage() {
   const toggleBookmark = async (postId: string, currentlyBookmarked: boolean) => {
     if (!userId) return
     try {
-      const response = await fetch('/api/bookmark', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ userId, postId, action: currentlyBookmarked ? 'remove' : 'add' }) })
+      const response = await fetch('/api/bookmark', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ postId, action: currentlyBookmarked ? 'remove' : 'add' }) })
       if (!response.ok) throw new Error('Bookmark failed')
       setPosts(prev => prev.map(post => post.id === postId ? { ...post, bookmarked_by_user: !currentlyBookmarked } : post))
     } catch (error) {

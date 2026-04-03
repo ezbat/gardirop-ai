@@ -1,15 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { stripe } from '@/lib/stripe'
 import { supabaseAdmin } from '@/lib/supabase-admin'
-import { Resend } from 'resend'
-import { getOrderConfirmationEmail } from '@/lib/email-templates'
+import { getOrderConfirmationEmail, getSellerNewOrderEmail } from '@/lib/email-templates'
+import { sendEmail } from '@/lib/email'
 import { claimWebhookEvent, completeWebhookEvent, failWebhookEvent } from '@/lib/webhook-idempotency'
 import { createRequestLogger } from '@/lib/logger'
 import { recordPaymentReceived, recordTaxCollected } from '@/lib/ledger-engine'
 import { recordPaymentTransaction } from '@/lib/reconciliation-engine'
 import type Stripe from 'stripe'
 
-const resend = new Resend(process.env.RESEND_API_KEY)
+import { createSellerNotification } from '@/lib/notifications'
 
 export async function POST(request: NextRequest) {
   const reqLog = createRequestLogger(request)
@@ -69,6 +69,16 @@ export async function POST(request: NextRequest) {
         await handlePaymentFailed(event.data.object as Stripe.PaymentIntent)
         break
 
+      // ── Subscription lifecycle events ─────────────────────────
+      case 'customer.subscription.created':
+      case 'customer.subscription.updated':
+        await handleSubscriptionUpdate(event.data.object as Stripe.Subscription)
+        break
+
+      case 'customer.subscription.deleted':
+        await handleSubscriptionCanceled(event.data.object as Stripe.Subscription)
+        break
+
       default:
         reqLog.info('Unhandled event type', { eventType: event.type })
     }
@@ -99,10 +109,13 @@ async function handleCheckoutSessionCompleted(
     paymentIntentId: session.payment_intent ?? null,
   })
 
-  let orderId = session.metadata?.orderId
+  let orderId: string
 
   // ─── 2. Resolve orderId (metadata or DB fallback) ──────────────────
-  if (!orderId) {
+  const metaOrderId = session.metadata?.orderId
+  if (metaOrderId) {
+    orderId = metaOrderId
+  } else {
     console.error('[Webhook] Missing metadata.orderId', {
       sessionId: session.id,
       eventId,
@@ -302,22 +315,78 @@ async function handleCheckoutSessionCompleted(
     return
   }
 
+  // Customer order confirmation email (best-effort)
   try {
     const emailTemplate = getOrderConfirmationEmail(order as any)
-
-    await resend.emails.send({
-      from: process.env.RESEND_FROM_EMAIL || 'Wearo <orders@wearo.com>',
+    await sendEmail({
       to: order.user.email,
       subject: emailTemplate.subject,
       html: emailTemplate.html,
+      tag: 'order_confirmed',
     })
   } catch (emailError) {
-    const { logger } = await import('@/lib/logger')
-    logger.warn('Failed to send order confirmation email', {
+    console.warn('[Webhook] Failed to send order confirmation email', {
       orderId,
       error: emailError instanceof Error ? emailError.message : String(emailError),
     })
   }
+
+  // Seller new-order emails (best-effort, fire-and-forget)
+  void (async () => {
+    try {
+      // Get order items with seller info
+      const { data: orderItems } = await supabaseAdmin
+        .from('order_items')
+        .select('product_id, quantity, products(seller_id, price)')
+        .eq('order_id', orderId)
+
+      if (!orderItems) return
+
+      // Group by seller
+      const sellerMap = new Map<string, { itemCount: number; totalAmount: number }>()
+      for (const item of orderItems) {
+        const product = (item as any).products
+        const sid = product?.seller_id
+        if (!sid) continue
+        const entry = sellerMap.get(sid) || { itemCount: 0, totalAmount: 0 }
+        entry.itemCount += item.quantity ?? 1
+        entry.totalAmount += (Number(product.price) || 0) * (item.quantity ?? 1)
+        sellerMap.set(sid, entry)
+      }
+
+      for (const [sellerId, info] of sellerMap) {
+        // In-app notification
+        createSellerNotification(sellerId, 'new_order', {
+          body: `Neue Bestellung: ${info.itemCount} Artikel für ${new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(info.totalAmount)}`,
+          link: '/seller/orders',
+        })
+
+        // Email
+        const { data: seller } = await supabaseAdmin
+          .from('sellers')
+          .select('shop_name, user_id')
+          .eq('id', sellerId)
+          .maybeSingle()
+        if (!seller?.user_id) continue
+        const { data: sellerUser } = await supabaseAdmin
+          .from('users')
+          .select('email')
+          .eq('id', seller.user_id)
+          .maybeSingle()
+        if (!sellerUser?.email) continue
+
+        const tpl = getSellerNewOrderEmail({
+          shopName: seller.shop_name || 'Shop',
+          orderId,
+          totalAmount: info.totalAmount,
+          itemCount: info.itemCount,
+        })
+        await sendEmail({ to: sellerUser.email, subject: tpl.subject, html: tpl.html, tag: 'seller_new_order' })
+      }
+    } catch (err) {
+      console.warn('[Webhook] Seller new-order emails failed:', err)
+    }
+  })()
 }
 
 async function handleCheckoutSessionExpired(session: Stripe.Checkout.Session) {
@@ -351,4 +420,69 @@ async function handlePaymentFailed(paymentIntent: Stripe.PaymentIntent) {
       })
       .eq('id', order.id)
   }
+}
+
+// ─── Subscription handlers ─────────────────────────────────────────────────
+
+async function handleSubscriptionUpdate(subscription: Stripe.Subscription) {
+  const sellerId = subscription.metadata?.sellerId
+  if (!sellerId) {
+    console.warn('[webhook] Subscription without sellerId metadata:', subscription.id)
+    return
+  }
+
+  const planId = subscription.metadata?.planId || 'starter'
+  const status = subscription.status // active, past_due, trialing, etc.
+
+  // Upsert subscription record
+  await supabaseAdmin
+    .from('subscriptions')
+    .upsert({
+      seller_id: sellerId,
+      stripe_subscription_id: subscription.id,
+      stripe_customer_id: typeof subscription.customer === 'string'
+        ? subscription.customer
+        : subscription.customer?.id,
+      plan_id: planId,
+      status,
+      current_period_start: new Date((subscription as any).current_period_start * 1000).toISOString(),
+      current_period_end: new Date((subscription as any).current_period_end * 1000).toISOString(),
+      cancel_at_period_end: subscription.cancel_at_period_end,
+      billing_interval: subscription.items.data[0]?.plan?.interval === 'year' ? 'yearly' : 'monthly',
+      updated_at: new Date().toISOString(),
+    }, {
+      onConflict: 'stripe_subscription_id',
+    })
+
+  // Update seller plan_id if subscription is active
+  if (status === 'active' || status === 'trialing') {
+    await supabaseAdmin
+      .from('sellers')
+      .update({ plan_id: planId, updated_at: new Date().toISOString() })
+      .eq('id', sellerId)
+  }
+
+  console.log(`[webhook] Subscription ${subscription.id} updated: plan=${planId} status=${status}`)
+}
+
+async function handleSubscriptionCanceled(subscription: Stripe.Subscription) {
+  const sellerId = subscription.metadata?.sellerId
+  if (!sellerId) return
+
+  // Update subscription status
+  await supabaseAdmin
+    .from('subscriptions')
+    .update({
+      status: 'canceled',
+      updated_at: new Date().toISOString(),
+    })
+    .eq('stripe_subscription_id', subscription.id)
+
+  // Downgrade seller to starter
+  await supabaseAdmin
+    .from('sellers')
+    .update({ plan_id: 'starter', updated_at: new Date().toISOString() })
+    .eq('id', sellerId)
+
+  console.log(`[webhook] Subscription ${subscription.id} canceled, seller ${sellerId} downgraded to starter`)
 }

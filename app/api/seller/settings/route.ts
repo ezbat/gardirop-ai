@@ -1,19 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { supabase } from '@/lib/supabase'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/app/api/auth/[...nextauth]/route'
+import { supabaseAdmin } from '@/lib/supabase-admin'
 
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
-    const userId = request.headers.get('x-user-id')
-
-    if (!userId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    const session = await getServerSession(authOptions)
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Nicht authentifiziert' }, { status: 401 })
     }
 
-    const { data: seller, error } = await supabase
+    const { data: seller, error } = await supabaseAdmin
       .from('sellers')
       .select('*')
-      .eq('user_id', userId)
-      .single()
+      .eq('user_id', session.user.id)
+      .maybeSingle()
 
     if (error || !seller) {
       return NextResponse.json({ error: 'Seller not found' }, { status: 404 })
@@ -28,16 +29,16 @@ export async function GET(request: NextRequest) {
 
 export async function PUT(request: NextRequest) {
   try {
-    const userId = request.headers.get('x-user-id')
-    const body = await request.json()
-
-    if (!userId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    const session = await getServerSession(authOptions)
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Nicht authentifiziert' }, { status: 401 })
     }
+
+    const body = await request.json()
 
     const {
       shop_name,
-      description, // this will map to shop_description
+      description,
       phone,
       address,
       city,
@@ -49,17 +50,17 @@ export async function PUT(request: NextRequest) {
       paypal_email
     } = body
 
-    const { data: seller, error: findError } = await supabase
+    const { data: seller, error: findError } = await supabaseAdmin
       .from('sellers')
       .select('id')
-      .eq('user_id', userId)
-      .single()
+      .eq('user_id', session.user.id)
+      .maybeSingle()
 
     if (findError || !seller) {
       return NextResponse.json({ error: 'Seller not found' }, { status: 404 })
     }
 
-    const { data: updatedSeller, error: updateError } = await supabase
+    const { data: updatedSeller, error: updateError } = await supabaseAdmin
       .from('sellers')
       .update({
         shop_name,
@@ -77,7 +78,7 @@ export async function PUT(request: NextRequest) {
       })
       .eq('id', seller.id)
       .select()
-      .single()
+      .maybeSingle()
 
     if (updateError) throw updateError
 

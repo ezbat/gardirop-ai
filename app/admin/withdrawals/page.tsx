@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { useSession } from "next-auth/react"
+import { getAdminToken } from '@/lib/admin-fetch'
 import { Download, Loader2, Check, XCircle, Clock, Building2, CreditCard } from "lucide-react"
 import FloatingParticles from "@/components/floating-particles"
 
@@ -52,7 +53,7 @@ export default function AdminWithdrawalsPage() {
     try {
       const url = filter ? `/api/admin/withdrawals?status=${filter}` : '/api/admin/withdrawals'
       const response = await fetch(url, {
-        headers: { 'x-user-id': userId }
+        headers: { 'x-admin-token': getAdminToken() }
       })
       const data = await response.json()
 
@@ -77,7 +78,7 @@ export default function AdminWithdrawalsPage() {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
-          'x-user-id': userId!
+          'x-admin-token': getAdminToken()
         },
         body: JSON.stringify({
           requestId,

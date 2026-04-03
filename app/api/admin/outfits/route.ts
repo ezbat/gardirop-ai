@@ -1,32 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { supabase } from '@/lib/supabase'
+import { supabaseAdmin } from '@/lib/supabase-admin'
+import { requireAdmin } from '@/lib/admin-auth'
 
 // GET: Fetch outfits for moderation
 export async function GET(request: NextRequest) {
   try {
-    const userId = request.headers.get('x-user-id')
-
-    if (!userId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
-    // Admin check (simplified for m3000)
-    if (userId !== 'm3000') {
-      const { data: user } = await supabase
-        .from('users')
-        .select('role')
-        .eq('id', userId)
-        .single()
-
-      if (user?.role !== 'admin') {
-        return NextResponse.json({ error: 'Forbidden: Admin access required' }, { status: 403 })
-      }
-    }
+    const auth = requireAdmin(request)
+    if (auth.error) return auth.error
 
     const { searchParams } = new URL(request.url)
     const status = searchParams.get('status')
 
-    let query = supabase
+    let query = supabaseAdmin
       .from('outfits')
       .select(`
         *,
@@ -55,24 +40,8 @@ export async function GET(request: NextRequest) {
 // PATCH: Update outfit moderation status
 export async function PATCH(request: NextRequest) {
   try {
-    const userId = request.headers.get('x-user-id')
-
-    if (!userId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
-    // Admin check (simplified for m3000)
-    if (userId !== 'm3000') {
-      const { data: user } = await supabase
-        .from('users')
-        .select('role')
-        .eq('id', userId)
-        .single()
-
-      if (user?.role !== 'admin') {
-        return NextResponse.json({ error: 'Forbidden: Admin access required' }, { status: 403 })
-      }
-    }
+    const auth = requireAdmin(request)
+    if (auth.error) return auth.error
 
     const { outfitId, action, notes } = await request.json()
 
@@ -82,13 +51,13 @@ export async function PATCH(request: NextRequest) {
 
     const status = action === 'approve' ? 'approved' : 'rejected'
 
-    const { error } = await supabase
+    const { error } = await supabaseAdmin
       .from('outfits')
       .update({
         moderation_status: status,
         moderation_notes: notes || null,
         moderated_at: new Date().toISOString(),
-        moderated_by: userId
+        moderated_by: 'admin'
       })
       .eq('id', outfitId)
 
@@ -98,8 +67,8 @@ export async function PATCH(request: NextRequest) {
     }
 
     // Log admin action
-    await supabase.from('admin_actions').insert({
-      admin_id: userId,
+    await supabaseAdmin.from('admin_actions').insert({
+      admin_id: 'admin',
       action_type: action,
       target_type: 'outfit',
       target_id: outfitId,

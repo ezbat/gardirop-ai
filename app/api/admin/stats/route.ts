@@ -1,19 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { supabase } from '@/lib/supabase'
+import { supabaseAdmin } from '@/lib/supabase-admin'
+import { requireAdmin } from '@/lib/admin-auth'
 
 // GET: Fetch admin dashboard statistics
 export async function GET(request: NextRequest) {
   try {
-    const userId = request.headers.get('x-user-id')
-
-    if (!userId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
-    // Admin check (simplified for m3000)
-    if (userId !== 'm3000') {
-      return NextResponse.json({ error: 'Forbidden: Admin access required' }, { status: 403 })
-    }
+    const auth = requireAdmin(request)
+    if (auth.error) return auth.error
 
     // Fetch all statistics in parallel
     const [
@@ -34,22 +27,22 @@ export async function GET(request: NextRequest) {
       { data: recentOrders },
       { data: allOrders },
     ] = await Promise.all([
-      supabase.from('users').select('*', { count: 'exact', head: true }),
-      supabase.from('sellers').select('*', { count: 'exact', head: true }),
-      supabase.from('sellers').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
-      supabase.from('sellers').select('*', { count: 'exact', head: true }).eq('status', 'approved'),
-      supabase.from('sellers').select('*', { count: 'exact', head: true }).eq('status', 'rejected'),
-      supabase.from('products').select('*', { count: 'exact', head: true }),
-      supabase.from('products').select('*', { count: 'exact', head: true }).eq('moderation_status', 'pending'),
-      supabase.from('products').select('*', { count: 'exact', head: true }).eq('moderation_status', 'approved'),
-      supabase.from('products').select('*', { count: 'exact', head: true }).eq('moderation_status', 'rejected'),
-      supabase.from('outfits').select('*', { count: 'exact', head: true }),
-      supabase.from('outfits').select('*', { count: 'exact', head: true }).eq('moderation_status', 'pending'),
-      supabase.from('outfits').select('*', { count: 'exact', head: true }).eq('moderation_status', 'approved'),
-      supabase.from('outfits').select('*', { count: 'exact', head: true }).eq('moderation_status', 'rejected'),
-      supabase.from('orders').select('*', { count: 'exact', head: true }),
-      supabase.from('orders').select('*, user:users(email, name)').order('created_at', { ascending: false }).limit(10),
-      supabase.from('orders').select('total_amount, created_at, payment_status').order('created_at', { ascending: false }).limit(100),
+      supabaseAdmin.from('users').select('*', { count: 'exact', head: true }),
+      supabaseAdmin.from('sellers').select('*', { count: 'exact', head: true }),
+      supabaseAdmin.from('sellers').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
+      supabaseAdmin.from('sellers').select('*', { count: 'exact', head: true }).in('status', ['active', 'approved']),
+      supabaseAdmin.from('sellers').select('*', { count: 'exact', head: true }).eq('status', 'rejected'),
+      supabaseAdmin.from('products').select('*', { count: 'exact', head: true }),
+      supabaseAdmin.from('products').select('*', { count: 'exact', head: true }).eq('moderation_status', 'pending'),
+      supabaseAdmin.from('products').select('*', { count: 'exact', head: true }).eq('moderation_status', 'approved'),
+      supabaseAdmin.from('products').select('*', { count: 'exact', head: true }).eq('moderation_status', 'rejected'),
+      supabaseAdmin.from('outfits').select('*', { count: 'exact', head: true }),
+      supabaseAdmin.from('outfits').select('*', { count: 'exact', head: true }).eq('moderation_status', 'pending'),
+      supabaseAdmin.from('outfits').select('*', { count: 'exact', head: true }).eq('moderation_status', 'approved'),
+      supabaseAdmin.from('outfits').select('*', { count: 'exact', head: true }).eq('moderation_status', 'rejected'),
+      supabaseAdmin.from('orders').select('*', { count: 'exact', head: true }),
+      supabaseAdmin.from('orders').select('*, user:users(email, name)').order('created_at', { ascending: false }).limit(10),
+      supabaseAdmin.from('orders').select('total_amount, created_at, payment_status').order('created_at', { ascending: false }).limit(100),
     ])
 
     // Calculate total revenue from paid orders

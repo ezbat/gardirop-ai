@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { getLedgerEntries } from '@/lib/ledger-engine'
+import { requireAdmin } from '@/lib/admin-auth'
 
 /**
  * GET /api/admin/finances/ledger
@@ -10,21 +11,8 @@ import { getLedgerEntries } from '@/lib/ledger-engine'
  */
 export async function GET(request: NextRequest) {
   try {
-    const userId = request.headers.get('x-user-id')
-    if (!userId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
-    if (userId !== 'm3000') {
-      const { data: user } = await supabaseAdmin
-        .from('users')
-        .select('role')
-        .eq('id', userId)
-        .single()
-      if (user?.role !== 'admin') {
-        return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-      }
-    }
+    const auth = requireAdmin(request)
+    if (auth.error) return auth.error
 
     const { searchParams } = new URL(request.url)
     const accountType = searchParams.get('accountType') || undefined

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { supabase } from '@/lib/supabase'
+import { supabaseAdmin } from '@/lib/supabase-admin'
+import { requireAdmin } from '@/lib/admin-auth'
 import { Resend } from 'resend'
 import { getSellerApprovalEmail, getSellerRejectionEmail } from '@/lib/email-templates'
 
@@ -8,28 +9,13 @@ const resend = new Resend(process.env.RESEND_API_KEY)
 // GET: Fetch all sellers with status filter
 export async function GET(request: NextRequest) {
   try {
+    const auth = requireAdmin(request)
+    if (auth.error) return auth.error
+
     const { searchParams } = new URL(request.url)
     const status = searchParams.get('status') // pending, approved, rejected, suspended
-    const userId = request.headers.get('x-user-id')
 
-    if (!userId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
-    // Admin check (simplified for m3000)
-    if (userId !== 'm3000') {
-      const { data: user } = await supabase
-        .from('users')
-        .select('role')
-        .eq('id', userId)
-        .single()
-
-      if (user?.role !== 'admin') {
-        return NextResponse.json({ error: 'Forbidden: Admin access required' }, { status: 403 })
-      }
-    }
-
-    let query = supabase
+    let query = supabaseAdmin
       .from('sellers')
       .select(`
         *,
@@ -58,26 +44,11 @@ export async function GET(request: NextRequest) {
 // PATCH: Update seller status (approve/reject/suspend)
 export async function PATCH(request: NextRequest) {
   try {
-    const userId = request.headers.get('x-user-id')
+    const auth = requireAdmin(request)
+    if (auth.error) return auth.error
+
     const body = await request.json()
     const { sellerId, status, rejectionReason } = body
-
-    if (!userId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
-    // Admin check (simplified for m3000)
-    if (userId !== 'm3000') {
-      const { data: user } = await supabase
-        .from('users')
-        .select('role')
-        .eq('id', userId)
-        .single()
-
-      if (user?.role !== 'admin') {
-        return NextResponse.json({ error: 'Forbidden: Admin access required' }, { status: 403 })
-      }
-    }
 
     if (!sellerId || !status) {
       return NextResponse.json({ error: 'sellerId and status are required' }, { status: 400 })
@@ -86,7 +57,7 @@ export async function PATCH(request: NextRequest) {
     // Update seller status
     const updateData: any = {
       status,
-      approved_by: userId,
+      approved_by: 'admin',
       approved_at: new Date().toISOString(),
     }
 
@@ -94,7 +65,7 @@ export async function PATCH(request: NextRequest) {
       updateData.rejection_reason = rejectionReason
     }
 
-    const { data: seller, error: sellerError } = await supabase
+    const { data: seller, error: sellerError } = await supabaseAdmin
       .from('sellers')
       .update(updateData)
       .eq('id', sellerId)
@@ -107,8 +78,8 @@ export async function PATCH(request: NextRequest) {
     }
 
     // Log admin action
-    await supabase.from('admin_actions').insert({
-      admin_id: userId,
+    await supabaseAdmin.from('admin_actions').insert({
+      admin_id: 'admin',
       action_type: `${status}_seller`,
       target_type: 'seller',
       target_id: sellerId,

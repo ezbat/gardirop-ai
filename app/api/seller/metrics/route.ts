@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/app/api/auth/[...nextauth]/route'
 import { supabaseAdmin } from '@/lib/supabase-admin'
+import { fetchThresholdConfig, resolveThreshold } from '@/lib/inventory-threshold'
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -28,8 +29,8 @@ function fillDays(
 /**
  * GET /api/seller/metrics
  *
- * Returns real-data seller KPIs, chart data, balance, recent orders, and
- * low-stock products for the authenticated seller.
+ * Returns real-data seller KPIs, chart data, balance, recent orders,
+ * low-stock products, and analytics (traffic, conversion, best sellers).
  *
  * Query params:
  *   period  – 7 | 30 | 90 (days, default 30)
@@ -53,14 +54,23 @@ export async function GET(request: NextRequest) {
   const todayStart = new Date(now)
   todayStart.setUTCHours(0, 0, 0, 0)
 
+  // 14-day window for forecast
+  const from14 = new Date(now)
+  from14.setDate(from14.getDate() - 13)
+  from14.setUTCHours(0, 0, 0, 0)
+
   // ── 1. Resolve seller ──────────────────────────────────────────────────────
   const { data: seller, error: sellerErr } = await supabaseAdmin
     .from('sellers')
-    .select('id, shop_name, commission_rate, score')
+    .select('id, shop_name, commission_rate')
     .eq('user_id', session.user.id)
-    .single()
+    .maybeSingle()
 
-  if (sellerErr || !seller) {
+  if (sellerErr) {
+    console.error('[seller/metrics] seller lookup:', sellerErr.message)
+    return NextResponse.json({ success: false, error: 'Database error' }, { status: 500 })
+  }
+  if (!seller) {
     return NextResponse.json({ success: false, error: 'Seller not found' }, { status: 404 })
   }
 
@@ -68,7 +78,14 @@ export async function GET(request: NextRequest) {
   const commissionRate = parseFloat(seller.commission_rate ?? '15')
 
   // ── 2. Parallel DB fetches ─────────────────────────────────────────────────
-  const [ordersResult, balanceResult, productsResult, recentOrdersResult] = await Promise.all([
+  const [
+    ordersResult,
+    balanceResult,
+    productsResult,
+    recentOrdersResult,
+    orderItemsResult,
+    eventsResult,
+  ] = await Promise.all([
     // Orders in period range — for KPIs + chart aggregation
     supabaseAdmin
       .from('orders')
@@ -88,7 +105,7 @@ export async function GET(request: NextRequest) {
     // All products — for low-stock detection and product counts
     supabaseAdmin
       .from('products')
-      .select('id, title, stock_quantity, low_stock_threshold, price, images, moderation_status')
+      .select('id, title, stock_quantity, price, images, moderation_status, low_stock_threshold, category')
       .eq('seller_id', sellerId)
       .order('stock_quantity', { ascending: true })
       .limit(300),
@@ -96,14 +113,33 @@ export async function GET(request: NextRequest) {
     // Most recent 10 orders (all time) — for the display table
     supabaseAdmin
       .from('orders')
-      .select('id, total_amount, seller_earnings, state, payment_status, created_at, users(email, full_name, name)')
+      .select('id, total_amount, seller_earnings, state, payment_status, created_at')
       .eq('seller_id', sellerId)
       .order('created_at', { ascending: false })
       .limit(10),
+
+    // Order items in period — for best sellers aggregation
+    supabaseAdmin
+      .from('order_items')
+      .select('product_id, quantity, price, product_title')
+      .eq('seller_id', sellerId)
+      .gte('created_at', from.toISOString())
+      .limit(5000),
+
+    // Storefront events for this seller in period — graceful if table missing
+    supabaseAdmin
+      .from('storefront_events')
+      .select('event_type, product_id, session_id, created_at')
+      .eq('seller_id', sellerId)
+      .gte('created_at', from.toISOString())
+      .limit(50000),
   ])
 
   const orders = ordersResult.data ?? []
   const allProducts = productsResult.data ?? []
+
+  // Load threshold config once (parallel with DB queries above, resolved here)
+  const thresholdConfig = await fetchThresholdConfig()
 
   // ── 3. KPI aggregation ────────────────────────────────────────────────────
   const isPaid    = (o: any) => o.payment_status === 'paid'
@@ -122,6 +158,8 @@ export async function GET(request: NextRequest) {
   const todayRevenue  = todayPaid.reduce((s, o) => s + parseFloat(o.total_amount ?? '0'), 0)
   const avgOrderValue = paidOrders.length > 0 ? revenue / paidOrders.length : 0
 
+  const refundTotal = refundedOrders.reduce((s, o) => s + parseFloat(o.total_amount ?? '0'), 0)
+
   const stateCounts: Record<string, number> = {}
   for (const o of orders) {
     stateCounts[o.state] = (stateCounts[o.state] ?? 0) + 1
@@ -137,18 +175,25 @@ export async function GET(request: NextRequest) {
   }
   const revenueByDay = fillDays(dayMap, from, now)
 
-  // ── 5. Low-stock products ─────────────────────────────────────────────────
+  // ── 5. Low-stock products — resolved threshold per product ───────────────
   const lowStockProducts = allProducts
-    .filter(p => p.stock_quantity <= (p.low_stock_threshold ?? 5))
+    .filter(p => {
+      const stock = p.stock_quantity ?? 0
+      const thr   = resolveThreshold(thresholdConfig, p as any)
+      return stock <= thr
+    })
     .slice(0, 10)
-    .map(p => ({
-      id: p.id,
-      title: p.title,
-      stock_quantity: p.stock_quantity,
-      low_stock_threshold: p.low_stock_threshold ?? 5,
-      price: parseFloat(p.price ?? '0'),
-      image: (p.images as string[])?.[0] ?? null,
-    }))
+    .map(p => {
+      const thr = resolveThreshold(thresholdConfig, p as any)
+      return {
+        id:                  p.id,
+        title:               p.title,
+        stock_quantity:      p.stock_quantity ?? 0,
+        low_stock_threshold: thr,
+        price:               parseFloat((p as any).price ?? '0'),
+        image:               (p.images as string[])?.[0] ?? null,
+      }
+    })
 
   // ── 6. Recent orders for display table ───────────────────────────────────
   const recentOrders = (recentOrdersResult.data ?? []).map((o: any) => ({
@@ -158,12 +203,102 @@ export async function GET(request: NextRequest) {
     state: o.state,
     paymentStatus: o.payment_status,
     createdAt: o.created_at,
-    customerName:
-      (o.users as any)?.full_name ??
-      (o.users as any)?.name ??
-      (o.users as any)?.email ??
-      'Müşteri',
+    customerName: 'Kunde',
   }))
+
+  // ── 7. Best sellers (aggregate order_items in JS) ─────────────────────────
+  const itemMap: Record<string, { product_id: string; title: string; qty: number; revenue: number }> = {}
+  for (const item of (orderItemsResult.data ?? [])) {
+    if (!item.product_id) continue
+    if (!itemMap[item.product_id]) {
+      itemMap[item.product_id] = {
+        product_id: item.product_id,
+        title:      (item as any).product_title ?? 'Produkt',
+        qty:        0,
+        revenue:    0,
+      }
+    }
+    itemMap[item.product_id].qty     += Number(item.quantity ?? 1)
+    itemMap[item.product_id].revenue += parseFloat(String(item.price ?? '0')) * Number(item.quantity ?? 1)
+  }
+  const bestSellers = Object.values(itemMap)
+    .sort((a, b) => b.revenue - a.revenue)
+    .slice(0, 5)
+    .map(s => ({
+      productId: s.product_id,
+      title:     s.title,
+      qty:       s.qty,
+      revenue:   Math.round(s.revenue * 100) / 100,
+    }))
+
+  // ── 8. Analytics from storefront_events ────────────────────────────────────
+  let analytics: {
+    productViews:    number
+    addToCarts:      number
+    checkouts:       number
+    conversionRate:  number | null
+    addToCartRate:   number | null
+    uniqueSessions:  number
+    refundTotal:     number
+    forecastRevenue: number | null
+  } | null = null
+
+  const eventsError = eventsResult.error as { code?: string } | null
+  // If table doesn't exist yet (42P01), analytics stays null gracefully
+  if (!eventsError || eventsError.code !== '42P01') {
+    if (!eventsError) {
+      const events = eventsResult.data ?? []
+
+      const productViews   = events.filter(e => e.event_type === 'product_view').length
+      const addToCarts     = events.filter(e => e.event_type === 'add_to_cart').length
+      const checkoutEvents = events.filter(e => e.event_type === 'begin_checkout').length
+      const uniqueSessions = new Set(events.map(e => e.session_id).filter(Boolean)).size
+
+      const conversionRate = checkoutEvents > 0
+        ? Math.round((paidOrders.length / checkoutEvents) * 1000) / 10  // %
+        : null
+
+      const addToCartRate = productViews > 0
+        ? Math.round((addToCarts / productViews) * 1000) / 10
+        : null
+
+      // Forecast: avg daily revenue over last 14 days × 7
+      const last14Orders = orders.filter(
+        o => isPaid(o) && new Date(o.created_at) >= from14
+      )
+      const last14Revenue = last14Orders.reduce((s, o) => s + parseFloat(o.total_amount ?? '0'), 0)
+      const forecastRevenue = Math.round((last14Revenue / 14) * 7 * 100) / 100
+
+      analytics = {
+        productViews,
+        addToCarts,
+        checkouts:       checkoutEvents,
+        conversionRate,
+        addToCartRate,
+        uniqueSessions,
+        refundTotal:     Math.round(refundTotal * 100) / 100,
+        forecastRevenue,
+      }
+    }
+  }
+
+  // Fall back: still calculate refundTotal + forecast even without events table
+  if (!analytics) {
+    const last14Orders = orders.filter(
+      o => isPaid(o) && new Date(o.created_at) >= from14
+    )
+    const last14Revenue = last14Orders.reduce((s, o) => s + parseFloat(o.total_amount ?? '0'), 0)
+    analytics = {
+      productViews:    0,
+      addToCarts:      0,
+      checkouts:       0,
+      conversionRate:  null,
+      addToCartRate:   null,
+      uniqueSessions:  0,
+      refundTotal:     Math.round(refundTotal * 100) / 100,
+      forecastRevenue: Math.round((last14Revenue / 14) * 7 * 100) / 100,
+    }
+  }
 
   const bal = balanceResult.data
 
@@ -173,7 +308,7 @@ export async function GET(request: NextRequest) {
       id: seller.id,
       shopName: seller.shop_name,
       commissionRate,
-      score: seller.score ?? null,
+      score: null,
     },
     period,
     kpis: {
@@ -203,5 +338,7 @@ export async function GET(request: NextRequest) {
       orders: recentOrders,
       lowStockProducts,
     },
+    analytics,
+    bestSellers,
   })
 }

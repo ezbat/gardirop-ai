@@ -68,17 +68,17 @@ export default function RequestWithdrawalPage() {
     const withdrawAmount = parseFloat(amount)
 
     if (withdrawAmount < 10) {
-      alert('Minimum çekim tutarı €10.00')
+      alert('Mindestabhebungsbetrag ist €10,00')
       return
     }
 
     if (withdrawAmount > (balance?.available_balance || 0)) {
-      alert('Yetersiz bakiye!')
+      alert('Unzureichendes Guthaben!')
       return
     }
 
     if (!cardInfo?.card_verified) {
-      alert('Önce kartınızı doğrulamalısınız!')
+      alert('Bitte verifizieren Sie zuerst Ihre Karte!')
       router.push('/seller/withdraw')
       return
     }
@@ -99,14 +99,14 @@ export default function RequestWithdrawalPage() {
       const data = await response.json()
 
       if (response.ok) {
-        alert(`✅ Ödeme talebi oluşturuldu!\n\nTalep Edilen: €${withdrawAmount.toFixed(2)}\nKomisyon: €${data.commission.amount.toFixed(2)}\nAlacağınız: €${data.commission.net_amount.toFixed(2)}\n\n1-3 iş günü içinde kartınıza aktarılacaktır.`)
+        alert(`✅ Auszahlungsantrag erstellt!\n\nAngefordert: €${withdrawAmount.toFixed(2)}\nProvision: €${data.commission.amount.toFixed(2)}\nSie erhalten: €${data.commission.net_amount.toFixed(2)}\n\nWird innerhalb von 1–3 Werktagen auf Ihre Karte überwiesen.`)
         router.push('/seller/finances')
       } else {
-        alert('❌ Hata: ' + (data.error || 'Bilinmeyen hata'))
+        alert('❌ Fehler: ' + (data.error || 'Unbekannter Fehler'))
       }
     } catch (error) {
       console.error('Request payout error:', error)
-      alert('❌ Bir hata oluştu!')
+      alert('❌ Ein Fehler ist aufgetreten!')
     } finally {
       setSubmitting(false)
     }
@@ -128,15 +128,15 @@ export default function RequestWithdrawalPage() {
           <div className="container mx-auto max-w-4xl">
             <div className="glass border border-border rounded-2xl p-8 text-center">
               <AlertCircle className="w-16 h-16 text-yellow-500 mx-auto mb-4" />
-              <h2 className="text-2xl font-bold mb-2">Önce Kart Doğrulama Gerekli</h2>
+              <h2 className="text-2xl font-bold mb-2">Kartenverifizierung erforderlich</h2>
               <p className="text-muted-foreground mb-6">
-                Ödeme talep edebilmek için önce kartınızı doğrulamalısınız.
+                Um eine Auszahlung anzufordern, müssen Sie zuerst Ihre Karte verifizieren.
               </p>
               <Link
                 href="/seller/withdraw"
                 className="inline-flex items-center gap-2 px-6 py-3 bg-orange-500 text-white rounded-xl font-semibold hover:bg-orange-600 transition-colors"
               >
-                Kart Doğrulamaya Git
+                Zur Kartenverifizierung
               </Link>
             </div>
           </div>
@@ -164,8 +164,8 @@ export default function RequestWithdrawalPage() {
               <ArrowLeft className="w-6 h-6" />
             </Link>
             <div>
-              <h1 className="font-serif text-3xl font-bold">Ödeme Talep Et</h1>
-              <p className="text-muted-foreground">Kazancınızı kartınıza çekin</p>
+              <h1 className="font-serif text-3xl font-bold">Auszahlung anfordern</h1>
+              <p className="text-muted-foreground">Lassen Sie sich Ihre Einnahmen auf Ihre Karte auszahlen</p>
             </div>
           </div>
 
@@ -175,16 +175,16 @@ export default function RequestWithdrawalPage() {
               <div className="mb-8">
                 <div className="p-6 glass border border-border rounded-xl">
                   <div className="flex justify-between items-center mb-2">
-                    <p className="text-sm text-muted-foreground">Kullanılabilir Bakiye</p>
+                    <p className="text-sm text-muted-foreground">Verfügbares Guthaben</p>
                     <p className="text-3xl font-bold text-green-500">€{balance?.available_balance.toFixed(2) || '0,00'}</p>
                   </div>
-                  <p className="text-xs text-muted-foreground">Minimum çekim: €10.00</p>
+                  <p className="text-xs text-muted-foreground">Mindestabhebung: €10,00</p>
                 </div>
               </div>
 
               {/* Card Info */}
               <div className="mb-8">
-                <p className="text-sm font-semibold mb-3">Ödeme alacak kart:</p>
+                <p className="text-sm font-semibold mb-3">Auszahlungskarte:</p>
                 <div className="p-4 glass border border-border rounded-xl flex items-center gap-4">
                   <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-purple-600 to-indigo-800 flex items-center justify-center">
                     <CreditCard className="w-6 h-6 text-white" />
@@ -194,7 +194,7 @@ export default function RequestWithdrawalPage() {
                     <p className="text-sm text-muted-foreground font-mono">•••• •••• •••• {cardInfo.card_last4}</p>
                   </div>
                   <div className="px-3 py-1 bg-green-500/20 text-green-500 rounded-full text-xs font-semibold">
-                    Doğrulandı
+                    Verifiziert
                   </div>
                 </div>
               </div>
@@ -202,7 +202,7 @@ export default function RequestWithdrawalPage() {
               {/* Withdrawal Form */}
               <form onSubmit={handleSubmit} className="space-y-6">
                 <div>
-                  <label className="block text-sm font-semibold mb-2">Çekim Tutarı (€)</label>
+                  <label className="block text-sm font-semibold mb-2">Abhebungsbetrag (€)</label>
                   <div className="relative">
                     <Euro className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
                     <input
@@ -244,7 +244,7 @@ export default function RequestWithdrawalPage() {
                       onClick={() => setAmount((balance?.available_balance || 0).toFixed(2))}
                       className="px-3 py-1 glass border border-border rounded-lg text-xs hover:bg-primary/10 transition-colors"
                     >
-                      Tümü
+                      Alles
                     </button>
                   </div>
                 </div>
@@ -253,15 +253,15 @@ export default function RequestWithdrawalPage() {
                 {requestedAmount >= 10 && (
                   <div className="p-4 glass border border-primary/30 rounded-xl bg-primary/5 space-y-2">
                     <div className="flex justify-between text-sm">
-                      <span className="text-muted-foreground">Talep Edilen Tutar</span>
+                      <span className="text-muted-foreground">Angeforderter Betrag</span>
                       <span className="font-semibold">€{requestedAmount.toFixed(2)}</span>
                     </div>
                     <div className="flex justify-between text-sm">
-                      <span className="text-muted-foreground">Platform Komisyonu ({commissionRate}%)</span>
+                      <span className="text-muted-foreground">Plattformprovision ({commissionRate}%)</span>
                       <span className="font-semibold text-red-500">-€{commissionAmount.toFixed(2)}</span>
                     </div>
                     <div className="border-t border-border pt-2 flex justify-between">
-                      <span className="font-bold">Kartınıza Yatacak</span>
+                      <span className="font-bold">Auf Ihre Karte überwiesen</span>
                       <span className="text-xl font-bold text-green-500">€{netAmount.toFixed(2)}</span>
                     </div>
                   </div>
@@ -276,12 +276,12 @@ export default function RequestWithdrawalPage() {
                   {submitting ? (
                     <>
                       <Loader2 className="w-5 h-5 animate-spin" />
-                      İşlem Yapılıyor...
+                      Wird verarbeitet...
                     </>
                   ) : (
                     <>
                       <Download className="w-5 h-5" />
-                      Ödeme Talep Et
+                      Auszahlung anfordern
                     </>
                   )}
                 </button>
@@ -292,12 +292,12 @@ export default function RequestWithdrawalPage() {
                 <div className="flex gap-3">
                   <TrendingDown className="w-5 h-5 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5" />
                   <div className="text-sm">
-                    <p className="font-semibold text-blue-600 dark:text-blue-400 mb-1">Ödeme Süreci</p>
+                    <p className="font-semibold text-blue-600 dark:text-blue-400 mb-1">Auszahlungsprozess</p>
                     <ul className="text-muted-foreground space-y-1 list-disc list-inside">
-                      <li>Talebiniz oluşturulduktan sonra admin onayına gönderilir</li>
-                      <li>Onaylandıktan sonra 1-3 iş günü içinde kartınıza aktarılır</li>
-                      <li>%{commissionRate} platform komisyonu otomatik düşülür</li>
-                      <li>İşlem durumunu "Ödemeler" sayfasından takip edebilirsiniz</li>
+                      <li>Ihr Antrag wird nach Erstellung zur Admin-Genehmigung gesendet</li>
+                      <li>Nach Genehmigung wird der Betrag innerhalb von 1–3 Werktagen auf Ihre Karte überwiesen</li>
+                      <li>{commissionRate}% Plattformprovision wird automatisch abgezogen</li>
+                      <li>Den Status können Sie auf der Seite „Auszahlungen" verfolgen</li>
                     </ul>
                   </div>
                 </div>

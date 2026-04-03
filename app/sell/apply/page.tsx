@@ -227,7 +227,7 @@ function Field({
       </label>
       {children}
       {helper && !error && (
-        <p className="text-[11px] flex items-start gap-[4px]" style={{ color: '#888' }}>
+        <p className="text-[11px] flex items-start gap-[4px]" style={{ color: '#5C5C5C' }}>
           <Info className="w-[12px] h-[12px] flex-shrink-0 mt-[1px]" />
           {helper}
         </p>
@@ -243,17 +243,17 @@ function Field({
 }
 
 const inputClass = (hasErr?: boolean) =>
-  `w-full px-[12px] py-[10px] rounded-[8px] text-[14px] outline-none transition-all duration-150 ` +
+  `w-full px-[12px] py-[10px] rounded-[8px] text-[14px] text-[#1A1A1A] placeholder:text-[#9CA3AF] outline-none transition-all duration-150 ` +
   `border ${hasErr
     ? 'border-red-400 bg-red-50 focus:ring-2 focus:ring-red-200'
-    : 'border-[#E5E5E5] bg-white focus:border-[#D97706] focus:ring-2 focus:ring-amber-100'
+    : 'border-[#C8C8C8] bg-white focus:border-[#D97706] focus:ring-2 focus:ring-amber-100'
   }`
 
 const selectClass = (hasErr?: boolean) =>
-  `w-full px-[12px] py-[10px] rounded-[8px] text-[14px] outline-none transition-all duration-150 ` +
+  `w-full px-[12px] py-[10px] rounded-[8px] text-[14px] text-[#1A1A1A] outline-none transition-all duration-150 ` +
   `border appearance-none bg-white ${hasErr
     ? 'border-red-400 focus:ring-2 focus:ring-red-200'
-    : 'border-[#E5E5E5] focus:border-[#D97706] focus:ring-2 focus:ring-amber-100'
+    : 'border-[#C8C8C8] focus:border-[#D97706] focus:ring-2 focus:ring-amber-100'
   }`
 
 function CheckboxRow({
@@ -293,7 +293,7 @@ function CheckboxRow({
       />
       <div className="flex-1">
         <p className="text-[13px] font-medium leading-snug" style={{ color: '#1A1A1A' }}>{label}</p>
-        {sub && <p className="text-[12px] mt-[3px] leading-relaxed" style={{ color: '#777' }}>{sub}</p>}
+        {sub && <p className="text-[12px] mt-[3px] leading-relaxed" style={{ color: '#555555' }}>{sub}</p>}
         {error && (
           <p className="text-[11px] mt-[4px] flex items-center gap-[4px]" style={{ color: '#DC2626' }}>
             <AlertCircle className="w-[11px] h-[11px]" />{error}
@@ -348,13 +348,13 @@ function Stepper({ step }: { step: number }) {
                 ? <Check className="w-[15px] h-[15px] text-white" strokeWidth={3} />
                 : <Icon
                     className="w-[15px] h-[15px]"
-                    style={{ color: active ? '#D97706' : '#AAAAAA' }}
+                    style={{ color: active ? '#D97706' : '#7A7A7A' }}
                   />
               }
             </div>
             <span
               className="text-[10px] font-semibold text-center leading-tight hidden sm:block"
-              style={{ color: active ? '#D97706' : done ? '#555' : '#AAAAAA' }}
+              style={{ color: active ? '#D97706' : done ? '#555' : '#7A7A7A' }}
             >
               {s.label}
             </span>
@@ -446,7 +446,7 @@ function Step1({ data, set, errors }: {
                 }}
               >
                 <p className="text-[13px] font-semibold" style={{ color: '#1A1A1A' }}>{title}</p>
-                <p className="text-[12px] mt-[2px]" style={{ color: '#888' }}>{desc}</p>
+                <p className="text-[12px] mt-[2px]" style={{ color: '#5C5C5C' }}>{desc}</p>
               </button>
             ))
           }
@@ -696,7 +696,7 @@ function Step3({ data, set, errors }: {
           value={data.store_description}
           onChange={(e) => set('store_description', e.target.value)}
         />
-        <p className="text-[11px] text-right" style={{ color: data.store_description.length < 30 ? '#DC2626' : '#999' }}>
+        <p className="text-[11px] text-right" style={{ color: data.store_description.length < 30 ? '#DC2626' : '#6B6B6B' }}>
           {data.store_description.length} / min. 30
         </p>
       </Field>
@@ -714,7 +714,7 @@ function Step3({ data, set, errors }: {
 
         <div className="flex flex-col gap-[8px]">
           <p className="text-[13px] font-semibold" style={{ color: '#1A1A1A' }}>
-            Social Media <span className="font-normal" style={{ color: '#999' }}>(optional)</span>
+            Social Media <span className="font-normal" style={{ color: '#6B6B6B' }}>(optional)</span>
           </p>
           <input
             className={inputClass()}
@@ -929,7 +929,7 @@ function Step4({ data, set, errors }: {
         <p className="text-[14px] font-bold mb-[4px]" style={{ color: '#1A1A1A' }}>
           Erklärungen & Einwilligungen
         </p>
-        <p className="text-[12px] mb-[14px]" style={{ color: '#777' }}>
+        <p className="text-[12px] mb-[14px]" style={{ color: '#555555' }}>
           Alle Punkte müssen bestätigt werden, um den Antrag einzureichen.
         </p>
 
@@ -1001,7 +1001,7 @@ function ReviewRow({ label, value }: { label: string; value?: string | string[] 
 
   return (
     <div className="flex gap-[12px] py-[8px]" style={{ borderBottom: '1px solid #F0F0F0' }}>
-      <span className="text-[12px] w-[160px] flex-shrink-0" style={{ color: '#888' }}>{label}</span>
+      <span className="text-[12px] w-[160px] flex-shrink-0" style={{ color: '#5C5C5C' }}>{label}</span>
       <span className="text-[13px] flex-1" style={{ color: '#1A1A1A' }}>{display}</span>
     </div>
   )
@@ -1135,7 +1135,7 @@ function SuccessScreen({ applicationId }: { applicationId: string }) {
       <p className="text-[14px] mb-[6px]" style={{ color: '#555' }}>
         Deine Verkäuferbewerbung wurde erfolgreich übermittelt.
       </p>
-      <p className="text-[12px]" style={{ color: '#999' }}>
+      <p className="text-[12px]" style={{ color: '#6B6B6B' }}>
         Referenz: <span className="font-mono font-semibold" style={{ color: '#D97706' }}>
           {applicationId.slice(0, 8).toUpperCase()}
         </span>
@@ -1371,7 +1371,7 @@ export default function SellerApplyPage() {
 
   if (submitState === 'success') {
     return (
-      <main className="min-h-screen" style={{ background: '#FAFAFA' }}>
+      <main className="min-h-screen" data-dark-text style={{ background: '#FAFAFA' }}>
         <div className="max-w-[640px] mx-auto px-4 py-[40px]">
           <div
             className="bg-white rounded-[16px] overflow-hidden"
@@ -1403,7 +1403,7 @@ export default function SellerApplyPage() {
   ]
 
   return (
-    <main className="min-h-screen" style={{ background: '#FAFAFA' }}>
+    <main className="min-h-screen" data-dark-text style={{ background: '#FAFAFA' }}>
       {/* Top nav */}
       <header
         className="sticky top-0 z-50 flex items-center justify-between px-4 py-[14px]"
@@ -1453,7 +1453,7 @@ export default function SellerApplyPage() {
             <h1 className="text-[18px] font-bold" style={{ color: '#1A1A1A' }}>
               {STEP_TITLES[step - 1]}
             </h1>
-            <p className="text-[13px] mt-[2px]" style={{ color: '#888' }}>
+            <p className="text-[13px] mt-[2px]" style={{ color: '#5C5C5C' }}>
               {STEP_DESCS[step - 1]}
             </p>
           </div>

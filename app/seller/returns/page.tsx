@@ -1,334 +1,398 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useSession } from 'next-auth/react'
-import { useRouter } from 'next/navigation'
-import { RotateCcw, Loader2, CheckCircle, XCircle, DollarSign, ArrowLeft, Package } from 'lucide-react'
-import { supabase } from '@/lib/supabase'
-import FloatingParticles from '@/components/floating-particles'
+import {
+  RotateCcw, Loader2, CheckCircle, XCircle, Clock,
+  Package, CreditCard, RefreshCw, ChevronDown, ChevronUp,
+  AlertTriangle, Inbox,
+} from 'lucide-react'
 
-interface ReturnRequest {
-  id: string
-  order_id: string
-  reason: string
-  description: string
-  status: string
-  refund_amount: number
-  created_at: string
-  customer_id: string
-  seller_response?: string
-  order: {
-    id: string
-    total_amount: number
-  }
+// ─── Status ─────────────────────────────────────────────────────────────────
+
+const STATUS_MAP: Record<string, { label: string; color: string; bg: string }> = {
+  pending:        { label: 'Offen',           color: '#D97706', bg: '#FEF3C7' },
+  approved:       { label: 'Genehmigt',       color: '#2563EB', bg: '#DBEAFE' },
+  rejected:       { label: 'Abgelehnt',       color: '#DC2626', bg: '#FEE2E2' },
+  received:       { label: 'Empfangen',       color: '#7C3AED', bg: '#EDE9FE' },
+  refund_pending: { label: 'Erstattung läuft', color: '#D97706', bg: '#FEF3C7' },
+  refunded:       { label: 'Erstattet',       color: '#16A34A', bg: '#DCFCE7' },
+  cancelled:      { label: 'Storniert',       color: '#6B7280', bg: '#F3F4F6' },
 }
 
-const statusConfig: any = {
-  pending: { label: 'Bekliyor', color: 'bg-yellow-500', icon: RotateCcw },
-  approved: { label: 'Onaylandı', color: 'bg-blue-500', icon: CheckCircle },
-  rejected: { label: 'Reddedildi', color: 'bg-red-500', icon: XCircle },
-  returned: { label: 'İade Edildi', color: 'bg-purple-500', icon: Package },
-  refunded: { label: 'Para İadesi Yapıldı', color: 'bg-green-500', icon: DollarSign },
-}
-
-const reasonLabels: any = {
-  size_issue: 'Beden Uygun Değil',
-  wrong_item: 'Yanlış Ürün',
-  defective: 'Hasarlı/Kusurlu',
-  not_as_described: 'Açıklamaya Uygun Değil',
-  changed_mind: 'Fikir Değişikliği',
-  other: 'Diğer',
-}
+const fmtEur = (v: number) => new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(v)
 
 export default function SellerReturnsPage() {
   const { data: session } = useSession()
-  const router = useRouter()
-  const userId = session?.user?.id
-
-  const [seller, setSeller] = useState<any>(null)
-  const [returns, setReturns] = useState<ReturnRequest[]>([])
+  const [returns, setReturns] = useState<any[]>([])
+  const [summary, setSummary] = useState<any>({})
   const [loading, setLoading] = useState(true)
-  const [selectedReturn, setSelectedReturn] = useState<string | null>(null)
-  const [responseText, setResponseText] = useState('')
-  const [processing, setProcessing] = useState(false)
+  const [expandedId, setExpandedId] = useState<string | null>(null)
+  const [filter, setFilter] = useState('all')
+  const [processing, setProcessing] = useState<string | null>(null)
+  const [rejectId, setRejectId] = useState<string | null>(null)
+  const [rejectReason, setRejectReason] = useState('')
+  const [sellerMsg, setSellerMsg] = useState('')
+  const [toast, setToast] = useState<{ type: 'success' | 'error'; msg: string } | null>(null)
 
-  useEffect(() => {
-    if (userId) {
-      checkSellerAndLoadReturns()
-    }
-  }, [userId])
-
-  const checkSellerAndLoadReturns = async () => {
+  const load = useCallback(async () => {
     try {
-      const { data: sellerData, error: sellerError } = await supabase
-        .from('sellers')
-        .select('*')
-        .eq('user_id', userId)
-        .single()
-
-      if (sellerError || !sellerData) {
-        alert('Satıcı profili bulunamadı!')
-        router.push('/seller/dashboard')
-        return
-      }
-
-      setSeller(sellerData)
-      await loadReturns(sellerData.id)
-    } catch (error) {
-      console.error('Check seller error:', error)
+      const res = await fetch('/api/seller/returns')
+      if (!res.ok) throw new Error()
+      const data = await res.json()
+      setReturns(data.returns ?? [])
+      setSummary(data.summary ?? {})
+    } catch {
+      console.error('[seller/returns] load failed')
     } finally {
       setLoading(false)
     }
+  }, [])
+
+  useEffect(() => { load() }, [load])
+
+  function showToast(type: 'success' | 'error', msg: string) {
+    setToast({ type, msg })
+    setTimeout(() => setToast(null), 4000)
   }
 
-  const loadReturns = async (sellerId: string) => {
+  async function handleAction(returnId: string, action: string, extra: Record<string, any> = {}) {
+    setProcessing(returnId)
     try {
-      const { data, error } = await supabase
-        .from('return_requests')
-        .select(`
-          *,
-          order:orders (
-            id,
-            total_amount
-          )
-        `)
-        .eq('seller_id', sellerId)
-        .order('created_at', { ascending: false })
-
-      if (error) throw error
-
-      setReturns(data || [])
-    } catch (error) {
-      console.error('Load returns error:', error)
-    }
-  }
-
-  const handleResponse = async (returnId: string, action: 'approve' | 'reject') => {
-    if (action === 'reject' && !responseText.trim()) {
-      alert('Lütfen red sebebini belirtin')
-      return
-    }
-
-    setProcessing(true)
-
-    try {
-      const response = await fetch('/api/returns/respond', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-user-id': userId || '',
-        },
-        body: JSON.stringify({
-          returnRequestId: returnId,
-          action,
-          response: responseText,
-        }),
+      const res = await fetch('/api/seller/returns', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ returnId, action, ...extra }),
       })
-
-      const data = await response.json()
-
-      if (!response.ok) {
-        throw new Error(data.error || 'İşlem başarısız')
+      const data = await res.json()
+      if (!res.ok) {
+        showToast('error', data.error || 'Aktion fehlgeschlagen.')
+        return
       }
-
-      alert(action === 'approve' ? '✅ İade onaylandı!' : '❌ İade reddedildi')
-
-      // Reload returns
-      await loadReturns(seller.id)
-      setSelectedReturn(null)
-      setResponseText('')
-    } catch (error: any) {
-      console.error('Response error:', error)
-      alert(error.message || 'İşlem başarısız!')
+      showToast('success',
+        action === 'approve' ? 'Rückgabe genehmigt.'
+        : action === 'reject' ? 'Rückgabe abgelehnt.'
+        : 'Als empfangen markiert.'
+      )
+      setRejectId(null)
+      setRejectReason('')
+      setSellerMsg('')
+      await load()
+    } catch {
+      showToast('error', 'Ein Fehler ist aufgetreten.')
     } finally {
-      setProcessing(false)
+      setProcessing(null)
     }
   }
 
-  const handleProcessRefund = async (returnId: string) => {
-    if (!confirm('Para iadesi yapılacak. Emin misiniz?')) {
-      return
-    }
-
-    setProcessing(true)
-
-    try {
-      const response = await fetch('/api/returns/process-refund', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-user-id': userId || '',
-        },
-        body: JSON.stringify({
-          returnRequestId: returnId,
-        }),
-      })
-
-      const data = await response.json()
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Para iadesi başarısız')
-      }
-
-      alert(`✅ Para iadesi yapıldı: €${data.refund_amount}`)
-
-      // Reload returns
-      await loadReturns(seller.id)
-    } catch (error: any) {
-      console.error('Process refund error:', error)
-      alert(error.message || 'Para iadesi başarısız!')
-    } finally {
-      setProcessing(false)
-    }
-  }
+  const filtered = filter === 'all' ? returns : returns.filter(r => r.status === filter)
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      <div className="flex items-center justify-center py-20">
+        <Loader2 className="w-7 h-7 animate-spin" style={{ color: '#D97706' }} />
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen relative overflow-hidden">
-      <FloatingParticles />
-      <section className="relative py-8 px-4">
-        <div className="container mx-auto max-w-4xl">
-          <button
-            onClick={() => router.back()}
-            className="flex items-center gap-2 mb-6 hover:text-primary transition-colors"
+    <div className="space-y-6">
+      {/* Toast */}
+      {toast && (
+        <div
+          className="fixed top-4 right-4 z-50 px-4 py-3 rounded-xl shadow-lg text-sm font-medium flex items-center gap-2"
+          style={{
+            background: toast.type === 'success' ? '#F0FDF4' : '#FEF2F2',
+            border: `1px solid ${toast.type === 'success' ? '#BBF7D0' : '#FECACA'}`,
+            color: toast.type === 'success' ? '#166534' : '#991B1B',
+          }}
+        >
+          {toast.type === 'success' ? <CheckCircle className="w-4 h-4" /> : <XCircle className="w-4 h-4" />}
+          {toast.msg}
+        </div>
+      )}
+
+      {/* Header */}
+      <div>
+        <h1 className="text-2xl font-bold" style={{ color: '#1A1A1A' }}>Rückgaben</h1>
+        <p className="text-sm mt-1" style={{ color: '#6B7280' }}>
+          Verwalte Rückgabe-Anfragen deiner Kunden
+        </p>
+      </div>
+
+      {/* KPI strip */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        {[
+          { label: 'Offen',     value: summary.pending ?? 0, color: '#D97706', bg: '#FEF3C7' },
+          { label: 'Genehmigt', value: summary.approved ?? 0, color: '#2563EB', bg: '#DBEAFE' },
+          { label: 'Erstattet', value: summary.refunded ?? 0, color: '#16A34A', bg: '#DCFCE7' },
+          { label: 'Gesamt',    value: summary.total ?? 0,    color: '#6B7280', bg: '#F3F4F6' },
+        ].map(k => (
+          <div
+            key={k.label}
+            className="rounded-xl p-4"
+            style={{ background: '#FFF', border: '1px solid #E5E5E5' }}
           >
-            <ArrowLeft className="w-5 h-5" />
-            Geri
+            <p className="text-xs font-medium mb-1" style={{ color: '#6B7280' }}>{k.label}</p>
+            <p className="text-2xl font-bold" style={{ color: k.color }}>{k.value}</p>
+          </div>
+        ))}
+      </div>
+
+      {/* Filter tabs */}
+      <div className="flex gap-2 flex-wrap">
+        {[
+          { key: 'all', label: 'Alle' },
+          { key: 'pending', label: 'Offen' },
+          { key: 'approved', label: 'Genehmigt' },
+          { key: 'received', label: 'Empfangen' },
+          { key: 'refunded', label: 'Erstattet' },
+          { key: 'rejected', label: 'Abgelehnt' },
+        ].map(t => (
+          <button
+            key={t.key}
+            onClick={() => setFilter(t.key)}
+            className="px-3 py-1.5 rounded-lg text-xs font-semibold transition"
+            style={{
+              background: filter === t.key ? '#D97706' : '#FFF',
+              color: filter === t.key ? '#FFF' : '#374151',
+              border: filter === t.key ? '1px solid #D97706' : '1px solid #E5E5E5',
+            }}
+          >
+            {t.label}
           </button>
+        ))}
+      </div>
 
-          <h1 className="font-serif text-4xl font-bold mb-8">İade Talepleri</h1>
+      {/* List */}
+      {filtered.length === 0 ? (
+        <div className="rounded-2xl p-12 text-center" style={{ background: '#FFF', border: '1px solid #E5E5E5' }}>
+          <Inbox className="w-12 h-12 mx-auto mb-3" style={{ color: '#D1D5DB' }} />
+          <p className="text-sm font-medium" style={{ color: '#6B7280' }}>
+            {filter === 'all' ? 'Keine Rückgabe-Anfragen vorhanden.' : `Keine Rückgaben mit Status "${STATUS_MAP[filter]?.label || filter}".`}
+          </p>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {filtered.map((ret: any) => {
+            const st = STATUS_MAP[ret.status] || STATUS_MAP.pending
+            const expanded = expandedId === ret.id
+            const isPending = ret.status === 'pending'
+            const isApproved = ret.status === 'approved'
 
-          {returns.length === 0 ? (
-            <div className="glass border border-border rounded-2xl p-12 text-center">
-              <RotateCcw className="w-16 h-16 mx-auto mb-4 text-muted-foreground" />
-              <h2 className="text-xl font-bold mb-2">İade talebi yok</h2>
-              <p className="text-muted-foreground">Henüz hiç iade talebi almadınız.</p>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {returns.map(returnReq => {
-                const StatusIcon = statusConfig[returnReq.status].icon
-                return (
-                  <div key={returnReq.id} className="glass border border-border rounded-2xl p-6">
-                    <div className="flex items-start justify-between mb-4">
-                      <div>
-                        <p className="font-bold mb-1">
-                          İade #{returnReq.id.slice(0, 8).toUpperCase()}
-                        </p>
-                        <p className="text-sm text-muted-foreground mb-1">
-                          Sipariş: #{returnReq.order_id.slice(0, 8).toUpperCase()}
-                        </p>
-                        <p className="text-sm text-muted-foreground">
-                          {new Date(returnReq.created_at).toLocaleDateString('tr-TR', {
-                            year: 'numeric',
-                            month: 'long',
-                            day: 'numeric',
-                          })}
-                        </p>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <StatusIcon className="w-5 h-5" />
-                        <span className={`px-3 py-1 rounded-full text-xs font-semibold text-white ${statusConfig[returnReq.status].color}`}>
-                          {statusConfig[returnReq.status].label}
-                        </span>
-                      </div>
-                    </div>
-
-                    <div className="glass border border-border rounded-xl p-4 mb-4">
-                      <p className="text-sm font-semibold mb-2">İade Sebebi</p>
-                      <p className="text-sm mb-2">{reasonLabels[returnReq.reason] || returnReq.reason}</p>
-                      <p className="text-sm text-muted-foreground">{returnReq.description}</p>
-                    </div>
-
-                    <div className="flex justify-between items-center mb-4 pb-4 border-b border-border">
-                      <span className="font-semibold">İade Tutarı</span>
-                      <span className="text-2xl font-bold text-primary">
-                        €{returnReq.refund_amount.toFixed(2)}
+            return (
+              <div
+                key={ret.id}
+                className="rounded-2xl overflow-hidden"
+                style={{ background: '#FFF', border: `1px solid ${isPending ? '#FDE68A' : '#E5E5E5'}` }}
+              >
+                {/* Row header */}
+                <button
+                  onClick={() => setExpandedId(expanded ? null : ret.id)}
+                  className="w-full flex items-center justify-between p-4 text-left hover:bg-white/5 transition"
+                >
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1 flex-wrap">
+                      <span className="text-sm font-bold" style={{ color: '#1A1A1A' }}>
+                        #{ret.id.slice(0, 8).toUpperCase()}
                       </span>
+                      <span
+                        className="px-2 py-0.5 rounded-full text-[11px] font-semibold"
+                        style={{ background: st.bg, color: st.color }}
+                      >
+                        {st.label}
+                      </span>
+                      {isPending && (
+                        <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded" style={{ background: '#FEF3C7', color: '#92400E' }}>
+                          AKTION ERFORDERLICH
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2 text-xs flex-wrap" style={{ color: '#6B7280' }}>
+                      <span>Bestellung #{ret.order_id.slice(0, 8).toUpperCase()}</span>
+                      <span>•</span>
+                      <span>{ret.customer?.name || ret.customer?.full_name || 'Kunde'}</span>
+                      <span>•</span>
+                      <span>{ret.reasonLabel}</span>
+                      <span>•</span>
+                      <span className="font-semibold" style={{ color: '#1A1A1A' }}>{fmtEur(ret.refund_amount)}</span>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs" style={{ color: '#9CA3AF' }}>
+                      {new Date(ret.created_at).toLocaleDateString('de-DE', { day: '2-digit', month: 'short' })}
+                    </span>
+                    {expanded ? <ChevronUp className="w-4 h-4 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
+                  </div>
+                </button>
+
+                {/* Expanded */}
+                {expanded && (
+                  <div className="px-4 pb-4 space-y-4" style={{ borderTop: '1px solid #F3F4F6' }}>
+                    {/* Customer + reason */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-3">
+                      <div className="rounded-xl p-3" style={{ background: '#F9FAFB' }}>
+                        <p className="text-[10px] font-semibold mb-1" style={{ color: '#6B7280' }}>KUNDE</p>
+                        <p className="text-sm font-medium" style={{ color: '#1A1A1A' }}>
+                          {ret.customer?.full_name || ret.customer?.name || '—'}
+                        </p>
+                        <p className="text-xs" style={{ color: '#6B7280' }}>{ret.customer?.email || '—'}</p>
+                      </div>
+                      <div className="rounded-xl p-3" style={{ background: '#F9FAFB' }}>
+                        <p className="text-[10px] font-semibold mb-1" style={{ color: '#6B7280' }}>RÜCKGABEGRUND</p>
+                        <p className="text-sm font-medium" style={{ color: '#1A1A1A' }}>{ret.reasonLabel}</p>
+                        {ret.description && (
+                          <p className="text-xs mt-1" style={{ color: '#6B7280' }}>{ret.description}</p>
+                        )}
+                      </div>
                     </div>
 
-                    {/* Actions */}
-                    {returnReq.status === 'pending' && (
-                      <div className="space-y-3">
-                        <textarea
-                          value={selectedReturn === returnReq.id ? responseText : ''}
-                          onChange={(e) => {
-                            setSelectedReturn(returnReq.id)
-                            setResponseText(e.target.value)
-                          }}
-                          placeholder="Müşteriye mesaj (opsiyonel)..."
-                          rows={2}
-                          className="w-full px-4 py-2 glass border border-border rounded-xl outline-none focus:border-primary resize-none text-sm"
-                        />
-                        <div className="flex gap-3">
-                          <button
-                            onClick={() => handleResponse(returnReq.id, 'reject')}
-                            className="flex-1 px-4 py-2 bg-red-500 text-white rounded-xl font-semibold hover:opacity-90 transition-opacity flex items-center justify-center gap-2"
-                            disabled={processing}
-                          >
-                            <XCircle className="w-4 h-4" />
-                            Reddet
-                          </button>
-                          <button
-                            onClick={() => handleResponse(returnReq.id, 'approve')}
-                            className="flex-1 px-4 py-2 bg-green-500 text-white rounded-xl font-semibold hover:opacity-90 transition-opacity flex items-center justify-center gap-2"
-                            disabled={processing}
-                          >
-                            <CheckCircle className="w-4 h-4" />
-                            Onayla
-                          </button>
+                    {/* Order items */}
+                    {ret.order?.items?.length > 0 && (
+                      <div>
+                        <p className="text-[10px] font-semibold mb-2" style={{ color: '#6B7280' }}>BESTELLTE ARTIKEL</p>
+                        <div className="space-y-2">
+                          {ret.order.items.map((item: any) => (
+                            <div key={item.id} className="flex items-center gap-3 p-2 rounded-lg" style={{ background: '#F9FAFB' }}>
+                              {item.product?.images?.[0] && (
+                                <img src={item.product.images[0]} alt="" className="w-10 h-10 rounded object-cover" />
+                              )}
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-medium truncate" style={{ color: '#1A1A1A' }}>{item.product?.title || 'Artikel'}</p>
+                                <p className="text-xs" style={{ color: '#6B7280' }}>Menge: {item.quantity}</p>
+                              </div>
+                              <span className="text-sm font-semibold" style={{ color: '#1A1A1A' }}>{fmtEur(item.price || 0)}</span>
+                            </div>
+                          ))}
                         </div>
                       </div>
                     )}
 
-                    {returnReq.status === 'approved' && (
-                      <div className="bg-blue-500/10 border border-blue-500/20 rounded-xl p-4">
-                        <p className="text-sm text-blue-400">
-                          ✓ İade onaylandı. Müşterinin ürünü kargoya vermesini bekleyin.
+                    {/* Rejection reason display */}
+                    {ret.status === 'rejected' && ret.rejection_reason && (
+                      <div className="rounded-xl p-3" style={{ background: '#FEF2F2', border: '1px solid #FECACA' }}>
+                        <p className="text-xs font-semibold" style={{ color: '#DC2626' }}>Ablehnungsgrund</p>
+                        <p className="text-sm mt-1" style={{ color: '#991B1B' }}>{ret.rejection_reason}</p>
+                      </div>
+                    )}
+
+                    {/* Seller response display */}
+                    {ret.seller_response && (
+                      <div className="rounded-xl p-3" style={{ background: '#F0F9FF', border: '1px solid #BAE6FD' }}>
+                        <p className="text-xs font-semibold" style={{ color: '#0369A1' }}>Deine Antwort</p>
+                        <p className="text-sm mt-1" style={{ color: '#0C4A6E' }}>{ret.seller_response}</p>
+                      </div>
+                    )}
+
+                    {/* ─── Pending: approve/reject ────────────────────────────── */}
+                    {isPending && (
+                      <div className="space-y-3">
+                        {rejectId === ret.id ? (
+                          // Reject form
+                          <div className="space-y-3">
+                            <textarea
+                              value={rejectReason}
+                              onChange={e => setRejectReason(e.target.value)}
+                              rows={2}
+                              placeholder="Ablehnungsgrund (Pflichtfeld)..."
+                              className="w-full px-3 py-2 rounded-xl text-sm outline-none resize-none"
+                              style={{ border: '1px solid #E5E5E5', color: '#1A1A1A' }}
+                            />
+                            <div className="flex gap-2">
+                              <button
+                                onClick={() => { setRejectId(null); setRejectReason('') }}
+                                className="flex-1 px-3 py-2 rounded-xl text-sm font-semibold"
+                                style={{ background: '#F3F4F6', color: '#374151' }}
+                              >
+                                Abbrechen
+                              </button>
+                              <button
+                                onClick={() => handleAction(ret.id, 'reject', { rejectionReason: rejectReason })}
+                                disabled={!rejectReason.trim() || processing === ret.id}
+                                className="flex-1 px-3 py-2 rounded-xl text-sm font-semibold text-white disabled:opacity-50 flex items-center justify-center gap-1"
+                                style={{ background: '#DC2626' }}
+                              >
+                                {processing === ret.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <XCircle className="w-3 h-3" />}
+                                Ablehnen
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          // Action buttons
+                          <div className="space-y-3">
+                            <textarea
+                              value={expandedId === ret.id ? sellerMsg : ''}
+                              onChange={e => setSellerMsg(e.target.value)}
+                              rows={2}
+                              placeholder="Nachricht an Kunden (optional)..."
+                              className="w-full px-3 py-2 rounded-xl text-sm outline-none resize-none"
+                              style={{ border: '1px solid #E5E5E5', color: '#1A1A1A' }}
+                            />
+                            <div className="flex gap-2">
+                              <button
+                                onClick={() => setRejectId(ret.id)}
+                                className="flex-1 px-3 py-2.5 rounded-xl text-sm font-semibold flex items-center justify-center gap-1 transition"
+                                style={{ background: '#FEF2F2', color: '#DC2626', border: '1px solid #FECACA' }}
+                              >
+                                <XCircle className="w-4 h-4" />
+                                Ablehnen
+                              </button>
+                              <button
+                                onClick={() => handleAction(ret.id, 'approve', { response: sellerMsg || undefined })}
+                                disabled={processing === ret.id}
+                                className="flex-1 px-3 py-2.5 rounded-xl text-sm font-semibold text-white flex items-center justify-center gap-1 transition disabled:opacity-50"
+                                style={{ background: '#16A34A' }}
+                              >
+                                {processing === ret.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
+                                Genehmigen
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* ─── Approved: mark received ────────────────────────────── */}
+                    {isApproved && (
+                      <div className="space-y-3">
+                        <div className="rounded-xl p-3 flex items-start gap-2" style={{ background: '#EFF6FF', border: '1px solid #BFDBFE' }}>
+                          <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: '#2563EB' }} />
+                          <p className="text-xs" style={{ color: '#1E40AF' }}>
+                            Warte auf Rücksendung des Kunden. Sobald du das Paket erhalten hast, markiere es als empfangen.
+                          </p>
+                        </div>
+                        <button
+                          onClick={() => handleAction(ret.id, 'received')}
+                          disabled={processing === ret.id}
+                          className="w-full px-3 py-2.5 rounded-xl text-sm font-semibold text-white flex items-center justify-center gap-1 transition disabled:opacity-50"
+                          style={{ background: '#7C3AED' }}
+                        >
+                          {processing === ret.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Package className="w-4 h-4" />}
+                          Als empfangen markieren
+                        </button>
+                      </div>
+                    )}
+
+                    {/* Refunded */}
+                    {ret.status === 'refunded' && (
+                      <div className="rounded-xl p-3" style={{ background: '#F0FDF4', border: '1px solid #BBF7D0' }}>
+                        <p className="text-sm" style={{ color: '#166534' }}>
+                          ✓ Erstattung von <strong>{fmtEur(ret.refund_amount)}</strong> wurde veranlasst.
+                          {ret.refund_processed_at && (
+                            <span className="ml-1">
+                              ({new Date(ret.refund_processed_at).toLocaleDateString('de-DE')})
+                            </span>
+                          )}
                         </p>
                       </div>
                     )}
-
-                    {returnReq.status === 'returned' && (
-                      <button
-                        onClick={() => handleProcessRefund(returnReq.id)}
-                        className="w-full px-4 py-2 bg-green-500 text-white rounded-xl font-semibold hover:opacity-90 transition-opacity flex items-center justify-center gap-2"
-                        disabled={processing}
-                      >
-                        {processing ? (
-                          <>
-                            <Loader2 className="w-4 h-4 animate-spin" />
-                            İşleniyor...
-                          </>
-                        ) : (
-                          <>
-                            <DollarSign className="w-4 h-4" />
-                            Para İadesi Yap
-                          </>
-                        )}
-                      </button>
-                    )}
-
-                    {returnReq.seller_response && (
-                      <div className="glass border border-border rounded-xl p-4 mt-4">
-                        <p className="text-sm font-semibold mb-2">Satıcı Yanıtı</p>
-                        <p className="text-sm text-muted-foreground">{returnReq.seller_response}</p>
-                      </div>
-                    )}
                   </div>
-                )
-              })}
-            </div>
-          )}
+                )}
+              </div>
+            )
+          })}
         </div>
-      </section>
+      )}
     </div>
   )
 }
